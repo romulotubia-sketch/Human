@@ -1,4 +1,4 @@
-import { X } from 'lucide-react';
+import { Swords, X } from 'lucide-react';
 import { soundEngine } from '../audio/soundEngine';
 import { GameSettings } from '../types/game';
 
@@ -12,6 +12,7 @@ interface SettingsModalProps {
   onToggleFullscreen: () => void;
   onReturnToGuild: () => void;
   onReturnToLobby: () => void;
+  onOpenMultiplayer?: () => void;
   onLeaveMultiplayer?: () => void;
   onClose: () => void;
 }
@@ -26,6 +27,7 @@ export function SettingsModal({
   onToggleFullscreen,
   onReturnToGuild,
   onReturnToLobby,
+  onOpenMultiplayer,
   onLeaveMultiplayer,
   onClose,
 }: SettingsModalProps) {
@@ -199,10 +201,25 @@ export function SettingsModal({
                 soundEngine.playUiTap();
                 onReturnToLobby();
               }}
-              className="min-h-[42px] w-full items-center justify-center rounded-xl bg-amber-400 px-4 py-2 text-xs font-bold text-stone-950 shadow-md transition-transform hover:bg-amber-300 active:scale-95"
+              className="min-h-[42px] w-full items-center justify-center whitespace-nowrap rounded-xl bg-amber-400 px-4 py-2 text-xs font-bold text-stone-950 shadow-md transition-transform hover:bg-amber-300 active:scale-95"
             >
               Return to Lobby
             </button>
+
+            {!isMultiplayer && onOpenMultiplayer && (
+              <button
+                type="button"
+                onClick={() => {
+                  soundEngine.unlock();
+                  soundEngine.playUiTap();
+                  onOpenMultiplayer();
+                }}
+                className="flex min-h-[40px] w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-amber-400/70 bg-amber-500/20 px-4 py-2 text-xs font-bold text-amber-200 transition-colors hover:bg-amber-500/30 active:scale-95"
+              >
+                <Swords className="h-4 w-4 text-amber-300" />
+                <span>Co-Op Multiplayer</span>
+              </button>
+            )}
 
             {isDungeon && !isMultiplayer && (
               <button

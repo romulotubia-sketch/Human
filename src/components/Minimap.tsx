@@ -42,15 +42,19 @@ export function Minimap({ minimap, heroId, floor }: MinimapProps) {
   const unit = Math.max(vbW, vbH) / 42;
 
   const heroColor =
-    heroId === 'human'
-      ? '#fb923c'
-      : heroId === 'ghost'
-        ? '#818cf8'
-        : heroId === 'ghoul'
-          ? '#fb7185'
-          : heroId === 'zombie'
-            ? '#a3e635'
-            : '#67e8f9';
+    heroId === 'tigerkin'
+      ? '#f59e0b'
+      : heroId === 'eaglekin'
+        ? '#38bdf8'
+        : heroId === 'human'
+          ? '#fb923c'
+          : heroId === 'ghost'
+            ? '#818cf8'
+            : heroId === 'ghoul'
+              ? '#fb7185'
+              : heroId === 'zombie'
+                ? '#a3e635'
+                : '#67e8f9';
 
   const cos = Math.cos(minimap.playerFacing);
   const sin = Math.sin(minimap.playerFacing);
@@ -237,15 +241,19 @@ export function Minimap({ minimap, heroId, floor }: MinimapProps) {
           minimap.teammates.map((tm) => {
             const tmColor = tm.isDowned
               ? '#ef4444'
-              : tm.heroId === 'human'
-                ? '#fb923c'
-                : tm.heroId === 'ghost'
-                  ? '#818cf8'
-                  : tm.heroId === 'ghoul'
-                    ? '#fb7185'
-                    : tm.heroId === 'zombie'
-                      ? '#a3e635'
-                      : '#67e8f9';
+              : tm.heroId === 'tigerkin'
+                ? '#f59e0b'
+                : tm.heroId === 'eaglekin'
+                  ? '#38bdf8'
+                  : tm.heroId === 'human'
+                    ? '#fb923c'
+                    : tm.heroId === 'ghost'
+                      ? '#818cf8'
+                      : tm.heroId === 'ghoul'
+                        ? '#fb7185'
+                        : tm.heroId === 'zombie'
+                          ? '#a3e635'
+                          : '#67e8f9';
             return (
               <g key={`tm_${tm.id}`}>
                 <circle

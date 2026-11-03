@@ -12,6 +12,7 @@ import {
   Crosshair,
   Activity,
   RotateCcw,
+  Target,
   Users,
 } from 'lucide-react';
 import { soundEngine } from '../audio/soundEngine';
@@ -54,6 +55,8 @@ export function BlessingsTrayModal({
         return <Activity className={className} />;
       case 'RotateCcw':
         return <RotateCcw className={className} />;
+      case 'Target':
+        return <Target className={className} />;
       case 'Users':
         return <Users className={className} />;
       default:
@@ -117,8 +120,9 @@ export function BlessingsTrayModal({
                   className="flex items-start gap-3 rounded-xl border border-stone-800/80 bg-stone-950/60 p-3 shadow-sm hover:border-stone-700"
                 >
                   <div
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-stone-700/80 bg-stone-900"
-                    style={{ color: blessing.glowColor }}
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-stone-700/80 bg-stone-900 ${
+                      isEnhancement ? 'text-amber-300' : 'text-violet-300'
+                    }`}
                   >
                     {renderIcon(blessing.iconName, 'h-5 w-5')}
                   </div>

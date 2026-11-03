@@ -12,6 +12,7 @@ import {
   Crosshair,
   Activity,
   RotateCcw,
+  Target,
   Users,
   X,
 } from 'lucide-react';
@@ -80,6 +81,8 @@ export function BlessingSelectionModal({
         return <Activity className={className} />;
       case 'RotateCcw':
         return <RotateCcw className={className} />;
+      case 'Target':
+        return <Target className={className} />;
       case 'Users':
         return <Users className={className} />;
       default:
@@ -165,8 +168,9 @@ export function BlessingSelectionModal({
                 <div className="my-1 flex min-h-0 flex-1 flex-col justify-center">
                   <div className="flex items-center gap-2">
                     <div
-                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-stone-700/80 bg-stone-900 shadow-inner"
-                      style={{ color: blessing.glowColor || '#fde047' }}
+                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-stone-700/80 bg-stone-900 shadow-inner ${
+                        isEnhancement ? 'text-amber-300' : 'text-violet-300'
+                      }`}
                     >
                       {renderIcon(blessing.iconName, 'h-4 w-4')}
                     </div>

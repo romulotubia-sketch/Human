@@ -1,6 +1,7 @@
 import { ArrowLeft, Copy, Globe, Play, Plus, RefreshCw, Sparkles, Users } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { soundEngine } from '../audio/soundEngine';
+import { HERO_PROFILES, HERO_SKILLS } from '../data/heroSkills';
 import { HeroId, SkillLoadout } from '../types/game';
 import { RoomDetails } from '../types/multiplayer';
 
@@ -9,6 +10,7 @@ interface MultiplayerMenuModalProps {
   heroId: HeroId;
   loadout: SkillLoadout;
   onPlayerNameChange: (name: string) => void;
+  onSelectHero?: (heroId: HeroId) => void;
   onCreateRoom: () => void;
   onJoinRoom: (code: string) => void;
   onQuickJoin: () => void;
@@ -17,11 +19,22 @@ interface MultiplayerMenuModalProps {
   isLoading?: boolean;
 }
 
+const ALL_HERO_IDS: HeroId[] = [
+  'human',
+  'skeleton',
+  'zombie',
+  'ghoul',
+  'ghost',
+  'tigerkin',
+  'eaglekin',
+];
+
 export function MultiplayerMenuModal({
   playerName,
   heroId,
   loadout,
   onPlayerNameChange,
+  onSelectHero,
   onCreateRoom,
   onJoinRoom,
   onQuickJoin,
@@ -172,6 +185,40 @@ export function MultiplayerMenuModal({
                 Create a lobby, share the 4-letter room code with your friends or play with anyone who joins.
                 Supports 2 to 4 players simultaneously!
               </p>
+
+              {onSelectHero && (
+                <div className="mt-3 flex flex-wrap items-center justify-center gap-1.5">
+                  {ALL_HERO_IDS.map((hId) => {
+                    const selected = heroId === hId;
+                    return (
+                      <button
+                        key={hId}
+                        type="button"
+                        onClick={() => {
+                          soundEngine.unlock();
+                          soundEngine.playUiTap();
+                          onSelectHero(hId);
+                        }}
+                        className={`rounded-lg border px-2.5 py-1 text-[11px] font-bold transition-all active:scale-95 ${
+                          selected
+                            ? 'border-amber-400 bg-amber-400/20 text-amber-200'
+                            : 'border-stone-800 bg-stone-900/90 text-stone-400 hover:bg-stone-800 hover:text-stone-200'
+                        }`}
+                      >
+                        {HERO_PROFILES[hId].name}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div className="mt-2.5 inline-flex items-center gap-2 rounded-xl border border-stone-700/80 bg-stone-900/90 px-3 py-1.5 text-xs text-stone-300">
+                <span className="font-semibold text-amber-300">{HERO_PROFILES[heroId].name}</span>
+                <span aria-hidden="true" className="text-stone-600">·</span>
+                <span className="text-stone-400">
+                  {HERO_SKILLS[loadout[0]].name} / {HERO_SKILLS[loadout[1]].name} / {HERO_SKILLS[loadout[2]].name}
+                </span>
+              </div>
 
               <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
                 <button

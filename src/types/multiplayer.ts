@@ -60,6 +60,13 @@ export interface RemotePlayerSyncState {
   lastStandTimer: number;
   oneManArmyTimer: number;
   airborneHeight: number;
+  wingFlapTimer?: number;
+  rainOfFeathersTimer?: number;
+  celestialBarrageTimer?: number;
+  celestialBarrageWings?: number;
+  wrathSkyTimer?: number;
+  kingOfBeastsTimer?: number;
+  tigerRoarTimer?: number;
   isDowned: boolean;
   reviveProgress: number;
   frenzyStacks?: number;

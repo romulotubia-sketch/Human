@@ -400,9 +400,18 @@ export class RoomManager {
       if (typeof partialState.possessingTimer === 'number') p.state.possessingTimer = partialState.possessingTimer;
       if (typeof partialState.nightmareTimer === 'number') p.state.nightmareTimer = partialState.nightmareTimer;
       if (typeof partialState.pipeThrown === 'boolean') p.state.pipeThrown = partialState.pipeThrown;
+      if (typeof partialState.kneeStrikeTimer === 'number') p.state.kneeStrikeTimer = partialState.kneeStrikeTimer;
+      if (typeof partialState.frenzyStacks === 'number') p.state.frenzyStacks = partialState.frenzyStacks;
       if (typeof partialState.lastStandTimer === 'number') p.state.lastStandTimer = partialState.lastStandTimer;
       if (typeof partialState.oneManArmyTimer === 'number') p.state.oneManArmyTimer = partialState.oneManArmyTimer;
       if (typeof partialState.airborneHeight === 'number') p.state.airborneHeight = partialState.airborneHeight;
+      if (typeof partialState.wingFlapTimer === 'number') p.state.wingFlapTimer = partialState.wingFlapTimer;
+      if (typeof partialState.rainOfFeathersTimer === 'number') p.state.rainOfFeathersTimer = partialState.rainOfFeathersTimer;
+      if (typeof partialState.celestialBarrageTimer === 'number') p.state.celestialBarrageTimer = partialState.celestialBarrageTimer;
+      if (typeof partialState.celestialBarrageWings === 'number') p.state.celestialBarrageWings = partialState.celestialBarrageWings;
+      if (typeof partialState.wrathSkyTimer === 'number') p.state.wrathSkyTimer = partialState.wrathSkyTimer;
+      if (typeof partialState.kingOfBeastsTimer === 'number') p.state.kingOfBeastsTimer = partialState.kingOfBeastsTimer;
+      if (typeof partialState.tigerRoarTimer === 'number') p.state.tigerRoarTimer = partialState.tigerRoarTimer;
     } else {
       p.state.vx = 0;
       p.state.vy = 0;
@@ -460,11 +469,20 @@ export class RoomManager {
       skillData.skillId === 'predators_leap' ||
       skillData.skillId === 'shadow_stalker' ||
       skillData.skillId === 'carnage_unleashed' ||
-      skillData.skillId === 'one_man_army'
+      skillData.skillId === 'one_man_army' ||
+      skillData.skillId === 'windstep' ||
+      skillData.skillId === 'predators_pounce' ||
+      skillData.skillId === 'savage_pursuit' ||
+      skillData.skillId === 'apex_devastation'
     ) {
-      p.invulnerableTimer = Math.max(p.invulnerableTimer, 0.42);
+      p.invulnerableTimer = Math.max(p.invulnerableTimer, 0.45);
     } else if (skillData.skillId === 'haunted_possession') {
       p.invulnerableTimer = Math.max(p.invulnerableTimer, 2.5);
+    } else if (
+      skillData.skillId === 'rain_of_feathers' ||
+      skillData.skillId === 'wrath_of_the_sky'
+    ) {
+      p.invulnerableTimer = Math.max(p.invulnerableTimer, 1.2);
     }
 
     this.broadcast(

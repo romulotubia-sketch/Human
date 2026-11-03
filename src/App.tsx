@@ -122,9 +122,15 @@ export default function App() {
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
   const [multiplayerError, setMultiplayerError] = useState<string | null>(null);
   const [isMultiplayerLoading, setIsMultiplayerLoading] = useState<boolean>(false);
+  const [multiplayerReturnPhase, setMultiplayerReturnPhase] = useState<GamePhase>(GamePhase.TITLE);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const engineRef = useRef<GameEngine | null>(null);
+  const multiplayerReplacedMapRef = useRef<boolean>(false);
+  const pausedRef = useRef<boolean>(false);
+  pausedRef.current =
+    (showSkillTree || showSettings || Boolean(blessingOptions) || showBlessingsTray) &&
+    !isMultiplayer;
 
   if (!engineRef.current) {
     engineRef.current = new GameEngine(
@@ -161,14 +167,33 @@ export default function App() {
       onLobbyUpdate: (room) => {
         setRoomDetails(room);
         setIsMultiplayerLoading(false);
+        const localId = multiplayerClient.getLocalPlayerId();
+        const me = room.players.find((p) => p.id === localId);
+        if (me && HERO_PROFILES[me.heroId]) {
+          setHeroId(me.heroId);
+          engineRef.current?.setHero(me.heroId);
+          if (Array.isArray(me.loadout) && me.loadout.length === 3) {
+            setLoadoutsByHero((prev) => ({
+              ...prev,
+              [me.heroId]: me.loadout,
+            }));
+          }
+        }
         if (room.status === 'lobby') {
           setPhase(GamePhase.MULTIPLAYER_LOBBY);
         }
       },
       onGameStart: ({ floor, map, enemies, players }) => {
+        multiplayerReplacedMapRef.current = true;
         setIsMultiplayer(true);
         setIsMultiplayerLoading(false);
         setVictoryDismissed(false);
+        const localId = multiplayerClient.getLocalPlayerId();
+        const me = players.find((p) => p.id === localId);
+        if (me && HERO_PROFILES[me.heroId]) {
+          setHeroId(me.heroId);
+          engineRef.current?.setHero(me.heroId);
+        }
         engineRef.current?.startMultiplayerGame(floor, map, enemies, players);
         setPhase(GamePhase.DUNGEON);
       },
@@ -241,6 +266,7 @@ export default function App() {
         engineRef.current?.handleRemoteNextFloor(floor, map, enemies);
       },
       onFullStateSync: (state) => {
+        multiplayerReplacedMapRef.current = true;
         setIsMultiplayer(true);
         setIsMultiplayerLoading(false);
         const localId = multiplayerClient.getLocalPlayerId();
@@ -372,9 +398,7 @@ export default function App() {
       const dt = (now - lastTime) / 1000;
       lastTime = now;
 
-      const paused =
-        (showSkillTree || showSettings || Boolean(blessingOptions) || showBlessingsTray) &&
-        !isMultiplayer;
+      const paused = pausedRef.current;
       const { w, h } = getGameViewportSize();
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
@@ -399,7 +423,7 @@ export default function App() {
       cancelAnimationFrame(animId);
       window.removeEventListener('resize', syncCanvasSize);
     };
-  }, [phase, showSkillTree, showSettings, settings.landscapeLock]);
+  }, [phase, settings.landscapeLock]);
 
   const handleEnterGameFromTitle = () => {
     setIsMultiplayer(false);
@@ -444,6 +468,36 @@ export default function App() {
     multiplayerClient.startGame();
   };
 
+  const handleOpenMultiplayerMenu = (returnPhase: GamePhase) => {
+    setShowSettings(false);
+    setShowSkillTree(false);
+    setShowBlessingsTray(false);
+    setMultiplayerError(null);
+    setIsMultiplayerLoading(false);
+    setMultiplayerReturnPhase(returnPhase);
+    setPhase(GamePhase.MULTIPLAYER_MENU);
+  };
+
+  const handleBackFromMultiplayerMenu = () => {
+    setMultiplayerError(null);
+    setIsMultiplayerLoading(false);
+    if (
+      multiplayerReplacedMapRef.current &&
+      (multiplayerReturnPhase === GamePhase.GUILD_HOUSE ||
+        multiplayerReturnPhase === GamePhase.DUNGEON)
+    ) {
+      multiplayerReplacedMapRef.current = false;
+      if (engineRef.current) {
+        engineRef.current.setHero(heroId);
+        engineRef.current.enterGuildHouse();
+      } else {
+        setPhase(GamePhase.GUILD_HOUSE);
+      }
+      return;
+    }
+    setPhase(multiplayerReturnPhase);
+  };
+
   const handleLeaveMultiplayerRoom = () => {
     multiplayerClient.leaveRoom();
     engineRef.current?.leaveMultiplayerGame();
@@ -459,6 +513,7 @@ export default function App() {
   };
 
   const handleConfirmHero = () => {
+    multiplayerReplacedMapRef.current = false;
     const engine = engineRef.current;
     if (engine) {
       engine.setHero(heroId);
@@ -580,7 +635,7 @@ export default function App() {
                 onClick={handleEnterGameFromTitle}
                 className="min-h-[46px] whitespace-nowrap rounded-xl bg-amber-400 px-7 py-2.5 text-base font-bold text-stone-950 shadow-xl transition-transform duration-150 hover:bg-amber-300 active:scale-95"
               >
-                Enter Game (Solo)
+                Solo Journey
               </button>
 
               <button
@@ -588,7 +643,7 @@ export default function App() {
                 onClick={() => {
                   soundEngine.unlock();
                   soundEngine.playUiTap();
-                  setPhase(GamePhase.MULTIPLAYER_MENU);
+                  handleOpenMultiplayerMenu(GamePhase.TITLE);
                 }}
                 className="flex min-h-[46px] items-center gap-2 whitespace-nowrap rounded-xl border border-amber-400/80 bg-amber-500/20 px-6 py-2.5 text-base font-bold text-amber-200 shadow-xl backdrop-blur-md transition-transform duration-150 hover:bg-amber-500/30 active:scale-95"
               >
@@ -610,7 +665,7 @@ export default function App() {
             </div>
 
             <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-xs text-stone-400">
-              <span>Human · Skeleton · Zombie · Ghoul · Ghost</span>
+              <span>Human · Skeleton · Zombie · Ghoul · Ghost · Eaglekin · Tigerkin</span>
               <span aria-hidden="true">·</span>
               <span>Online 2-4 Players Co-Op</span>
               <span aria-hidden="true">·</span>
@@ -627,10 +682,11 @@ export default function App() {
           heroId={heroId}
           loadout={activeLoadout}
           onPlayerNameChange={handlePlayerNameChange}
+          onSelectHero={handleSelectHero}
           onCreateRoom={handleCreateRoom}
           onJoinRoom={handleJoinRoom}
           onQuickJoin={handleQuickJoin}
-          onBack={() => setPhase(GamePhase.TITLE)}
+          onBack={handleBackFromMultiplayerMenu}
           errorMessage={multiplayerError}
           isLoading={isMultiplayerLoading}
         />
@@ -645,13 +701,24 @@ export default function App() {
           localHeroId={heroId}
           localLoadout={activeLoadout}
           onSelectHero={(h) => {
+            const targetLoadout = loadoutsByHero[h] || [...HERO_PROFILES[h].defaultLoadout];
             handleSelectHero(h);
-            multiplayerClient.setHero(h, loadoutsByHero[h]);
+            multiplayerClient.setHero(h, targetLoadout);
           }}
           onSelectNormalSkill={(skId) => {
             const cur = loadoutsByHero[heroId];
             if (cur[0] === skId || cur[1] === skId) return;
             const next: SkillLoadout = [cur[1], skId, cur[2]];
+            setLoadoutsByHero((prev) => ({ ...prev, [heroId]: next }));
+            multiplayerClient.setHero(heroId, next);
+          }}
+          onSetNormalSlot={(slotIdx, skId) => {
+            const next: SkillLoadout = [...loadoutsByHero[heroId]];
+            const otherSlot = slotIdx === 0 ? 1 : 0;
+            if (next[otherSlot] === skId) {
+              next[otherSlot] = next[slotIdx];
+            }
+            next[slotIdx] = skId;
             setLoadoutsByHero((prev) => ({ ...prev, [heroId]: next }));
             multiplayerClient.setHero(heroId, next);
           }}
@@ -692,6 +759,7 @@ export default function App() {
           onSelectUltimateSkill={handleSetUltimateSlot}
           onToggleFullscreen={handleToggleFullscreen}
           onConfirmHero={handleConfirmHero}
+          onOpenMultiplayer={() => handleOpenMultiplayerMenu(GamePhase.HERO_SELECT)}
           onOpenSettings={() => setShowSettings(true)}
         />
       )}
@@ -738,15 +806,19 @@ export default function App() {
                   width={hpBarWidth}
                   height="8"
                   fill={
-                    heroId === 'human'
-                      ? '#fb923c'
-                      : heroId === 'ghost'
-                        ? '#818cf8'
-                        : heroId === 'ghoul'
-                          ? '#f43f5e'
-                          : heroId === 'zombie'
-                            ? '#84cc16'
-                            : '#10b981'
+                    heroId === 'tigerkin'
+                      ? '#f59e0b'
+                      : heroId === 'eaglekin'
+                        ? '#38bdf8'
+                        : heroId === 'human'
+                          ? '#fb923c'
+                          : heroId === 'ghost'
+                            ? '#818cf8'
+                            : heroId === 'ghoul'
+                              ? '#f43f5e'
+                              : heroId === 'zombie'
+                                ? '#84cc16'
+                                : '#10b981'
                   }
                 />
                 {hud.shield > 0 && (
@@ -820,6 +892,21 @@ export default function App() {
                 <Minimap minimap={hud.minimap} heroId={heroId} floor={hud.floor} />
               )}
 
+              {phase === GamePhase.GUILD_HOUSE && !isMultiplayer && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    soundEngine.unlock();
+                    soundEngine.playUiTap();
+                    handleOpenMultiplayerMenu(GamePhase.GUILD_HOUSE);
+                  }}
+                  className="flex min-h-[42px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl border border-amber-400/75 bg-amber-500/20 px-3 py-2 text-xs font-bold text-amber-100 backdrop-blur-md transition-colors hover:bg-amber-500/30 active:scale-95"
+                >
+                  <Swords className="h-4 w-4 text-amber-300" />
+                  <span>Multiplayer</span>
+                </button>
+              )}
+
               {phase === GamePhase.GUILD_HOUSE && (
                 <button
                   type="button"
@@ -827,7 +914,7 @@ export default function App() {
                     soundEngine.playUiTap();
                     setPhase(GamePhase.HERO_SELECT);
                   }}
-                  className="flex min-h-[42px] items-center gap-1.5 whitespace-nowrap rounded-xl border border-stone-700/80 bg-stone-950/85 px-3 py-2 text-xs font-semibold text-stone-200 backdrop-blur-md active:scale-95"
+                  className="flex min-h-[42px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl border border-stone-700/80 bg-stone-950/85 px-3 py-2 text-xs font-semibold text-stone-200 backdrop-blur-md active:scale-95"
                 >
                   <Users className="h-4 w-4 text-amber-200" />
                   <span className="hidden sm:inline">Heroes</span>
@@ -841,28 +928,36 @@ export default function App() {
                   setShowSkillTree(true);
                 }}
                 className={`flex min-h-[42px] items-center gap-1.5 whitespace-nowrap rounded-xl border bg-stone-950/85 px-3 py-2 text-xs font-semibold backdrop-blur-md active:scale-95 ${
-                  heroId === 'human'
-                    ? 'border-orange-400/65 text-orange-100'
-                    : heroId === 'ghost'
-                      ? 'border-indigo-400/65 text-indigo-100'
-                      : heroId === 'ghoul'
-                        ? 'border-rose-400/65 text-rose-100'
-                        : heroId === 'zombie'
-                          ? 'border-lime-400/60 text-lime-100'
-                          : 'border-cyan-400/60 text-cyan-100'
+                  heroId === 'tigerkin'
+                    ? 'border-amber-400/65 text-amber-100'
+                    : heroId === 'eaglekin'
+                      ? 'border-sky-400/65 text-sky-100'
+                      : heroId === 'human'
+                        ? 'border-orange-400/65 text-orange-100'
+                        : heroId === 'ghost'
+                          ? 'border-indigo-400/65 text-indigo-100'
+                          : heroId === 'ghoul'
+                            ? 'border-rose-400/65 text-rose-100'
+                            : heroId === 'zombie'
+                              ? 'border-lime-400/60 text-lime-100'
+                              : 'border-cyan-400/60 text-cyan-100'
                 }`}
               >
                 <Sparkles
                   className={`h-4 w-4 ${
-                    heroId === 'human'
-                      ? 'text-orange-300'
-                      : heroId === 'ghost'
-                        ? 'text-indigo-300'
-                        : heroId === 'ghoul'
-                          ? 'text-rose-400'
-                          : heroId === 'zombie'
-                            ? 'text-lime-300'
-                            : 'text-cyan-300'
+                    heroId === 'tigerkin'
+                      ? 'text-amber-300'
+                      : heroId === 'eaglekin'
+                        ? 'text-sky-300'
+                        : heroId === 'human'
+                          ? 'text-orange-300'
+                          : heroId === 'ghost'
+                            ? 'text-indigo-300'
+                            : heroId === 'ghoul'
+                              ? 'text-rose-400'
+                              : heroId === 'zombie'
+                                ? 'text-lime-300'
+                                : 'text-cyan-300'
                   }`}
                 />
                 <span>
@@ -1077,6 +1172,7 @@ export default function App() {
             if (isMultiplayer) {
               handleLeaveMultiplayerRoom();
             } else {
+              multiplayerReplacedMapRef.current = false;
               engineRef.current?.enterGuildHouse();
               engineRef.current?.resetRunProgression();
               setSkillRanks(createInitialSkillRanks());
@@ -1084,6 +1180,15 @@ export default function App() {
             setShowSettings(false);
             setPhase(GamePhase.HERO_SELECT);
           }}
+          onOpenMultiplayer={() =>
+            handleOpenMultiplayerMenu(
+              phase === GamePhase.GUILD_HOUSE ||
+                phase === GamePhase.DUNGEON ||
+                phase === GamePhase.HERO_SELECT
+                ? phase
+                : GamePhase.TITLE
+            )
+          }
           onLeaveMultiplayer={handleLeaveMultiplayerRoom}
           onClose={() => setShowSettings(false)}
         />

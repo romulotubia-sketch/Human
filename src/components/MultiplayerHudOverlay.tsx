@@ -55,15 +55,19 @@ export function MultiplayerHudOverlay({
                   className={`flex h-6 w-6 items-center justify-center rounded-lg text-[10px] font-bold ${
                     isDown
                       ? 'bg-red-500 text-white'
-                      : tm.heroId === 'human'
-                        ? 'bg-orange-500/25 text-orange-200'
-                        : tm.heroId === 'ghost'
-                          ? 'bg-indigo-500/25 text-indigo-200'
-                          : tm.heroId === 'ghoul'
-                            ? 'bg-rose-500/25 text-rose-200'
-                            : tm.heroId === 'zombie'
-                              ? 'bg-lime-500/25 text-lime-200'
-                              : 'bg-cyan-500/25 text-cyan-200'
+                      : tm.heroId === 'tigerkin'
+                        ? 'bg-amber-500/25 text-amber-200'
+                        : tm.heroId === 'eaglekin'
+                          ? 'bg-sky-500/25 text-sky-200'
+                          : tm.heroId === 'human'
+                            ? 'bg-orange-500/25 text-orange-200'
+                            : tm.heroId === 'ghost'
+                              ? 'bg-indigo-500/25 text-indigo-200'
+                              : tm.heroId === 'ghoul'
+                                ? 'bg-rose-500/25 text-rose-200'
+                                : tm.heroId === 'zombie'
+                                  ? 'bg-lime-500/25 text-lime-200'
+                                  : 'bg-cyan-500/25 text-cyan-200'
                   }`}
                 >
                   {tm.name.slice(0, 2).toUpperCase()}

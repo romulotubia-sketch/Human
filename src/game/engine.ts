@@ -1031,15 +1031,19 @@ export class GameEngine {
   ): RemotePlayerRenderState {
     const baseHp = HERO_PROFILES[heroId]?.baseHp || 240;
     const glow =
-      heroId === 'human'
-        ? '#fb923c'
-        : heroId === 'ghost'
-          ? '#818cf8'
-          : heroId === 'ghoul'
-            ? '#fb7185'
-            : heroId === 'zombie'
-              ? '#a3e635'
-              : '#67e8f9';
+      heroId === 'tigerkin'
+        ? '#f59e0b'
+        : heroId === 'eaglekin'
+          ? '#38bdf8'
+          : heroId === 'human'
+            ? '#fb923c'
+            : heroId === 'ghost'
+              ? '#818cf8'
+              : heroId === 'ghoul'
+                ? '#fb7185'
+                : heroId === 'zombie'
+                  ? '#a3e635'
+                  : '#67e8f9';
     return {
       id,
       name,
@@ -1130,6 +1134,10 @@ export class GameEngine {
       const sx = dungeonMap.spawnX + Math.cos(angle) * 28;
       const sy = dungeonMap.spawnY + Math.sin(angle) * 20;
       if (p.id === localId) {
+        if (p.heroId && p.heroId !== this.heroId) {
+          this.heroId = p.heroId;
+          this.player.heroId = p.heroId;
+        }
         this.syncHeroBaseStats();
         this.recalcStats(true);
         this.player.shield = 0;
@@ -1283,6 +1291,13 @@ export class GameEngine {
       rp.lastStandTimer = state.lastStandTimer || 0;
       rp.oneManArmyTimer = state.oneManArmyTimer || 0;
       rp.airborneHeight = state.airborneHeight || 0;
+      rp.wingFlapTimer = state.wingFlapTimer || 0;
+      rp.rainOfFeathersTimer = state.rainOfFeathersTimer || 0;
+      rp.celestialBarrageTimer = state.celestialBarrageTimer || 0;
+      rp.celestialBarrageWings = state.celestialBarrageWings || 0;
+      rp.wrathSkyTimer = state.wrathSkyTimer || 0;
+      rp.kingOfBeastsTimer = state.kingOfBeastsTimer || 0;
+      rp.tigerRoarTimer = state.tigerRoarTimer || 0;
     }
 
     for (const existingId of Array.from(this.remotePlayers.keys())) {
@@ -1547,6 +1562,70 @@ export class GameEngine {
           '#fef08a',
           '#f59e0b'
         );
+      }
+    } else if (rp.heroId === 'eaglekin') {
+      const spawnX = data.x + Math.cos(data.facing) * 16;
+      const spawnY = data.y - 10 + Math.sin(data.facing) * 16;
+      const eagleRange = data.reach || 340;
+      rp.wingFlapTimer = 0.24;
+      soundEngine.playWingFlap(data.comboStep === 3 ? 0.95 : 1.15);
+      soundEngine.playFeatherShoot(data.comboStep === 3 ? 0.88 : 1.05);
+
+      if (data.comboStep === 1) {
+        this.spawnProjectile({
+          fromPlayer: true,
+          visualOnly: true,
+          kind: 'feather_shot',
+          x: spawnX,
+          y: spawnY,
+          vx: Math.cos(data.facing) * 640,
+          vy: Math.sin(data.facing) * 640,
+          angle: data.facing,
+          radius: 14,
+          damage: 0,
+          isCrit: false,
+          pierce: false,
+          maxLife: eagleRange / 640 + 0.1,
+          color: '#38bdf8',
+        });
+      } else if (data.comboStep === 2) {
+        for (const sign of [-1, 1]) {
+          const fAng = data.facing + sign * 0.08;
+          this.spawnProjectile({
+            fromPlayer: true,
+            visualOnly: true,
+            kind: 'double_feather',
+            x: spawnX + Math.cos(fAng + Math.PI / 2) * (sign * 6),
+            y: spawnY + Math.sin(fAng + Math.PI / 2) * (sign * 6),
+            vx: Math.cos(fAng) * 660,
+            vy: Math.sin(fAng) * 660,
+            angle: fAng,
+            radius: 13,
+            damage: 0,
+            isCrit: false,
+            pierce: true,
+            maxLife: eagleRange / 660 + 0.1,
+            color: '#0284c7',
+          });
+        }
+      } else {
+        this.spawnProjectile({
+          fromPlayer: true,
+          visualOnly: true,
+          kind: 'piercing_feather',
+          x: spawnX,
+          y: spawnY,
+          vx: Math.cos(data.facing) * 780,
+          vy: Math.sin(data.facing) * 780,
+          angle: data.facing,
+          radius: 22,
+          damage: 0,
+          isCrit: false,
+          pierce: true,
+          maxLife: eagleRange / 780 + 0.12,
+          color: '#e0f2fe',
+        });
+        this.spawnRingEffect(spawnX, spawnY, 32, '#e0f2fe');
       }
     } else {
       soundEngine.playSlash(1.04);
@@ -5283,6 +5362,16 @@ export class GameEngine {
         this.spawnArcBurst(spawnX, spawnY, this.player.facing, 44, '#38bdf8', 12);
         this.spawnRingEffect(spawnX, spawnY, 32, '#e0f2fe');
       }
+
+      if (this.isMultiplayer) {
+        multiplayerClient.sendAttack({
+          comboStep: this.comboStep,
+          facing: this.player.facing,
+          x: this.player.x,
+          y: this.player.y,
+          reach: eagleRange,
+        });
+      }
       return;
     }
 
@@ -5403,13 +5492,13 @@ export class GameEngine {
       }
 
       if (this.isMultiplayer) {
-        multiplayerClient.sendAttack(
-          this.comboStep,
-          this.player.facing,
-          this.player.x,
-          this.player.y,
-          tigerReach
-        );
+        multiplayerClient.sendAttack({
+          comboStep: this.comboStep,
+          facing: this.player.facing,
+          x: this.player.x,
+          y: this.player.y,
+          reach: tigerReach,
+        });
       }
       return;
     }
@@ -5832,6 +5921,13 @@ export class GameEngine {
         lastStandTimer: this.player.lastStandTimer,
         oneManArmyTimer: this.player.oneManArmyTimer,
         airborneHeight: this.player.airborneHeight,
+        wingFlapTimer: this.player.wingFlapTimer || 0,
+        rainOfFeathersTimer: this.player.rainOfFeathersTimer || 0,
+        celestialBarrageTimer: this.player.celestialBarrageTimer || 0,
+        celestialBarrageWings: this.player.celestialBarrageWings || 0,
+        wrathSkyTimer: this.player.wrathSkyTimer || 0,
+        kingOfBeastsTimer: this.player.kingOfBeastsTimer || 0,
+        tigerRoarTimer: this.player.tigerRoarTimer || 0,
         isDowned: this.localIsDowned,
       });
 
@@ -7185,7 +7281,7 @@ export class GameEngine {
 
       if (this.apexDevastationTimer <= 0) {
         this.player.airborneHeight = 0;
-        this.apexDevastationState = 'idle';
+        this.apexDevastationState = 'none';
 
         soundEngine.playFeralClaw(0.82, true);
         soundEngine.playTigerRoar(1.15);
@@ -10149,7 +10245,7 @@ export class GameEngine {
       return atk;
     }
     if (this.heroId === 'tigerkin') {
-      if (this.player.kingOfBeastsTimer > 0) atk *= 1.45;
+      if ((this.player.kingOfBeastsTimer ?? 0) > 0) atk *= 1.45;
       if (this.player.feralMomentumStacks && this.player.feralMomentumStacks > 0) {
         const momRank = Math.max(1, this.skillRanks.feral_momentum || 1);
         atk *= 1 + this.player.feralMomentumStacks * (0.05 + (momRank - 1) * 0.01);
@@ -10197,7 +10293,7 @@ export class GameEngine {
     } else if (this.heroId === 'tigerkin') {
       const instRank = Math.max(1, this.skillRanks.predators_instinct || 1);
       critChance = 0.28 + (instRank - 1) * 0.04 + bonusCritChance;
-      if (this.player.kingOfBeastsTimer > 0) critChance += 0.25;
+      if ((this.player.kingOfBeastsTimer ?? 0) > 0) critChance += 0.25;
       critMult = 1.8 + (instRank - 1) * 0.08;
     }
     let blessingCrit = 0;

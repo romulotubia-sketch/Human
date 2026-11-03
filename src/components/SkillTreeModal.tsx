@@ -40,6 +40,8 @@ export function SkillTreeModal({
   const isZombie = heroId === 'zombie';
   const isGhoul = heroId === 'ghoul';
   const isGhost = heroId === 'ghost';
+  const isEaglekin = heroId === 'eaglekin';
+  const isTigerkin = heroId === 'tigerkin';
 
   const [activeTab, setActiveTab] = useState<'loadout' | 'upgrades'>('loadout');
   const [selectedId, setSelectedId] = useState<SkillId>(loadout[0]);
@@ -117,15 +119,19 @@ export function SkillTreeModal({
               <div className="flex items-center justify-between gap-2">
                 <span
                   className={`text-xs font-semibold ${
-                    isHuman
-                      ? 'text-orange-200'
-                      : isGhost
-                        ? 'text-indigo-200'
-                        : isGhoul
-                          ? 'text-rose-200'
-                          : isZombie
-                            ? 'text-lime-200'
-                            : 'text-cyan-200'
+                    isTigerkin
+                      ? 'text-amber-200'
+                      : isEaglekin
+                        ? 'text-sky-200'
+                        : isHuman
+                          ? 'text-orange-200'
+                          : isGhost
+                            ? 'text-indigo-200'
+                            : isGhoul
+                              ? 'text-rose-200'
+                              : isZombie
+                                ? 'text-lime-200'
+                                : 'text-cyan-200'
                   }`}
                 >
                   Normal Skills — Tap to Equip in Slot 1 or 2
@@ -153,15 +159,19 @@ export function SkillTreeModal({
                       }}
                       className={`flex h-10 items-center justify-between gap-1.5 rounded-lg border px-2 text-left transition-colors ${
                         equipped
-                          ? isHuman
-                            ? 'border-orange-400 bg-orange-950/35 text-white'
-                            : isGhost
-                              ? 'border-indigo-400 bg-indigo-950/40 text-white'
-                              : isGhoul
-                                ? 'border-rose-400 bg-rose-950/35 text-white'
-                                : isZombie
-                                  ? 'border-lime-400 bg-lime-950/35 text-white'
-                                  : 'border-cyan-400 bg-cyan-950/35 text-white'
+                          ? isTigerkin
+                            ? 'border-amber-400 bg-amber-950/35 text-white'
+                            : isEaglekin
+                              ? 'border-sky-400 bg-sky-950/35 text-white'
+                              : isHuman
+                                ? 'border-orange-400 bg-orange-950/35 text-white'
+                                : isGhost
+                                  ? 'border-indigo-400 bg-indigo-950/40 text-white'
+                                  : isGhoul
+                                    ? 'border-rose-400 bg-rose-950/35 text-white'
+                                    : isZombie
+                                      ? 'border-lime-400 bg-lime-950/35 text-white'
+                                      : 'border-cyan-400 bg-cyan-950/35 text-white'
                           : selectedId === id
                             ? 'border-stone-500 bg-stone-800 text-stone-100'
                             : 'border-stone-800 bg-stone-900 text-stone-300 hover:border-stone-600'
@@ -520,15 +530,19 @@ export function SkillTreeModal({
                 onClick={() => onUpgradeSkill(selectedDef.id)}
                 className={`mt-3 h-10 w-full whitespace-nowrap rounded-xl px-4 text-xs font-bold transition-colors sm:text-sm ${
                   canUpgrade
-                    ? isHuman
-                      ? 'bg-orange-400 text-stone-950 hover:bg-orange-300 active:scale-[0.99]'
-                      : isGhost
-                        ? 'bg-indigo-400 text-stone-950 hover:bg-indigo-300 active:scale-[0.99]'
-                        : isGhoul
-                          ? 'bg-rose-500 text-white hover:bg-rose-400 active:scale-[0.99]'
-                          : isZombie
-                            ? 'bg-lime-400 text-stone-950 hover:bg-lime-300 active:scale-[0.99]'
-                            : 'bg-cyan-400 text-stone-950 hover:bg-cyan-300 active:scale-[0.99]'
+                    ? isTigerkin
+                      ? 'bg-amber-400 text-stone-950 hover:bg-amber-300 active:scale-[0.99]'
+                      : isEaglekin
+                        ? 'bg-sky-400 text-stone-950 hover:bg-sky-300 active:scale-[0.99]'
+                        : isHuman
+                          ? 'bg-orange-400 text-stone-950 hover:bg-orange-300 active:scale-[0.99]'
+                          : isGhost
+                            ? 'bg-indigo-400 text-stone-950 hover:bg-indigo-300 active:scale-[0.99]'
+                            : isGhoul
+                              ? 'bg-rose-500 text-white hover:bg-rose-400 active:scale-[0.99]'
+                              : isZombie
+                                ? 'bg-lime-400 text-stone-950 hover:bg-lime-300 active:scale-[0.99]'
+                                : 'bg-cyan-400 text-stone-950 hover:bg-cyan-300 active:scale-[0.99]'
                     : 'cursor-not-allowed bg-stone-800 text-stone-500'
                 }`}
               >

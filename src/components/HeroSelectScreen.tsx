@@ -1,4 +1,4 @@
-import { Maximize2, Minimize2 } from 'lucide-react';
+import { Maximize2, Minimize2, Swords } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { soundEngine } from '../audio/soundEngine';
 import { HERO_PROFILES, HERO_SKILLS } from '../data/heroSkills';
@@ -25,6 +25,7 @@ interface HeroSelectScreenProps {
   onSelectUltimateSkill: (skillId: UltimateSkillId) => void;
   onToggleFullscreen: () => void;
   onConfirmHero: () => void;
+  onOpenMultiplayer: () => void;
   onOpenSettings: () => void;
 }
 
@@ -39,6 +40,7 @@ export function HeroSelectScreen({
   onSelectUltimateSkill,
   onToggleFullscreen,
   onConfirmHero,
+  onOpenMultiplayer,
   onOpenSettings,
 }: HeroSelectScreenProps) {
   const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -51,13 +53,16 @@ export function HeroSelectScreen({
   const isEaglekin = heroId === 'eaglekin';
   const isTigerkin = heroId === 'tigerkin';
 
-  const [activeCategory, setActiveCategory] = useState<'undead_legion' | 'wildborn_tribes'>(() => {
+  const [activeCategory, setActiveCategory] = useState<'none' | 'undead_legion' | 'wildborn_tribes'>(() => {
+    if (heroId === 'human') return 'none';
     if (heroId === 'eaglekin' || heroId === 'tigerkin') return 'wildborn_tribes';
     return 'undead_legion';
   });
 
   useEffect(() => {
-    if (heroId === 'eaglekin' || heroId === 'tigerkin') {
+    if (heroId === 'human') {
+      setActiveCategory('none');
+    } else if (heroId === 'eaglekin' || heroId === 'tigerkin') {
       setActiveCategory('wildborn_tribes');
     } else {
       setActiveCategory('undead_legion');
@@ -103,13 +108,33 @@ export function HeroSelectScreen({
     <div className="relative flex h-full w-full flex-col overflow-hidden bg-[#140f0c] text-stone-100">
       {/* Top Header: Categories only - Undead Legion & Wildborn Tribes */}
       <header className="flex h-10 shrink-0 items-center justify-between gap-2 border-b border-stone-800/80 px-3 sm:px-4">
-        <div className="flex items-center gap-2.5">
-          <span className="font-display whitespace-nowrap text-xs font-bold uppercase tracking-wider text-stone-400 sm:text-sm">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="font-display hidden whitespace-nowrap text-xs font-bold uppercase tracking-wider text-stone-400 md:inline sm:text-sm">
             Categories:
           </span>
 
-          {/* Top Categories Switcher: Undead Legion | Wildborn Tribes */}
+          {/* Top Categories Switcher: Default | Undead Legion | Wildborn Tribes */}
           <div className="flex items-center gap-2 overflow-x-auto py-0.5">
+            <button
+              type="button"
+              onClick={() => {
+                soundEngine.playUiTap();
+                setActiveCategory('none');
+                if (heroId !== 'human') {
+                  onSelectHero('human');
+                }
+              }}
+              className={`flex h-7 items-center gap-1.5 whitespace-nowrap rounded-lg border px-2.5 text-xs font-semibold transition-all ${
+                activeCategory === 'none'
+                  ? 'border-orange-400/80 bg-orange-950/80 text-orange-100 shadow-sm ring-1 ring-orange-400/30'
+                  : 'border-orange-900/50 bg-stone-900/80 text-stone-300 hover:border-orange-700/60 hover:text-white'
+              }`}
+            >
+              <span className="h-2 w-2 rounded-full bg-orange-400" />
+              Default
+              <span className="rounded bg-orange-900/60 px-1 py-0.2 font-mono text-[10px] text-orange-300">1</span>
+            </button>
+
             <button
               type="button"
               onClick={() => {
@@ -155,16 +180,28 @@ export function HeroSelectScreen({
         <div className="flex shrink-0 items-center gap-1.5">
           <button
             type="button"
+            onClick={() => {
+              soundEngine.unlock();
+              soundEngine.playUiTap();
+              onOpenMultiplayer();
+            }}
+            className="flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-amber-400/75 bg-amber-500/20 px-2.5 text-xs font-bold text-amber-200 transition-colors hover:bg-amber-500/30 active:scale-95"
+          >
+            <Swords className="h-3.5 w-3.5 text-amber-300" />
+            <span>Multiplayer</span>
+          </button>
+          <button
+            type="button"
             onClick={onToggleFullscreen}
             aria-label={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
-            className="flex h-8 items-center gap-1 whitespace-nowrap rounded-lg border border-stone-700 bg-stone-900 px-2.5 text-xs font-medium text-stone-200 transition-colors hover:bg-stone-800"
+            className="flex h-8 shrink-0 items-center gap-1 whitespace-nowrap rounded-lg border border-stone-700 bg-stone-900 px-2.5 text-xs font-medium text-stone-200 transition-colors hover:bg-stone-800"
           >
             {isFullscreen ? (
               <Minimize2 className="h-3.5 w-3.5 text-amber-300" />
             ) : (
               <Maximize2 className="h-3.5 w-3.5 text-amber-300" />
             )}
-            <span className="hidden sm:inline">
+            <span className="hidden lg:inline">
               {isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
             </span>
           </button>
@@ -174,7 +211,7 @@ export function HeroSelectScreen({
               soundEngine.playUiTap();
               onOpenSettings();
             }}
-            className="h-8 whitespace-nowrap rounded-lg border border-stone-700 bg-stone-900 px-2.5 text-xs font-medium text-stone-200 transition-colors hover:bg-stone-800"
+            className="h-8 shrink-0 whitespace-nowrap rounded-lg border border-stone-700 bg-stone-900 px-2.5 text-xs font-medium text-stone-200 transition-colors hover:bg-stone-800"
           >
             Settings
           </button>
@@ -184,12 +221,31 @@ export function HeroSelectScreen({
       {/* Sub-Header: Heroes under the tapped Category */}
       <div className="flex h-9 shrink-0 items-center gap-2 border-b border-stone-800/80 bg-[#16100d] px-3 sm:px-4">
         <span className="whitespace-nowrap text-[10px] font-bold uppercase tracking-wider text-stone-400">
-          {activeCategory === 'undead_legion'
-            ? 'Undead Legion Heroes:'
-            : 'Wildborn Tribes Heroes:'}
+          {activeCategory === 'none'
+            ? 'Default Hero:'
+            : activeCategory === 'undead_legion'
+              ? 'Undead Legion Heroes:'
+              : 'Wildborn Tribes Heroes:'}
         </span>
 
         <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
+          {activeCategory === 'none' && (
+            <button
+              type="button"
+              onClick={() => {
+                soundEngine.playUiTap();
+                onSelectHero('human');
+              }}
+              className={`h-6.5 whitespace-nowrap rounded-md px-2.5 text-[11px] font-semibold transition-all sm:text-xs ${
+                heroId === 'human'
+                  ? 'bg-orange-400 font-bold text-stone-950 shadow-sm'
+                  : 'border border-stone-800 bg-stone-900/80 text-stone-300 hover:border-stone-600 hover:text-white'
+              }`}
+            >
+              {HERO_PROFILES.human.name}
+            </button>
+          )}
+
           {activeCategory === 'undead_legion' &&
             (['skeleton', 'zombie', 'ghoul', 'ghost'] as HeroId[]).map((id) => {
               const active = heroId === id;
