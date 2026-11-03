@@ -1,6 +1,7 @@
 import { soundEngine } from '../audio/soundEngine';
 import {
   ALL_ACTIVE_SKILL_IDS,
+  createInitialSkillRanks,
   HERO_PROFILES,
   HERO_SKILLS,
 } from '../data/heroSkills';
@@ -110,7 +111,7 @@ export class GameEngine {
   private xp = 0;
   private xpToNext = 100;
   private boneShards = 0;
-  private skillPoints = 4;
+  private skillPoints = 0;
 
   // Blessings system (Max 6 blessings per run)
   private activeBlessings: Blessing[] = [];
@@ -665,6 +666,18 @@ export class GameEngine {
     }
   }
 
+  public resetRunProgression() {
+    this.skillRanks = createInitialSkillRanks();
+    this.skillPoints = 0;
+    this.level = 1;
+    this.xp = 0;
+    this.xpToNext = 100;
+    this.activeBlessings = [];
+    this.syncHeroBaseStats();
+    this.recalcStats(true);
+    this.emitHudSnapshot();
+  }
+
   public setHero(heroId: HeroId) {
     if (this.heroId === heroId) return;
     this.heroId = heroId;
@@ -681,9 +694,7 @@ export class GameEngine {
     this.resetGhoulTimers();
     this.resetGhostTimers();
     this.clearPools();
-    this.syncHeroBaseStats();
-    this.recalcStats(true);
-    this.emitHudSnapshot();
+    this.resetRunProgression();
   }
 
   public getHero(): HeroId {
@@ -699,6 +710,9 @@ export class GameEngine {
   }
 
   public upgradeSkill(skillId: SkillId): boolean {
+    // Skills can only be upgraded inside the crypt dungeon, not in the Guild House
+    if (this.map.isGuild) return false;
+    if (this.runOutcome !== null) return false;
     if (this.skillPoints <= 0) return false;
     const def = HERO_SKILLS[skillId];
     const cur = this.skillRanks[skillId] || 1;
@@ -725,19 +739,21 @@ export class GameEngine {
   }
 
   public addBlessing(blessing: Blessing): boolean {
+    if (!blessing) return false;
     if (this.activeBlessings.length >= this.maxBlessings) return false;
     if (this.activeBlessings.some((b) => b.id === blessing.id)) return false;
     this.activeBlessings.push(blessing);
     soundEngine.playSkill('shield');
-    this.spawnBurstParticles(this.player.x, this.player.y - 12, blessing.glowColor, 28, true);
+    const color = blessing.glowColor || '#fde047';
+    this.spawnBurstParticles(this.player.x, this.player.y - 12, color, 28, true);
     this.spawnFloatingText(
       this.player.x,
       this.player.y - 48,
       `BLESSING: ${blessing.name}!`,
-      blessing.glowColor,
+      color,
       true
     );
-    if (blessing.modifiers.shieldBonus) {
+    if (blessing.modifiers?.shieldBonus) {
       this.player.shield += blessing.modifiers.shieldBonus;
     }
     this.recalcStats(false);
@@ -898,8 +914,7 @@ export class GameEngine {
     this.runOutcome = null;
     this.bossSpawnedPortals = false;
     this.doorCooldown = 1.0;
-    this.syncHeroBaseStats();
-    this.recalcStats(true);
+    this.resetRunProgression();
     this.player.shield = 0;
     this.player.colossusTimer = 0;
     this.player.boneStormTimer = 0;
@@ -936,10 +951,8 @@ export class GameEngine {
     this.resetGhoulTimers();
     this.resetGhostTimers();
     if (floor === 1) {
-      this.activeBlessings = [];
-      this.recalcStats(true);
+      this.resetRunProgression();
     } else {
-
       this.healPlayer(Math.round(this.player.maxHp * 0.45), false);
     }
     this.resetPlayerPosition(this.map.spawnX, this.map.spawnY);
@@ -1045,6 +1058,9 @@ export class GameEngine {
     this.resetGhoulTimers();
     this.resetGhostTimers();
     this.clearPools();
+    if (floor === 1) {
+      this.resetRunProgression();
+    }
 
     const localId = multiplayerClient.getLocalPlayerId();
     let idx = 0;
@@ -2013,8 +2029,13 @@ export class GameEngine {
       prop.opened = true;
     }
 
-    this.skillPoints += 1;
-    this.boneShards += 25;
+    const rollSp = Math.random() < 0.25;
+    if (rollSp) {
+      this.skillPoints += 1;
+      this.boneShards += 20;
+    } else {
+      this.boneShards += 35;
+    }
     if (!this.localIsDowned) {
       this.healPlayer(Math.round(this.player.maxHp * 0.4), false);
     }
@@ -2023,8 +2044,8 @@ export class GameEngine {
     this.spawnFloatingText(
       this.player.x,
       this.player.y - 36,
-      `${openerName} Chest: +1 SP!`,
-      '#fde047',
+      rollSp ? `${openerName} Chest: +1 SP!` : `${openerName} Chest: +35 Shards`,
+      rollSp ? '#fde047' : '#93c5fd',
       true
     );
     this.emitHudSnapshot();
@@ -2103,7 +2124,7 @@ export class GameEngine {
     if (this.bossSpawnedPortals) return;
     this.bossSpawnedPortals = true;
     this.runOutcome = 'victory';
-    this.skillPoints += 2;
+    this.skillPoints += 1;
     this.boneShards += 60;
     soundEngine.playSkill('ultimate');
 
@@ -4770,12 +4791,18 @@ export class GameEngine {
           return true;
         }
         prop.opened = true;
-        this.skillPoints += 1;
-        this.boneShards += 25;
+        const rollSp = Math.random() < 0.25;
+        if (rollSp) {
+          this.skillPoints += 1;
+          this.boneShards += 20;
+          this.spawnFloatingText(cx, cy - 28, '+1 Skill Point!', '#fde047', true);
+        } else {
+          this.boneShards += 40;
+          this.spawnFloatingText(cx, cy - 28, '+40 Bone Shards', '#93c5fd', true);
+        }
         this.healPlayer(Math.round(this.player.maxHp * 0.4), false);
         soundEngine.playSkill('shield');
         this.spawnBurstParticles(cx, cy, '#fde047', 22, true);
-        this.spawnFloatingText(cx, cy - 28, '+1 Skill Point!', '#fde047', true);
         this.emitHudSnapshot();
         return true;
       }
@@ -8091,7 +8118,7 @@ export class GameEngine {
     if (!this.isMultiplayer && !this.map.isGuild && !bossAlive && !this.bossSpawnedPortals) {
       this.bossSpawnedPortals = true;
       this.runOutcome = 'victory';
-      this.skillPoints += 2;
+      this.skillPoints += 1;
       this.boneShards += 60;
       soundEngine.playSkill('ultimate');
 
@@ -8399,11 +8426,17 @@ export class GameEngine {
       this.xp -= this.xpToNext;
       this.level += 1;
       this.xpToNext = Math.round(this.xpToNext * 1.28);
-      this.skillPoints += 1;
+      // Lessen chance to gain skill points: 30% chance on level up
+      const rollSp = Math.random() < 0.30;
+      if (rollSp) {
+        this.skillPoints += 1;
+        this.spawnFloatingText(this.player.x, this.player.y - 44, `LEVEL UP! +1 SP`, '#fde047', true);
+      } else {
+        this.spawnFloatingText(this.player.x, this.player.y - 44, `LEVEL UP! HP & ATK UP`, '#38bdf8', true);
+      }
       this.recalcStats(true);
       soundEngine.playSkill('shield');
       this.spawnRingEffect(this.player.x, this.player.y, 110, '#fde047');
-      this.spawnFloatingText(this.player.x, this.player.y - 44, `LEVEL UP! +1 SP`, '#fde047', true);
     }
   }
 

@@ -57,6 +57,14 @@ export interface PlayerRenderState {
   lastStandTimer: number;
   oneManArmyTimer: number;
   instinctSurrounded: boolean;
+  wingFlapTimer?: number;
+  huntersMarkTargetId?: number | null;
+  rainOfFeathersTimer?: number;
+  celestialBarrageTimer?: number;
+  celestialBarrageWings?: number;
+  wrathSkyTimer?: number;
+  precisionStacks?: number;
+  lastTargetHitId?: number | null;
   airborneHeight: number;
   attackLunge: number;
   attackTwist: number;

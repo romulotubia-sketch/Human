@@ -62,8 +62,8 @@ export function BlessingsTrayModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 backdrop-blur-md animate-fade-in select-none">
-      <div className="relative flex max-h-[92dvh] w-full max-w-2xl flex-col rounded-2xl border border-stone-700 bg-gradient-to-b from-[#1b1512] to-[#0f0b09] p-4 shadow-2xl sm:p-6">
+    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 p-2 sm:p-3 backdrop-blur-md animate-fade-in select-none">
+      <div className="relative flex max-h-[400px] w-full max-w-2xl flex-col rounded-2xl border border-stone-700 bg-gradient-to-b from-[#1b1512] to-[#0f0b09] p-3 sm:p-4 shadow-2xl">
         
         {/* Header */}
         <div className="flex items-center justify-between border-b border-stone-800 pb-3">

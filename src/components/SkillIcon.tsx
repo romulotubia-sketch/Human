@@ -1,7 +1,7 @@
 import { SkillId } from '../types/game';
 
 interface SkillIconProps {
-  skillId: SkillId | 'basic_sword' | 'basic_claw' | 'basic_ghoul' | 'basic_ghost' | 'basic_pipe';
+  skillId: SkillId | 'basic_sword' | 'basic_claw' | 'basic_ghoul' | 'basic_ghost' | 'basic_pipe' | 'basic_feather';
   className?: string;
 }
 
@@ -618,6 +618,111 @@ export function SkillIcon({ skillId, className = 'w-7 h-7' }: SkillIconProps) {
           />
           <path d="M5 18H9M27 18H31M18 5V9M18 27V31" stroke="#fef08a" strokeWidth="2.2" strokeLinecap="round" />
           <circle cx="18" cy="18" r="2.6" fill="#f8fafc" />
+        </svg>
+      );
+
+    case 'basic_feather':
+      return (
+        <svg viewBox="0 0 36 36" fill="none" className={className} aria-hidden="true">
+          <path
+            d="M28 8C20 10 14 16 10 24L8 28L12 26C20 22 26 16 28 8Z"
+            fill="#38bdf8"
+            fillOpacity="0.25"
+            stroke="#38bdf8"
+            strokeWidth="2.4"
+            strokeLinejoin="round"
+          />
+          <path d="M10 24L26 10" stroke="#f0f9ff" strokeWidth="2.2" strokeLinecap="round" />
+          <path d="M16 19L19 22M20 15L23 18" stroke="#bae6fd" strokeWidth="1.8" strokeLinecap="round" />
+        </svg>
+      );
+
+    case 'piercing_volley':
+      return (
+        <svg viewBox="0 0 36 36" fill="none" className={className} aria-hidden="true">
+          <path d="M8 27L22 13M14 29L28 15M6 21L20 7" stroke="#38bdf8" strokeWidth="2.4" strokeLinecap="round" />
+          <path d="M22 13L24 7L18 9M28 15L30 9L24 11M20 7L22 1L16 3" stroke="#f0f9ff" strokeWidth="1.8" strokeLinejoin="round" />
+        </svg>
+      );
+
+    case 'homing_feathers':
+      return (
+        <svg viewBox="0 0 36 36" fill="none" className={className} aria-hidden="true">
+          <path d="M7 26C12 18 20 14 28 10" stroke="#0ea5e9" strokeWidth="2.4" strokeLinecap="round" strokeDasharray="3 3" />
+          <circle cx="28" cy="10" r="3.5" fill="#38bdf8" stroke="#ffffff" strokeWidth="1.5" />
+          <path d="M10 29C15 23 22 20 29 17" stroke="#38bdf8" strokeWidth="2.2" strokeLinecap="round" />
+          <circle cx="29" cy="17" r="2.8" fill="#bae6fd" />
+        </svg>
+      );
+
+    case 'hunters_mark':
+      return (
+        <svg viewBox="0 0 36 36" fill="none" className={className} aria-hidden="true">
+          <circle cx="18" cy="18" r="9.5" stroke="#f59e0b" strokeWidth="2.4" />
+          <circle cx="18" cy="18" r="4" fill="#fbbf24" fillOpacity="0.3" stroke="#fef3c7" strokeWidth="1.8" />
+          <path d="M18 5V10M18 26V31M5 18H10M26 18H31" stroke="#f59e0b" strokeWidth="2.2" strokeLinecap="round" />
+          <circle cx="18" cy="18" r="2" fill="#ef4444" />
+        </svg>
+      );
+
+    case 'windstep':
+      return (
+        <svg viewBox="0 0 36 36" fill="none" className={className} aria-hidden="true">
+          <path d="M6 18H24M14 11L28 18L14 25" stroke="#10b981" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M4 12C9 14 12 16 16 16M4 24C9 22 12 20 16 20" stroke="#6ee7b7" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+      );
+
+    case 'rain_of_feathers':
+      return (
+        <svg viewBox="0 0 36 36" fill="none" className={className} aria-hidden="true">
+          <path d="M11 7L7 20M18 5L14 22M25 7L21 20M29 11L26 23" stroke="#06b6d4" strokeWidth="2.4" strokeLinecap="round" />
+          <ellipse cx="18" cy="27" rx="11" ry="4" stroke="#67e8f9" strokeWidth="1.8" strokeDasharray="3 2" />
+        </svg>
+      );
+
+    case 'wrath_of_the_sky':
+      return (
+        <svg viewBox="0 0 36 36" fill="none" className={className} aria-hidden="true">
+          <path d="M6 14C11 8 18 8 20 12C22 8 29 8 30 14C27 22 20 28 18 29C16 28 9 22 6 14Z" fill="#38bdf8" fillOpacity="0.3" stroke="#38bdf8" strokeWidth="2.4" strokeLinejoin="round" />
+          <path d="M18 6V18M13 10L18 18L23 10" stroke="#fde047" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      );
+
+    case 'celestial_barrage':
+      return (
+        <svg viewBox="0 0 36 36" fill="none" className={className} aria-hidden="true">
+          <path d="M7 19C11 11 19 9 29 8C23 14 20 21 18 29C16 22 12 15 7 19Z" fill="#6366f1" fillOpacity="0.3" stroke="#818cf8" strokeWidth="2.2" />
+          <path d="M29 19C25 11 17 9 7 8C13 14 16 21 18 29C20 22 24 15 29 19Z" fill="#a855f7" fillOpacity="0.3" stroke="#c084fc" strokeWidth="2.2" />
+          <circle cx="18" cy="18" r="3.2" fill="#fde047" />
+        </svg>
+      );
+
+    case 'final_horizon':
+      return (
+        <svg viewBox="0 0 36 36" fill="none" className={className} aria-hidden="true">
+          <path d="M5 28L28 8" stroke="#fbbf24" strokeWidth="3.2" strokeLinecap="round" />
+          <path d="M21 6L30 6L30 15" stroke="#ffffff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+          <circle cx="28" cy="8" r="4.5" fill="#f59e0b" fillOpacity="0.4" stroke="#ffffff" strokeWidth="1.8" />
+          <path d="M12 28L15 31M9 22L12 25" stroke="#fef08a" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+      );
+
+    case 'eagle_eyes':
+      return (
+        <svg viewBox="0 0 36 36" fill="none" className={className} aria-hidden="true">
+          <path d="M6 18C10 11 26 11 30 18C26 25 10 25 6 18Z" stroke="#f59e0b" strokeWidth="2.4" strokeLinejoin="round" />
+          <circle cx="18" cy="18" r="4.5" fill="#fef3c7" stroke="#f59e0b" strokeWidth="2" />
+          <circle cx="18" cy="18" r="2.2" fill="#78350f" />
+        </svg>
+      );
+
+    case 'predators_precision':
+      return (
+        <svg viewBox="0 0 36 36" fill="none" className={className} aria-hidden="true">
+          <circle cx="18" cy="18" r="10" stroke="#ef4444" strokeWidth="2.4" />
+          <path d="M18 10V26M10 18H26" stroke="#f87171" strokeWidth="2" strokeLinecap="round" />
+          <circle cx="18" cy="18" r="3" fill="#fee2e2" stroke="#dc2626" strokeWidth="2" />
         </svg>
       );
 

@@ -57,7 +57,7 @@ function createInitialHud(heroId: HeroId = 'human'): HudSnapshot {
     xp: 0,
     xpToNext: 100,
     boneShards: 0,
-    skillPoints: 4,
+    skillPoints: 0,
     floor: 0,
     enemiesRemaining: 0,
     cooldowns,
@@ -88,6 +88,7 @@ export default function App() {
     zombie: [...HERO_PROFILES.zombie.defaultLoadout],
     ghoul: [...HERO_PROFILES.ghoul.defaultLoadout],
     ghost: [...HERO_PROFILES.ghost.defaultLoadout],
+    eaglekin: [...HERO_PROFILES.eaglekin.defaultLoadout],
   });
 
   const [skillRanks, setSkillRanks] = useState<Record<SkillId, number>>(INITIAL_RANKS);
@@ -134,6 +135,9 @@ export default function App() {
       (isGuild) => {
         setVictoryDismissed(false);
         setPhase(isGuild ? GamePhase.GUILD_HOUSE : GamePhase.DUNGEON);
+        if (engineRef.current) {
+          setSkillRanks(engineRef.current.getSkillRanks());
+        }
       }
     );
   }
@@ -367,7 +371,9 @@ export default function App() {
       const dt = (now - lastTime) / 1000;
       lastTime = now;
 
-      const paused = (showSkillTree || showSettings) && !isMultiplayer;
+      const paused =
+        (showSkillTree || showSettings || Boolean(blessingOptions) || showBlessingsTray) &&
+        !isMultiplayer;
       const { w, h } = getGameViewportSize();
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
@@ -448,6 +454,7 @@ export default function App() {
   const handleSelectHero = (nextHero: HeroId) => {
     setHeroId(nextHero);
     engineRef.current?.setHero(nextHero);
+    setSkillRanks(engineRef.current ? engineRef.current.getSkillRanks() : createInitialSkillRanks());
   };
 
   const handleConfirmHero = () => {
@@ -679,6 +686,7 @@ export default function App() {
           isFullscreen={isFullscreen}
           onSelectHero={handleSelectHero}
           onSelectNormalSkill={handleQuickSelectNormal}
+          onSetNormalSlot={handleSetNormalSlot}
           onSwapNormalSlots={handleSwapNormalSlots}
           onSelectUltimateSkill={handleSetUltimateSlot}
           onToggleFullscreen={handleToggleFullscreen}
@@ -913,7 +921,7 @@ export default function App() {
                 Crypt Boss Vanquished!
               </h3>
               <p className="mt-1 text-xs text-stone-300">
-                Earned +2 Skill Points and +60 Bone Shards.{' '}
+                Earned +1 Skill Point and +60 Bone Shards.{' '}
                 {isMultiplayer
                   ? 'Gather your squad at the Boss Portal or vote to descend:'
                   : 'Step into a portal or choose below:'}
@@ -965,8 +973,8 @@ export default function App() {
                   Fallen in the Crypt
                 </h2>
                 <p className="mt-1.5 text-xs leading-relaxed text-stone-300 sm:text-sm">
-                  You reform safely beside the warm Guild Hearth. All earned levels, Shards, and
-                  Skill Points remain yours!
+                  You reform safely beside the warm Guild Hearth. Shards and glory remain,
+                  while skill levels and trees reset for your next crypt expedition!
                 </p>
                 <div className="mt-4 flex w-full flex-col gap-2.5 sm:flex-row">
                   <button
@@ -976,6 +984,7 @@ export default function App() {
                         handleLeaveMultiplayerRoom();
                       } else {
                         engineRef.current?.enterGuildHouse();
+                        setSkillRanks(createInitialSkillRanks());
                       }
                     }}
                     className="min-h-[44px] flex-1 whitespace-nowrap rounded-xl bg-amber-400 px-4 py-2 text-sm font-bold text-stone-950"
@@ -989,6 +998,7 @@ export default function App() {
                         handleLeaveMultiplayerRoom();
                       } else {
                         engineRef.current?.enterDungeon(1);
+                        setSkillRanks(createInitialSkillRanks());
                       }
                     }}
                     className="min-h-[44px] flex-1 whitespace-nowrap rounded-xl border border-stone-600 bg-stone-900 px-4 py-2 text-sm font-semibold text-stone-200"
@@ -1038,6 +1048,7 @@ export default function App() {
           skillRanks={skillRanks}
           skillPoints={hud.skillPoints}
           loadout={activeLoadout}
+          isDungeon={phase === GamePhase.DUNGEON && !hud.runOutcome}
           onUpgradeSkill={handleUpgradeSkill}
           onSetNormalSlot={handleSetNormalSlot}
           onSetUltimateSlot={handleSetUltimateSlot}
@@ -1061,6 +1072,17 @@ export default function App() {
               engineRef.current?.enterGuildHouse();
             }
           }}
+          onReturnToLobby={() => {
+            if (isMultiplayer) {
+              handleLeaveMultiplayerRoom();
+            } else {
+              engineRef.current?.enterGuildHouse();
+              engineRef.current?.resetRunProgression();
+              setSkillRanks(createInitialSkillRanks());
+            }
+            setShowSettings(false);
+            setPhase(GamePhase.HERO_SELECT);
+          }}
           onLeaveMultiplayer={handleLeaveMultiplayerRoom}
           onClose={() => setShowSettings(false)}
         />
@@ -1073,8 +1095,15 @@ export default function App() {
           currentCount={hud.activeBlessings?.length ?? 0}
           maxCount={hud.maxBlessings ?? 6}
           onSelectBlessing={(blessing) => {
-            engineRef.current?.addBlessing(blessing);
-            setBlessingOptions(null);
+            try {
+              if (engineRef.current) {
+                engineRef.current.addBlessing(blessing);
+              }
+            } catch (err) {
+              console.error('Failed to add blessing:', err);
+            } finally {
+              setBlessingOptions(null);
+            }
           }}
           onClose={() => setBlessingOptions(null)}
         />

@@ -460,10 +460,57 @@ export function SkillTreeModal({
                           100
                       )}%`}
                   </p>
+                )}
                 {!isDungeon && (
                   <p className="mt-2 rounded-lg border border-amber-500/30 bg-amber-950/40 px-2.5 py-1.5 text-center text-[11px] text-amber-200">
-                    Skill upgrades can only be purchased inside the dungeon.
+                    Skill upgrades are locked in the Guild House. Enter the Crypt Dungeon to spend Skill Points and upgrade skills during your run.
                   </p>
+                )}
+
+                {/* Direct Slot 1 / Slot 2 Assignment Option for Normal Skills */}
+                {isSelectedNormal && (
+                  <div className="mt-2.5 rounded-xl border border-stone-800 bg-stone-900/60 p-2">
+                    <div className="flex items-center justify-between text-[11px] font-medium text-stone-300">
+                      <span>Equip into MOBA Loadout:</span>
+                      <span className="font-mono text-[10px] text-stone-400">
+                        {loadout[0] === selectedDef.id
+                          ? 'Slot 1'
+                          : loadout[1] === selectedDef.id
+                            ? 'Slot 2'
+                            : 'Unassigned'}
+                      </span>
+                    </div>
+                    <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          soundEngine.playUiTap();
+                          onSetNormalSlot(0, selectedDef.id as NormalSkillId);
+                        }}
+                        className={`h-7 rounded-lg border px-2 text-[11px] font-bold transition-all active:scale-95 ${
+                          loadout[0] === selectedDef.id
+                            ? 'border-amber-400 bg-amber-950/60 text-amber-200'
+                            : 'border-stone-700 bg-stone-800 text-stone-200 hover:border-stone-500'
+                        }`}
+                      >
+                        {loadout[0] === selectedDef.id ? 'Slot 1 ✓' : 'Put in Slot 1'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          soundEngine.playUiTap();
+                          onSetNormalSlot(1, selectedDef.id as NormalSkillId);
+                        }}
+                        className={`h-7 rounded-lg border px-2 text-[11px] font-bold transition-all active:scale-95 ${
+                          loadout[1] === selectedDef.id
+                            ? 'border-amber-400 bg-amber-950/60 text-amber-200'
+                            : 'border-stone-700 bg-stone-800 text-stone-200 hover:border-stone-500'
+                        }`}
+                      >
+                        {loadout[1] === selectedDef.id ? 'Slot 2 ✓' : 'Put in Slot 2'}
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
 
@@ -486,10 +533,12 @@ export function SkillTreeModal({
                 }`}
               >
                 {!isDungeon
-                  ? 'Locked in Guild (Dungeon Only)'
+                  ? 'Locked in Guild House (Dungeon Only)'
                   : selectedRank >= selectedDef.maxRank
                     ? 'Max Rank Reached'
-                    : `Upgrade Rank (1 SP · ${skillPoints} Left)`}
+                    : skillPoints <= 0
+                      ? 'Requires 1 Skill Point'
+                      : `Upgrade Rank (1 SP · ${skillPoints} Left)`}
               </button>
             </div>
           </div>
@@ -497,7 +546,7 @@ export function SkillTreeModal({
 
         {/* Modal Prompt: Choose Slot 1 or Slot 2 for Tapped Skill */}
         {slotChoiceSkillId && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-xs">
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-xs">
             <div className="w-full max-w-sm rounded-2xl border border-stone-700 bg-[#1c1612] p-4 text-center shadow-2xl">
               <div className="mb-2 flex items-center justify-center gap-2">
                 <SkillIcon skillId={slotChoiceSkillId} className="h-6 w-6" />
@@ -506,7 +555,7 @@ export function SkillTreeModal({
                 </h3>
               </div>
               <p className="mb-3 text-xs leading-relaxed text-stone-300">
-                Which skill slot would you like to equip this to?
+                Choose which slot to equip this skill in:
               </p>
 
               <div className="mb-3 grid grid-cols-2 gap-2">
@@ -519,14 +568,19 @@ export function SkillTreeModal({
                   }}
                   className={`flex flex-col items-center justify-center rounded-xl border p-2.5 transition-transform active:scale-95 ${
                     loadout[0] === slotChoiceSkillId
-                      ? 'border-amber-400 bg-amber-950/60 text-amber-100 shadow-md'
+                      ? 'border-amber-400 bg-amber-950/60 text-amber-100 shadow-md ring-1 ring-amber-400/40'
                       : 'border-stone-700 bg-stone-900 text-stone-200 hover:border-amber-400/60'
                   }`}
                 >
-                  <span className="text-xs font-bold text-amber-300">Slot 1</span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs font-bold text-amber-300">Slot 1</span>
+                    {loadout[0] === slotChoiceSkillId && (
+                      <span className="text-[10px] font-semibold text-emerald-400">✓ Active</span>
+                    )}
+                  </div>
                   <span className="mt-1 max-w-[125px] truncate font-mono text-[10px] text-stone-400">
                     {loadout[0] === slotChoiceSkillId
-                      ? 'Current: Equipped'
+                      ? 'Currently in Slot 1'
                       : `Replaces: ${HERO_SKILLS[loadout[0]].name}`}
                   </span>
                 </button>
@@ -540,14 +594,19 @@ export function SkillTreeModal({
                   }}
                   className={`flex flex-col items-center justify-center rounded-xl border p-2.5 transition-transform active:scale-95 ${
                     loadout[1] === slotChoiceSkillId
-                      ? 'border-amber-400 bg-amber-950/60 text-amber-100 shadow-md'
+                      ? 'border-amber-400 bg-amber-950/60 text-amber-100 shadow-md ring-1 ring-amber-400/40'
                       : 'border-stone-700 bg-stone-900 text-stone-200 hover:border-amber-400/60'
                   }`}
                 >
-                  <span className="text-xs font-bold text-amber-300">Slot 2</span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs font-bold text-amber-300">Slot 2</span>
+                    {loadout[1] === slotChoiceSkillId && (
+                      <span className="text-[10px] font-semibold text-emerald-400">✓ Active</span>
+                    )}
+                  </div>
                   <span className="mt-1 max-w-[125px] truncate font-mono text-[10px] text-stone-400">
                     {loadout[1] === slotChoiceSkillId
-                      ? 'Current: Equipped'
+                      ? 'Currently in Slot 2'
                       : `Replaces: ${HERO_SKILLS[loadout[1]].name}`}
                   </span>
                 </button>

@@ -1,4 +1,15 @@
-export type HeroId = 'human' | 'skeleton' | 'zombie' | 'ghoul' | 'ghost';
+export type HeroId = 'human' | 'skeleton' | 'zombie' | 'ghoul' | 'ghost' | 'eaglekin';
+
+export type HeroCategory = 'undead_legion' | 'wildborn_tribes' | 'none';
+
+export const HERO_CATEGORY_MAP: Record<HeroId, { category: HeroCategory; label: string; factionName?: string }> = {
+  human: { category: 'none', label: 'Default Character' },
+  skeleton: { category: 'undead_legion', label: 'Undead Legion', factionName: 'Undead Legion' },
+  zombie: { category: 'undead_legion', label: 'Undead Legion', factionName: 'Undead Legion' },
+  ghoul: { category: 'undead_legion', label: 'Undead Legion', factionName: 'Undead Legion' },
+  ghost: { category: 'undead_legion', label: 'Undead Legion', factionName: 'Undead Legion' },
+  eaglekin: { category: 'wildborn_tribes', label: 'Wildborn Tribes', factionName: 'Wildborn Tribes' },
+};
 
 export enum GamePhase {
   TITLE = 'TITLE',
@@ -93,24 +104,41 @@ export type HumanUltimateSkillId =
 
 export type HumanPassiveSkillId = 'improvised_fighter' | 'survivors_instinct';
 
+export type EaglekinNormalSkillId =
+  | 'piercing_volley'
+  | 'homing_feathers'
+  | 'hunters_mark'
+  | 'windstep'
+  | 'rain_of_feathers';
+
+export type EaglekinUltimateSkillId =
+  | 'wrath_of_the_sky'
+  | 'celestial_barrage'
+  | 'final_horizon';
+
+export type EaglekinPassiveSkillId = 'eagle_eyes' | 'predators_precision';
+
 export type NormalSkillId =
   | HumanNormalSkillId
   | SkeletonNormalSkillId
   | ZombieNormalSkillId
   | GhoulNormalSkillId
-  | GhostNormalSkillId;
+  | GhostNormalSkillId
+  | EaglekinNormalSkillId;
 export type UltimateSkillId =
   | HumanUltimateSkillId
   | SkeletonUltimateSkillId
   | ZombieUltimateSkillId
   | GhoulUltimateSkillId
-  | GhostUltimateSkillId;
+  | GhostUltimateSkillId
+  | EaglekinUltimateSkillId;
 export type PassiveSkillId =
   | HumanPassiveSkillId
   | SkeletonPassiveSkillId
   | ZombiePassiveSkillId
   | GhoulPassiveSkillId
-  | GhostPassiveSkillId;
+  | GhostPassiveSkillId
+  | EaglekinPassiveSkillId;
 
 export type ActiveSkillId = NormalSkillId | UltimateSkillId;
 export type SkillId = ActiveSkillId | PassiveSkillId;
@@ -217,6 +245,16 @@ export enum SwordAnimState {
   SCRAPSTORM_CAST = 'SCRAPSTORM_CAST',
   ONE_MAN_ARMY_BLITZ = 'ONE_MAN_ARMY_BLITZ',
   ONE_MAN_ARMY_SPIN = 'ONE_MAN_ARMY_SPIN',
+  FEATHER_SHOT = 'FEATHER_SHOT',
+  DOUBLE_FEATHER = 'DOUBLE_FEATHER',
+  PIERCING_VOLLEY = 'PIERCING_VOLLEY',
+  HOMING_FEATHERS = 'HOMING_FEATHERS',
+  HUNTERS_MARK = 'HUNTERS_MARK',
+  WINDSTEP = 'WINDSTEP',
+  RAIN_OF_FEATHERS = 'RAIN_OF_FEATHERS',
+  WRATH_OF_THE_SKY = 'WRATH_OF_THE_SKY',
+  CELESTIAL_BARRAGE = 'CELESTIAL_BARRAGE',
+  FINAL_HORIZON = 'FINAL_HORIZON',
 }
 
 export interface SwordTrailPoint {
@@ -484,6 +522,8 @@ export interface EnemyEntity {
   fearTimer: number;
   possessedTimer: number;
   staggerTimer: number;
+  huntersMarkTimer?: number;
+  precisionHits?: number;
 }
 
 export interface AlliedMinion {
@@ -522,7 +562,15 @@ export interface Projectile {
     | 'spectral_bolt'
     | 'thrown_pipe'
     | 'enemy_arrow'
-    | 'boss_shard';
+    | 'boss_shard'
+    | 'feather_shot'
+    | 'double_feather'
+    | 'piercing_feather'
+    | 'homing_feather'
+    | 'sky_feather'
+    | 'celestial_feather'
+    | 'final_feather'
+    | 'horizon_feather';
   x: number;
   y: number;
   vx: number;
@@ -545,7 +593,7 @@ export interface Projectile {
 export interface PickupOrb {
   id?: number;
   active: boolean;
-  kind: 'xp' | 'heal' | 'shard';
+  kind: 'xp' | 'heal' | 'shard' | 'boss_essence';
   x: number;
   y: number;
   vx: number;
@@ -619,7 +667,7 @@ export interface MinimapEnemyDot {
 export interface MinimapMarker {
   x: number;
   y: number;
-  kind: 'chest' | 'portal_next' | 'portal_guild' | 'blessing_statue';
+  kind: 'chest' | 'portal_next' | 'portal_guild' | 'blessing_statue' | 'boss_essence';
 }
 
 export interface MinimapTeammateDot {

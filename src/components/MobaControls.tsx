@@ -139,6 +139,7 @@ export function MobaControls({
   const isZombie = heroId === 'zombie';
   const isGhoul = heroId === 'ghoul';
   const isGhost = heroId === 'ghost';
+  const isEaglekin = heroId === 'eaglekin';
 
   // Maps physical screen delta (clientX/clientY) into game landscape coordinate delta
   const mapScreenDelta = (physDx: number, physDy: number) => {
@@ -639,30 +640,34 @@ export function MobaControls({
           }}
           className={`pointer-events-auto absolute bottom-2 right-2 flex h-[86px] w-[86px] items-center justify-center rounded-full border-[3px] shadow-xl will-change-transform transition-all duration-75 ${
             atkPressed
-              ? isHuman
-                ? 'scale-[0.92] border-orange-400 bg-orange-950/60 shadow-[0_0_24px_rgba(249,115,22,0.65)]'
-                : isGhost
-                  ? 'scale-[0.92] border-indigo-400 bg-indigo-950/60 shadow-[0_0_24px_rgba(129,140,248,0.65)]'
-                  : isGhoul
-                    ? 'scale-[0.92] border-rose-400 bg-rose-950/60 shadow-[0_0_24px_rgba(251,113,133,0.65)]'
-                    : isZombie
-                      ? 'scale-[0.92] border-lime-300 bg-lime-950/60 shadow-[0_0_24px_rgba(163,230,53,0.65)]'
-                      : 'scale-[0.92] border-cyan-300 bg-cyan-950/60 shadow-[0_0_24px_rgba(103,232,249,0.65)]'
+              ? isEaglekin
+                ? 'scale-[0.92] border-sky-400 bg-sky-950/60 shadow-[0_0_24px_rgba(56,189,248,0.7)]'
+                : isHuman
+                  ? 'scale-[0.92] border-orange-400 bg-orange-950/60 shadow-[0_0_24px_rgba(249,115,22,0.65)]'
+                  : isGhost
+                    ? 'scale-[0.92] border-indigo-400 bg-indigo-950/60 shadow-[0_0_24px_rgba(129,140,248,0.65)]'
+                    : isGhoul
+                      ? 'scale-[0.92] border-rose-400 bg-rose-950/60 shadow-[0_0_24px_rgba(251,113,133,0.65)]'
+                      : isZombie
+                        ? 'scale-[0.92] border-lime-300 bg-lime-950/60 shadow-[0_0_24px_rgba(163,230,53,0.65)]'
+                        : 'scale-[0.92] border-cyan-300 bg-cyan-950/60 shadow-[0_0_24px_rgba(103,232,249,0.65)]'
               : 'scale-100 border-amber-200/90 bg-gradient-to-br from-stone-800 via-stone-900 to-stone-950 shadow-lg hover:border-amber-300'
           }`}
         >
           <div className="flex h-[70px] w-[70px] items-center justify-center rounded-full border border-stone-600/70 bg-stone-900/80">
             <SkillIcon
               skillId={
-                isHuman
-                  ? 'basic_pipe'
-                  : isGhost
-                    ? 'basic_ghost'
-                    : isGhoul
-                      ? 'basic_ghoul'
-                      : isZombie
-                        ? 'basic_claw'
-                        : 'basic_sword'
+                isEaglekin
+                  ? 'basic_feather'
+                  : isHuman
+                    ? 'basic_pipe'
+                    : isGhost
+                      ? 'basic_ghost'
+                      : isGhoul
+                        ? 'basic_ghoul'
+                        : isZombie
+                          ? 'basic_claw'
+                          : 'basic_sword'
               }
               className="h-10 w-10"
             />

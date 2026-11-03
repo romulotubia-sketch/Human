@@ -11,6 +11,7 @@ interface SettingsModalProps {
   onUpdateSettings: (patch: Partial<GameSettings>) => void;
   onToggleFullscreen: () => void;
   onReturnToGuild: () => void;
+  onReturnToLobby: () => void;
   onLeaveMultiplayer?: () => void;
   onClose: () => void;
 }
@@ -24,26 +25,33 @@ export function SettingsModal({
   onUpdateSettings,
   onToggleFullscreen,
   onReturnToGuild,
+  onReturnToLobby,
   onLeaveMultiplayer,
   onClose,
 }: SettingsModalProps) {
   return (
-    <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/75 p-3 backdrop-blur-sm sm:p-5">
-      <div className="flex max-h-[90%] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-stone-700/80 bg-[#181310] text-stone-100 shadow-2xl">
-        <div className="flex shrink-0 items-center justify-between border-b border-stone-800 px-5 py-3.5">
-          <h2 className="font-display text-lg font-semibold text-amber-100">
-            Settings
-          </h2>
+    <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/75 p-2 sm:p-4 backdrop-blur-sm">
+      <div className="flex max-h-[92%] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-stone-700/80 bg-[#181310] text-stone-100 shadow-2xl">
+        <div className="flex shrink-0 items-center justify-between border-b border-stone-800 px-4 py-2.5 sm:px-5 sm:py-3">
+          <div className="flex items-center gap-2">
+            <h2 className="font-display text-sm sm:text-base font-bold text-amber-100">
+              Game Paused
+            </h2>
+            <span className="rounded border border-amber-400/30 bg-amber-400/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-300">
+              Paused
+            </span>
+          </div>
           <button
             type="button"
             onClick={() => {
               soundEngine.playUiTap();
               onClose();
             }}
-            aria-label="Close Settings"
-            className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl text-stone-300 transition-colors hover:bg-stone-800 hover:text-white"
+            aria-label="Resume Game"
+            className="flex h-8 items-center gap-1 rounded-xl border border-stone-700 bg-stone-900 px-2.5 text-xs font-semibold text-stone-200 transition-colors hover:bg-stone-800 hover:text-white"
           >
-            <X className="h-5 w-5" />
+            <X className="h-4 w-4" />
+            <span>Resume</span>
           </button>
         </div>
 
@@ -183,22 +191,20 @@ export function SettingsModal({
             </button>
           </div>
 
-          {isMultiplayer ? (
-            <div className="border-t border-stone-800 pt-3.5">
-              <button
-                type="button"
-                onClick={() => {
-                  soundEngine.playUiTap();
-                  onLeaveMultiplayer?.();
-                  onClose();
-                }}
-                className="min-h-[46px] w-full whitespace-nowrap rounded-xl border border-rose-500/50 bg-rose-950/70 px-4 py-2.5 text-sm font-semibold text-rose-200 transition-colors hover:bg-rose-900/80 active:scale-95"
-              >
-                Leave Co-Op Session
-              </button>
-            </div>
-          ) : isDungeon ? (
-            <div className="border-t border-stone-800 pt-3.5">
+          {/* Pause Menu & Navigation Actions */}
+          <div className="flex flex-col gap-2 border-t border-stone-800 pt-3">
+            <button
+              type="button"
+              onClick={() => {
+                soundEngine.playUiTap();
+                onReturnToLobby();
+              }}
+              className="min-h-[42px] w-full items-center justify-center rounded-xl bg-amber-400 px-4 py-2 text-xs font-bold text-stone-950 shadow-md transition-transform hover:bg-amber-300 active:scale-95"
+            >
+              Return to Lobby
+            </button>
+
+            {isDungeon && !isMultiplayer && (
               <button
                 type="button"
                 onClick={() => {
@@ -206,12 +212,37 @@ export function SettingsModal({
                   onReturnToGuild();
                   onClose();
                 }}
-                className="min-h-[46px] w-full whitespace-nowrap rounded-xl border border-amber-400/50 bg-amber-950/60 px-4 py-2.5 text-sm font-semibold text-amber-200 transition-colors hover:bg-amber-900/60"
+                className="min-h-[38px] w-full items-center justify-center rounded-xl border border-amber-400/50 bg-amber-950/50 px-4 py-2 text-xs font-semibold text-amber-200 transition-colors hover:bg-amber-900/60"
               >
-                Return to Guild House
+                Return to Guild Hearth
               </button>
-            </div>
-          ) : null}
+            )}
+
+            {isMultiplayer && (
+              <button
+                type="button"
+                onClick={() => {
+                  soundEngine.playUiTap();
+                  onLeaveMultiplayer?.();
+                  onClose();
+                }}
+                className="min-h-[38px] w-full items-center justify-center rounded-xl border border-rose-500/50 bg-rose-950/70 px-4 py-2 text-xs font-semibold text-rose-200 transition-colors hover:bg-rose-900/80 active:scale-95"
+              >
+                Leave Co-Op Session
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => {
+                soundEngine.playUiTap();
+                onClose();
+              }}
+              className="min-h-[38px] w-full items-center justify-center rounded-xl border border-stone-700 bg-stone-900 px-4 py-2 text-xs font-semibold text-stone-300 hover:bg-stone-800 hover:text-white"
+            >
+              Resume Game
+            </button>
+          </div>
         </div>
       </div>
     </div>
