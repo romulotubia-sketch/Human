@@ -51,17 +51,14 @@ export function HeroSelectScreen({
   const isEaglekin = heroId === 'eaglekin';
   const isTigerkin = heroId === 'tigerkin';
 
-  const [activeCategory, setActiveCategory] = useState<'undead_legion' | 'wildborn_tribes' | 'default'>(() => {
+  const [activeCategory, setActiveCategory] = useState<'undead_legion' | 'wildborn_tribes'>(() => {
     if (heroId === 'eaglekin' || heroId === 'tigerkin') return 'wildborn_tribes';
-    if (heroId === 'human') return 'default';
     return 'undead_legion';
   });
 
   useEffect(() => {
     if (heroId === 'eaglekin' || heroId === 'tigerkin') {
       setActiveCategory('wildborn_tribes');
-    } else if (heroId === 'human') {
-      setActiveCategory('default');
     } else {
       setActiveCategory('undead_legion');
     }
@@ -104,15 +101,15 @@ export function HeroSelectScreen({
 
   return (
     <div className="relative flex h-full w-full flex-col overflow-hidden bg-[#140f0c] text-stone-100">
-      {/* Compact 40px Single-Row Header */}
+      {/* Top Header: Categories only - Undead Legion & Wildborn Tribes */}
       <header className="flex h-10 shrink-0 items-center justify-between gap-2 border-b border-stone-800/80 px-3 sm:px-4">
         <div className="flex items-center gap-2.5">
-          <span className="font-display whitespace-nowrap text-sm font-bold tracking-tight text-amber-100 sm:text-base">
-            Guild Lobby
+          <span className="font-display whitespace-nowrap text-xs font-bold uppercase tracking-wider text-stone-400 sm:text-sm">
+            Categories:
           </span>
 
-          {/* Top Categories Switcher: Undead Legion | Wildborn Tribes | Default */}
-          <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
+          {/* Top Categories Switcher: Undead Legion | Wildborn Tribes */}
+          <div className="flex items-center gap-2 overflow-x-auto py-0.5">
             <button
               type="button"
               onClick={() => {
@@ -122,7 +119,7 @@ export function HeroSelectScreen({
                   onSelectHero('skeleton');
                 }
               }}
-              className={`flex h-7 items-center gap-1.5 whitespace-nowrap rounded-lg border px-2.5 text-xs font-semibold transition-all ${
+              className={`flex h-7 items-center gap-1.5 whitespace-nowrap rounded-lg border px-3 text-xs font-semibold transition-all ${
                 activeCategory === 'undead_legion'
                   ? 'border-purple-500/80 bg-purple-950/80 text-purple-100 shadow-sm ring-1 ring-purple-400/30'
                   : 'border-purple-900/50 bg-stone-900/80 text-stone-300 hover:border-purple-700/60 hover:text-white'
@@ -142,7 +139,7 @@ export function HeroSelectScreen({
                   onSelectHero('tigerkin');
                 }
               }}
-              className={`flex h-7 items-center gap-1.5 whitespace-nowrap rounded-lg border px-2.5 text-xs font-semibold transition-all ${
+              className={`flex h-7 items-center gap-1.5 whitespace-nowrap rounded-lg border px-3 text-xs font-semibold transition-all ${
                 activeCategory === 'wildborn_tribes'
                   ? 'border-amber-500/80 bg-amber-950/80 text-amber-100 shadow-sm ring-1 ring-amber-400/30'
                   : 'border-amber-900/50 bg-stone-900/80 text-stone-300 hover:border-amber-700/60 hover:text-white'
@@ -151,22 +148,6 @@ export function HeroSelectScreen({
               <span className="h-2 w-2 rounded-full bg-amber-400" />
               Wildborn Tribes
               <span className="rounded bg-amber-900/60 px-1 py-0.2 text-[10px] text-amber-300 font-mono">2</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                soundEngine.playUiTap();
-                setActiveCategory('default');
-                onSelectHero('human');
-              }}
-              className={`flex h-7 items-center gap-1.5 whitespace-nowrap rounded-lg border px-2 text-xs font-semibold transition-all ${
-                activeCategory === 'default'
-                  ? 'border-orange-500/80 bg-orange-950/80 text-orange-100 shadow-sm ring-1 ring-orange-400/30'
-                  : 'border-stone-800 bg-stone-900/70 text-stone-400 hover:text-stone-200'
-              }`}
-            >
-              Default
             </button>
           </div>
         </div>
@@ -205,9 +186,7 @@ export function HeroSelectScreen({
         <span className="whitespace-nowrap text-[10px] font-bold uppercase tracking-wider text-stone-400">
           {activeCategory === 'undead_legion'
             ? 'Undead Legion Heroes:'
-            : activeCategory === 'wildborn_tribes'
-              ? 'Wildborn Tribes Heroes:'
-              : 'Default Hero:'}
+            : 'Wildborn Tribes Heroes:'}
         </span>
 
         <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
@@ -262,19 +241,6 @@ export function HeroSelectScreen({
                 </button>
               );
             })}
-
-          {activeCategory === 'default' && (
-            <button
-              type="button"
-              onClick={() => {
-                soundEngine.playUiTap();
-                onSelectHero('human');
-              }}
-              className="h-6.5 whitespace-nowrap rounded-md bg-orange-400 px-2.5 text-[11px] font-bold text-stone-950 shadow-sm sm:text-xs"
-            >
-              Human
-            </button>
-          )}
         </div>
       </div>
 

@@ -300,6 +300,23 @@ export class GameEngine {
   private applyingOffGuardProc = false;
   private instinctCounterCooldown = 0;
 
+  // Tigerkin – Feral Berserker runtime timers & combat state
+  private pounceIsTigerkin = false;
+  private rendingFlurryHitsLeft = 0;
+  private rendingFlurryTimer = 0;
+  private rendingFlurryAngle = 0;
+  private rendingFlurryMult = 1;
+  private savagePursuitTimer = 0;
+  private savagePursuitVx = 0;
+  private savagePursuitVy = 0;
+  private savagePursuitMult = 1;
+  private savagePursuitHitIds = new Set<number>();
+  private apexDevastationState: 'none' | 'rising' | 'slamming' = 'none';
+  private apexDevastationTimer = 0;
+  private apexDevastationTargetX = 0;
+  private apexDevastationTargetY = 0;
+  private apexDevastationMult = 1;
+
   private doorCooldown = 0;
 
   private cooldowns: Record<ActiveSkillId, number>;
@@ -1485,6 +1502,52 @@ export class GameEngine {
         '#ecfccb',
         isTransformed ? '#c084fc' : '#a3e635'
       );
+    } else if (rp.heroId === 'tigerkin') {
+      if (data.comboStep === 2) {
+        soundEngine.playFeralClaw(1.05, true);
+        this.spawnSlashWave(
+          'tiger_cross_rend',
+          data.x,
+          data.y - 8,
+          data.facing,
+          reach * 1.05,
+          Math.PI * 1.15,
+          1,
+          0.26,
+          '#fef08a',
+          '#f59e0b'
+        );
+        this.spawnProjectile({
+          fromPlayer: true,
+          visualOnly: true,
+          kind: 'tiger_rend_wave',
+          x: data.x + Math.cos(data.facing) * 22,
+          y: data.y - 8 + Math.sin(data.facing) * 22,
+          vx: Math.cos(data.facing) * 600,
+          vy: Math.sin(data.facing) * 600,
+          angle: data.facing,
+          radius: 26,
+          damage: 0,
+          isCrit: false,
+          pierce: true,
+          maxLife: 0.55,
+          color: '#f59e0b',
+        });
+      } else {
+        soundEngine.playFeralClaw(1.18, false);
+        this.spawnSlashWave(
+          'tiger_savage_slash',
+          data.x,
+          data.y - 8,
+          data.facing,
+          reach * 0.92,
+          Math.PI * 0.95,
+          1,
+          0.22,
+          '#fef08a',
+          '#f59e0b'
+        );
+      }
     } else {
       soundEngine.playSlash(1.04);
       this.spawnSlashWave(
@@ -1837,6 +1900,64 @@ export class GameEngine {
         soundEngine.playSkill('ultimate');
         rp.wingFlapTimer = 0.5;
         this.spawnRingEffect(data.x, data.y - 10, 68, '#38bdf8');
+        break;
+
+      // --- TIGERKIN ---
+      case 'predators_pounce':
+        soundEngine.playSkill('rush');
+        this.spawnSlashWave('crushing_paw_shock', tx, ty - 8, ang, def.radiusOrAngle * 1.25, Math.PI * 1.4, 1, 0.28, '#fef08a', '#f59e0b');
+        this.spawnGroundEffect('tiger_crush_crater', tx, ty, 0, 0, ang, def.radiusOrAngle, 1.2, '#f59e0b', '#fef08a');
+        this.spawnRingEffect(tx, ty, def.radiusOrAngle * 1.1, '#f59e0b');
+        break;
+      case 'rending_flurry':
+        soundEngine.playFeralClaw(1.25, false);
+        this.spawnSlashWave('rending_flurry_slash', data.x, data.y - 8, ang, def.range * 0.95, def.radiusOrAngle, 1, 0.24, '#fef08a', '#f59e0b');
+        break;
+      case 'tigers_roar':
+        soundEngine.playTigerRoar(1.0);
+        rp.tigerRoarTimer = 4.0;
+        this.spawnGroundEffect('tiger_roar_burst', data.x, data.y, 0, 0, 0, def.range, 0.65, '#f59e0b', '#fbbf24');
+        this.spawnRingEffect(data.x, data.y, def.range, '#f59e0b');
+        break;
+      case 'savage_pursuit':
+        soundEngine.playSkill('rush');
+        this.spawnGroundEffect('savage_pursuit_track', data.x, data.y, tx, ty, ang, 90, 0.45, '#f59e0b', '#fef08a');
+        this.spawnSlashWave('tiger_cross_rend', tx, ty - 8, ang, 85, Math.PI * 1.1, 1, 0.26, '#fef08a', '#f59e0b');
+        break;
+      case 'crushing_paw':
+        soundEngine.playSkill('ultimate');
+        this.spawnGroundEffect('tiger_crush_crater', data.x, data.y, 0, 0, ang, def.radiusOrAngle, 1.3, '#f59e0b', '#fef08a');
+        this.spawnSlashWave('crushing_paw_shock', data.x, data.y - 8, ang, def.radiusOrAngle * 1.15, Math.PI * 1.4, 1, 0.28, '#fef08a', '#f59e0b');
+        break;
+      case 'king_of_beasts':
+        soundEngine.playTigerRoar(0.9);
+        rp.kingOfBeastsTimer = 10.0;
+        this.spawnRingEffect(data.x, data.y, def.range, '#fbbf24');
+        this.spawnGroundEffect('tiger_roar_burst', data.x, data.y, 0, 0, 0, def.range, 0.8, '#fbbf24', '#f59e0b');
+        break;
+      case 'heavenly_tiger':
+        soundEngine.playTigerRoar(1.1);
+        this.spawnProjectile({
+          fromPlayer: true,
+          visualOnly: true,
+          kind: 'heavenly_tiger_beast',
+          x: data.x,
+          y: data.y - 12,
+          vx: Math.cos(ang) * 680,
+          vy: Math.sin(ang) * 680,
+          angle: ang,
+          radius: 75,
+          damage: 0,
+          isCrit: false,
+          pierce: true,
+          maxLife: 0.95,
+          color: '#fbbf24',
+        });
+        break;
+      case 'apex_devastation':
+        soundEngine.playTigerRoar(0.85);
+        this.spawnGroundEffect('apex_shockwave_ring', tx, ty, 0, 0, ang, def.radiusOrAngle, 1.5, '#fbbf24', '#f59e0b');
+        this.spawnSlashWave('apex_claw_fissure', tx, ty - 8, ang, def.radiusOrAngle * 1.15, Math.PI * 1.6, 1, 0.35, '#fef08a', '#f59e0b');
         break;
     }
   }
@@ -4132,6 +4253,233 @@ export class GameEngine {
       this.spawnRingEffect(spawnX, spawnY, 68, '#38bdf8');
       this.spawnBurstParticles(spawnX, spawnY, '#e0f2fe', 30, true);
       this.spawnFloatingText(this.player.x, this.player.y - 52, 'FINAL HORIZON!', '#e0f2fe', true);
+    } else if (skillId === 'predators_pounce') {
+      // Normal 1: Predator's Pounce – Leaps toward a targeted enemy and strikes with both claws upon landing
+      this.player.swordAnim = SwordAnimState.PREDATORS_POUNCE;
+      this.swordAnimDuration = 0.28;
+      this.swordAnimTimer = 0.28;
+      soundEngine.playSkill('rush');
+      this.pounceTimer = 0.26;
+      this.pounceDuration = 0.26;
+      this.pounceIsPredatorLeap = false;
+      this.pounceIsTigerkin = true;
+      this.pounceStartX = this.player.x;
+      this.pounceStartY = this.player.y;
+      const jumpDist = Math.min(def.range, Math.max(30, targetDist));
+      const targetPoint = this.findFurthestWalkableAlongRay(
+        this.player.x,
+        this.player.y,
+        this.player.x + Math.cos(targetAngle) * jumpDist,
+        this.player.y + Math.sin(targetAngle) * jumpDist,
+        16
+      );
+      this.pounceTargetX = targetPoint.x;
+      this.pounceTargetY = targetPoint.y;
+      this.pounceMult = mult;
+      this.pounceRadius = def.radiusOrAngle;
+      this.spawnRingEffect(this.player.x, this.player.y, 44, '#f59e0b');
+    } else if (skillId === 'rending_flurry') {
+      // Normal 2: Rending Flurry – Unleashes a rapid series of claw strikes against enemies directly ahead
+      this.player.swordAnim = SwordAnimState.RENDING_FLURRY;
+      this.swordAnimDuration = 0.35;
+      this.swordAnimTimer = 0.35;
+      this.rendingFlurryHitsLeft = 5;
+      this.rendingFlurryTimer = 0.055;
+      this.rendingFlurryAngle = targetAngle;
+      this.rendingFlurryMult = mult;
+      soundEngine.playFeralClaw(1.22, false);
+      this.spawnSlashWave(
+        'rending_flurry_slash',
+        this.player.x + Math.cos(targetAngle) * 16,
+        this.player.y - 8 + Math.sin(targetAngle) * 16,
+        targetAngle,
+        def.range * 0.95,
+        def.radiusOrAngle,
+        1,
+        0.24,
+        '#fef08a',
+        '#f59e0b'
+      );
+      this.hitEnemiesInCone(targetAngle, def.range, def.radiusOrAngle, mult * 0.35, 0.2, '#f59e0b', 0);
+    } else if (skillId === 'tigers_roar') {
+      // Normal 3: Tiger's Roar – Releases terrifying roar weakening nearby enemies and interrupting attacks
+      this.player.swordAnim = SwordAnimState.TIGERS_ROAR;
+      this.swordAnimDuration = 0.36;
+      this.swordAnimTimer = 0.36;
+      this.player.tigerRoarTimer = 4.0;
+      soundEngine.playTigerRoar(1.0);
+      this.triggerShake(0.2, 5.0);
+      // Grants +2 Feral Momentum stacks
+      this.player.feralMomentumStacks = Math.min(5, (this.player.feralMomentumStacks || 0) + 2);
+      this.player.feralMomentumTimer = 4.0;
+
+      this.spawnGroundEffect('tiger_roar_burst', this.player.x, this.player.y, 0, 0, 0, def.range, 0.65, '#f59e0b', '#fbbf24');
+      this.spawnRingEffect(this.player.x, this.player.y, def.range, '#f59e0b');
+      this.spawnRingEffect(this.player.x, this.player.y, def.range * 0.6, '#fde047');
+      this.spawnBurstParticles(this.player.x, this.player.y - 8, '#fbbf24', 24, true);
+      this.spawnFloatingText(this.player.x, this.player.y - 42, "TIGER'S ROAR!", '#fbbf24', true);
+
+      for (const e of this.enemies) {
+        if (e.hp <= 0) continue;
+        if (Math.hypot(e.x - this.player.x, e.y - this.player.y) <= def.range + e.radius) {
+          e.windupTimer = 0;
+          e.slowTimer = Math.max(e.slowTimer, 3.5);
+          e.armorCrackTimer = Math.max(e.armorCrackTimer, 4.0);
+          if (e.kind !== EnemyKind.TRAINING_DUMMY && e.kind !== EnemyKind.BOSS_WARDEN) {
+            e.staggerTimer = Math.max(e.staggerTimer, 1.2);
+          }
+          const { dmg, isCrit } = this.rollPlayerDamage(mult, 0.2);
+          this.damageEnemy(e, dmg, isCrit, '#fbbf24');
+        }
+      }
+    } else if (skillId === 'savage_pursuit') {
+      // Normal 4: Savage Pursuit – Rushes toward nearest enemy, tearing through anything in its path
+      this.player.swordAnim = SwordAnimState.SAVAGE_PURSUIT;
+      this.swordAnimDuration = 0.24;
+      this.swordAnimTimer = 0.24;
+      soundEngine.playSkill('rush');
+      soundEngine.playFeralClaw(1.3, false);
+
+      const rushDur = 0.22;
+      const rushDist = Math.min(def.range, Math.max(40, targetDist));
+      const rushSpeed = rushDist / rushDur;
+      this.savagePursuitTimer = rushDur;
+      this.savagePursuitVx = Math.cos(targetAngle) * rushSpeed;
+      this.savagePursuitVy = Math.sin(targetAngle) * rushSpeed;
+      this.savagePursuitMult = mult;
+      this.savagePursuitHitIds.clear();
+
+      this.spawnGroundEffect(
+        'savage_pursuit_track',
+        this.player.x,
+        this.player.y + 6,
+        this.player.x + Math.cos(targetAngle) * rushDist,
+        this.player.y + 6 + Math.sin(targetAngle) * rushDist,
+        targetAngle,
+        90,
+        0.45,
+        '#f59e0b',
+        '#fef08a'
+      );
+      this.spawnRingEffect(this.player.x, this.player.y, 60, '#f59e0b');
+    } else if (skillId === 'crushing_paw') {
+      // Normal 5: Crushing Paw – Smashes ground with tremendous force, creating shockwave and knockback
+      this.player.swordAnim = SwordAnimState.CRUSHING_PAW;
+      this.swordAnimDuration = 0.36;
+      this.swordAnimTimer = 0.36;
+      soundEngine.playSkill('ultimate');
+      soundEngine.playFeralClaw(0.85, true);
+      this.triggerShake(0.24, 6.5);
+
+      this.spawnGroundEffect('tiger_crush_crater', this.player.x, this.player.y, 0, 0, targetAngle, def.radiusOrAngle, 1.3, '#f59e0b', '#fef08a');
+      this.spawnSlashWave('crushing_paw_shock', this.player.x, this.player.y - 8, targetAngle, def.radiusOrAngle * 1.15, Math.PI * 1.4, 1, 0.28, '#fef08a', '#f59e0b');
+      this.spawnRingEffect(this.player.x, this.player.y, def.radiusOrAngle, '#f59e0b');
+      this.spawnBurstParticles(this.player.x, this.player.y - 8, '#fde047', 22, true);
+      this.spawnFloatingText(this.player.x, this.player.y - 44, 'CRUSHING PAW!', '#fbbf24', true);
+
+      for (const e of this.enemies) {
+        if (e.hp <= 0) continue;
+        const d = Math.hypot(e.x - this.player.x, e.y - this.player.y);
+        if (d <= def.radiusOrAngle + e.radius) {
+          const { dmg, isCrit } = this.rollPlayerDamage(mult, 0.25);
+          this.damageEnemy(e, dmg, isCrit, '#f59e0b');
+          if (e.hp > 0 && e.kind !== EnemyKind.TRAINING_DUMMY && e.kind !== EnemyKind.BOSS_WARDEN) {
+            const ka = Math.atan2(e.y - this.player.y, e.x - this.player.x);
+            this.tryMoveEntity(e.x, e.y, Math.cos(ka) * 85, Math.sin(ka) * 85, e.radius * 0.75, (nx, ny) => {
+              e.x = nx;
+              e.y = ny;
+            });
+            e.staggerTimer = Math.max(e.staggerTimer, 1.0);
+          }
+        }
+      }
+    } else if (skillId === 'king_of_beasts') {
+      // Ultimate 1: King of Beasts – Enters feral state, gaining enhanced claws and relentless melee attacks
+      this.player.swordAnim = SwordAnimState.KING_OF_BEASTS;
+      this.swordAnimDuration = 0.44;
+      this.swordAnimTimer = 0.44;
+      this.player.kingOfBeastsTimer = 10.0;
+      this.player.feralMomentumStacks = 5;
+      this.player.feralMomentumTimer = 10.0;
+      const beastShield = Math.round(this.player.maxHp * 0.35);
+      this.player.shield = Math.max(this.player.shield, beastShield);
+      soundEngine.playTigerRoar(0.9);
+      soundEngine.playSkill('ultimate');
+      this.triggerShake(0.3, 7.5);
+
+      this.spawnGroundEffect('tiger_roar_burst', this.player.x, this.player.y, 0, 0, 0, def.range, 0.85, '#fbbf24', '#f59e0b');
+      this.spawnRingEffect(this.player.x, this.player.y, def.range, '#fbbf24');
+      this.spawnRingEffect(this.player.x, this.player.y, def.range * 0.65, '#fde047');
+      this.spawnBurstParticles(this.player.x, this.player.y - 10, '#fde047', 32, true);
+      this.spawnFloatingText(this.player.x, this.player.y - 52, 'KING OF BEASTS!', '#fbbf24', true);
+
+      for (const e of this.enemies) {
+        if (e.hp <= 0) continue;
+        if (Math.hypot(e.x - this.player.x, e.y - this.player.y) <= def.range + e.radius) {
+          e.windupTimer = 0;
+          e.slowTimer = Math.max(e.slowTimer, 2.5);
+          const { dmg, isCrit } = this.rollPlayerDamage(mult * 0.6, 0.3);
+          this.damageEnemy(e, dmg, isCrit, '#fbbf24');
+        }
+      }
+    } else if (skillId === 'heavenly_tiger') {
+      // Ultimate 2: Heavenly Tiger – Summons spectral image of gigantic tiger charging across battlefield
+      this.player.swordAnim = SwordAnimState.HEAVENLY_TIGER;
+      this.swordAnimDuration = 0.44;
+      this.swordAnimTimer = 0.44;
+      soundEngine.playTigerRoar(1.1);
+      soundEngine.playSkill('ultimate');
+      this.triggerShake(0.3, 7.0);
+
+      const { dmg, isCrit } = this.rollPlayerDamage(mult, 0.3);
+      this.spawnProjectile({
+        fromPlayer: true,
+        kind: 'heavenly_tiger_beast',
+        x: this.player.x,
+        y: this.player.y - 12,
+        vx: Math.cos(targetAngle) * 680,
+        vy: Math.sin(targetAngle) * 680,
+        angle: targetAngle,
+        radius: 75,
+        damage: dmg,
+        isCrit,
+        pierce: true,
+        maxLife: def.range / 680 + 0.15,
+        color: '#fbbf24',
+      });
+      this.spawnGroundEffect(
+        'heavenly_tiger_run',
+        this.player.x,
+        this.player.y + 6,
+        this.player.x + Math.cos(targetAngle) * def.range,
+        this.player.y + 6 + Math.sin(targetAngle) * def.range,
+        targetAngle,
+        80,
+        0.8,
+        '#fbbf24',
+        '#f59e0b'
+      );
+      this.spawnRingEffect(this.player.x, this.player.y, 90, '#fbbf24');
+      this.spawnFloatingText(this.player.x, this.player.y - 50, 'HEAVENLY TIGER!', '#fbbf24', true);
+    } else if (skillId === 'apex_devastation') {
+      // Ultimate 3: Apex Devastation – Launches into air before descending with massive claw strike and outward shockwaves
+      this.player.swordAnim = SwordAnimState.APEX_DEVASTATION_RISE;
+      this.swordAnimDuration = 0.55;
+      this.swordAnimTimer = 0.55;
+      soundEngine.playTigerRoar(0.85);
+      soundEngine.playSkill('ultimate');
+
+      this.apexDevastationState = 'rising';
+      this.apexDevastationTimer = 0.28;
+      const destX = this.player.x + Math.cos(targetAngle) * targetDist;
+      const destY = this.player.y + Math.sin(targetAngle) * targetDist;
+      const targetPoint = this.findFurthestWalkableAlongRay(this.player.x, this.player.y, destX, destY, 16);
+      this.apexDevastationTargetX = targetPoint.x;
+      this.apexDevastationTargetY = targetPoint.y;
+      this.apexDevastationMult = mult;
+
+      this.spawnRingEffect(this.player.x, this.player.y, 65, '#fbbf24');
+      this.spawnFloatingText(this.player.x, this.player.y - 54, 'APEX DEVASTATION!', '#fde047', true);
     }
 
     if (this.isMultiplayer && this.player.shield > prevShield) {
@@ -4934,6 +5282,134 @@ export class GameEngine {
         });
         this.spawnArcBurst(spawnX, spawnY, this.player.facing, 44, '#38bdf8', 12);
         this.spawnRingEffect(spawnX, spawnY, 32, '#e0f2fe');
+      }
+      return;
+    }
+
+    // =========================================================================
+    // TIGERKIN – FERAL BERSERKER BASIC ATTACK SEQUENCE (SAVAGE CLAW & TIGER'S REND)
+    // =========================================================================
+    if (this.heroId === 'tigerkin') {
+      const tigerReach = 108;
+      const nearest = this.findNearestEnemy(tigerReach + 84);
+      let distToNearest = 999;
+      if (nearest) {
+        const dx = nearest.x - this.player.x;
+        const dy = nearest.y - this.player.y;
+        distToNearest = Math.hypot(dx, dy);
+        this.player.facing = Math.atan2(dy, dx);
+      } else if (Math.hypot(this.joyX, this.joyY) > 0.15) {
+        this.player.facing = Math.atan2(this.joyY, this.joyX);
+      }
+
+      this.comboStep = (this.comboStep % 2) + 1;
+      this.comboResetTimer = 1.35;
+
+      const momentumHaste =
+        (this.player.feralMomentumStacks || 0) * 0.06 +
+        ((this.player.kingOfBeastsTimer ?? 0) > 0 ? 0.45 : 0);
+      const rawCd = this.comboStep === 2 ? 0.28 : 0.21;
+      this.basicCooldown = Math.max(0.14, rawCd / (1 + momentumHaste));
+
+      this.swordCastAngle = this.player.facing;
+      this.player.swordGlowColor = (this.player.kingOfBeastsTimer ?? 0) > 0 ? '#fbbf24' : '#f59e0b';
+      this.player.swordGlowIntensity = (this.player.kingOfBeastsTimer ?? 0) > 0 ? 1.35 : 0.75;
+
+      const syncedDur = Math.max(0.15, this.basicCooldown * 1.06);
+      this.swordAnimDuration = syncedDur;
+      this.swordAnimTimer = syncedDur;
+      this.player.swordAnim =
+        this.comboStep === 1
+          ? SwordAnimState.TIGER_SAVAGE_CLAW
+          : SwordAnimState.TIGER_REND;
+
+      const swingDir: 1 | -1 = this.comboStep === 2 ? 1 : -1;
+      this.targetAttackTwist = this.comboStep === 2 ? 1.35 : swingDir * 1.05;
+
+      if (!nearest || distToNearest > nearest.radius + 30) {
+        const glideSpd = (this.comboStep === 2 ? 135 : 105) * (Math.hypot(this.joyX, this.joyY) > 0.2 ? 0.6 : 1.0);
+        this.attackImpulseVx = Math.cos(this.player.facing) * glideSpd;
+        this.attackImpulseVy = Math.sin(this.player.facing) * glideSpd;
+      }
+
+      if (this.comboStep === 1) {
+        // Savage Claw: Swift forward slash with claws delivering powerful physical strike
+        soundEngine.playFeralClaw(1.18, false);
+        this.spawnSlashWave(
+          'tiger_savage_slash',
+          this.player.x,
+          this.player.y - 8,
+          this.player.facing,
+          tigerReach * 0.94,
+          Math.PI * 0.95,
+          1,
+          syncedDur * 1.05,
+          '#fef08a',
+          '#f59e0b'
+        );
+        this.hitEnemiesInCone(
+          this.player.facing,
+          tigerReach,
+          Math.PI * 0.92,
+          1.28,
+          0.14,
+          '#f59e0b',
+          0
+        );
+        this.spawnSoftMotes(this.player.x, this.player.y, this.player.facing, tigerReach * 0.78, '#fbbf24', 6);
+      } else {
+        // Tiger's Rend (Enhanced): Crosses both claws before unleashing devastating double slash sending crescent shockwave forward!
+        soundEngine.playFeralClaw(1.02, true);
+        this.triggerShake(0.12, 3.6);
+        this.spawnSlashWave(
+          'tiger_cross_rend',
+          this.player.x,
+          this.player.y - 8,
+          this.player.facing,
+          tigerReach * 1.06,
+          Math.PI * 1.15,
+          1,
+          syncedDur * 1.1,
+          '#fef08a',
+          '#f59e0b'
+        );
+        // Crescent shockwave projectile tearing forward
+        const { dmg: waveDmg, isCrit: waveCrit } = this.rollPlayerDamage(1.15, 0.2);
+        this.spawnProjectile({
+          fromPlayer: true,
+          kind: 'tiger_rend_wave',
+          x: this.player.x + Math.cos(this.player.facing) * 22,
+          y: this.player.y - 8 + Math.sin(this.player.facing) * 22,
+          vx: Math.cos(this.player.facing) * 600,
+          vy: Math.sin(this.player.facing) * 600,
+          angle: this.player.facing,
+          radius: 26,
+          damage: waveDmg,
+          isCrit: waveCrit,
+          pierce: true,
+          maxLife: 0.55,
+          color: '#f59e0b',
+        });
+        this.hitEnemiesInCone(
+          this.player.facing,
+          tigerReach * 1.08,
+          Math.PI * 1.12,
+          1.85,
+          0.22,
+          '#fbbf24',
+          0
+        );
+        this.spawnArcBurst(this.player.x, this.player.y, this.player.facing, tigerReach * 0.85, '#f59e0b', 14);
+      }
+
+      if (this.isMultiplayer) {
+        multiplayerClient.sendAttack(
+          this.comboStep,
+          this.player.facing,
+          this.player.x,
+          this.player.y,
+          tigerReach
+        );
       }
       return;
     }
@@ -6544,6 +7020,228 @@ export class GameEngine {
       }
     }
 
+    // =========================================================================
+    // TIGERKIN – FERAL BERSERKER PERIODIC UPDATES & SKILLS
+    // =========================================================================
+    if (this.player.kingOfBeastsTimer && this.player.kingOfBeastsTimer > 0) {
+      this.player.kingOfBeastsTimer = Math.max(0, this.player.kingOfBeastsTimer - dt);
+    }
+    if (this.player.tigerRoarTimer && this.player.tigerRoarTimer > 0) {
+      this.player.tigerRoarTimer = Math.max(0, this.player.tigerRoarTimer - dt);
+    }
+    if (this.player.feralMomentumTimer && this.player.feralMomentumTimer > 0) {
+      this.player.feralMomentumTimer = Math.max(0, this.player.feralMomentumTimer - dt);
+      if (this.player.feralMomentumTimer <= 0) {
+        this.player.feralMomentumStacks = 0;
+      }
+    }
+
+    // Tigerkin Normal 2 (Rending Flurry): Rapid series of 5 claw strikes against enemies directly ahead
+    if (this.rendingFlurryHitsLeft > 0) {
+      this.rendingFlurryTimer -= dt;
+      if (this.rendingFlurryTimer <= 0) {
+        this.rendingFlurryHitsLeft -= 1;
+        this.rendingFlurryTimer = 0.055;
+        const hitIdx = 5 - this.rendingFlurryHitsLeft;
+        const dir: 1 | -1 = hitIdx % 2 === 0 ? 1 : -1;
+        this.targetAttackTwist = dir * 1.15;
+        soundEngine.playFeralClaw(1.18 + hitIdx * 0.05, false);
+
+        this.spawnSlashWave(
+          'rending_flurry_slash',
+          this.player.x + Math.cos(this.rendingFlurryAngle) * 16,
+          this.player.y - 8 + Math.sin(this.rendingFlurryAngle) * 16,
+          this.rendingFlurryAngle,
+          105,
+          Math.PI * 0.95,
+          dir,
+          0.2,
+          '#fef08a',
+          '#f59e0b'
+        );
+        this.hitEnemiesInCone(
+          this.rendingFlurryAngle,
+          108,
+          Math.PI * 0.95,
+          this.rendingFlurryMult * 0.28,
+          0.22,
+          '#f59e0b',
+          0
+        );
+        this.player.feralMomentumStacks = Math.min(5, (this.player.feralMomentumStacks || 0) + 1);
+        this.player.feralMomentumTimer = 4.0;
+      }
+    }
+
+    // Tigerkin Normal 4 (Savage Pursuit): Rush tearing through anything in its path
+    if (this.savagePursuitTimer > 0) {
+      this.savagePursuitTimer = Math.max(0, this.savagePursuitTimer - dt);
+      const steps = 3;
+      const stepDx = (this.savagePursuitVx * dt) / steps;
+      const stepDy = (this.savagePursuitVy * dt) / steps;
+      for (let s = 0; s < steps; s++) {
+        this.tryMoveEntity(this.player.x, this.player.y, stepDx, stepDy, 16, (nx, ny) => {
+          this.player.x = nx;
+          this.player.y = ny;
+        });
+      }
+
+      this.ghostSampleAccum += dt;
+      if (this.ghostSampleAccum >= 0.04) {
+        this.ghostSampleAccum = 0;
+        for (const g of this.player.dashGhostTrail) {
+          if (g.alpha <= 0.05) {
+            g.x = this.player.x;
+            g.y = this.player.y;
+            g.alpha = 0.88;
+            break;
+          }
+        }
+        const backAng = Math.atan2(-this.savagePursuitVy, -this.savagePursuitVx);
+        this.spawnSoftMotes(this.player.x, this.player.y, backAng, 30, '#f59e0b', 3);
+      }
+
+      const rushAng = Math.atan2(this.savagePursuitVy, this.savagePursuitVx);
+      for (const e of this.enemies) {
+        if (e.hp <= 0 || this.savagePursuitHitIds.has(e.id)) continue;
+        if (Math.hypot(e.x - this.player.x, e.y - this.player.y) <= 48 + e.radius) {
+          this.savagePursuitHitIds.add(e.id);
+          const { dmg, isCrit } = this.rollPlayerDamage(this.savagePursuitMult * 0.65, 0.22);
+          this.damageEnemy(e, dmg, isCrit, '#f59e0b');
+          if (e.hp > 0 && e.kind !== EnemyKind.TRAINING_DUMMY && e.kind !== EnemyKind.BOSS_WARDEN) {
+            const ka = Math.atan2(e.y - this.player.y, e.x - this.player.x);
+            this.tryMoveEntity(e.x, e.y, Math.cos(ka) * 44, Math.sin(ka) * 44, e.radius, (nx, ny) => {
+              e.x = nx;
+              e.y = ny;
+            });
+            e.staggerTimer = Math.max(e.staggerTimer, 0.85);
+          }
+          this.spawnSlashWave(
+            'tiger_savage_slash',
+            e.x,
+            e.y - 8,
+            rushAng,
+            42,
+            Math.PI * 0.9,
+            1,
+            0.18,
+            '#fef08a',
+            '#f59e0b'
+          );
+        }
+      }
+
+      if (this.savagePursuitTimer <= 0) {
+        soundEngine.playFeralClaw(1.25, true);
+        this.triggerShake(0.14, 4.2);
+        this.spawnSlashWave(
+          'tiger_cross_rend',
+          this.player.x + Math.cos(rushAng) * 16,
+          this.player.y - 8 + Math.sin(rushAng) * 16,
+          rushAng,
+          88,
+          Math.PI * 1.2,
+          1,
+          0.26,
+          '#fef08a',
+          '#f59e0b'
+        );
+        this.hitEnemiesInCone(rushAng, 92, Math.PI * 1.2, this.savagePursuitMult * 0.45, 0.25, '#fbbf24', 0);
+      }
+    }
+
+    // Tigerkin Ultimate 3 (Apex Devastation): Parabolic launch into air followed by crushing descent
+    if (this.apexDevastationState === 'rising') {
+      this.apexDevastationTimer -= dt;
+      const riseRatio = Math.min(1, Math.max(0, 1 - this.apexDevastationTimer / 0.28));
+      this.player.airborneHeight = riseRatio * 65;
+
+      const spring = 1 - Math.exp(-12 * dt);
+      this.player.x += (this.apexDevastationTargetX - this.player.x) * spring;
+      this.player.y += (this.apexDevastationTargetY - this.player.y) * spring;
+
+      this.ghostSampleAccum += dt;
+      if (this.ghostSampleAccum >= 0.04) {
+        this.ghostSampleAccum = 0;
+        for (const g of this.player.dashGhostTrail) {
+          if (g.alpha <= 0.05) {
+            g.x = this.player.x;
+            g.y = this.player.y - this.player.airborneHeight * 0.45;
+            g.alpha = 0.75;
+            break;
+          }
+        }
+      }
+
+      if (this.apexDevastationTimer <= 0) {
+        this.apexDevastationState = 'slamming';
+        this.apexDevastationTimer = 0.12;
+        this.player.swordAnim = SwordAnimState.APEX_DEVASTATION_SLAM;
+      }
+    } else if (this.apexDevastationState === 'slamming') {
+      this.apexDevastationTimer -= dt;
+      const dropRatio = Math.max(0, this.apexDevastationTimer / 0.12);
+      this.player.airborneHeight = dropRatio * 65;
+
+      if (this.apexDevastationTimer <= 0) {
+        this.player.airborneHeight = 0;
+        this.apexDevastationState = 'idle';
+
+        soundEngine.playFeralClaw(0.82, true);
+        soundEngine.playTigerRoar(1.15);
+        this.triggerShake(0.32, 9.2);
+
+        const slamRadius = 145;
+        this.spawnGroundEffect(
+          'tiger_crush_crater',
+          this.player.x,
+          this.player.y,
+          0,
+          0,
+          this.player.facing,
+          slamRadius,
+          1.5,
+          '#f59e0b',
+          '#fef08a'
+        );
+        this.spawnRingEffect(this.player.x, this.player.y, slamRadius, '#fbbf24');
+        this.spawnRingEffect(this.player.x, this.player.y, slamRadius * 0.65, '#fde047');
+        this.spawnBurstParticles(this.player.x, this.player.y - 8, '#fde047', 36, true);
+
+        for (let w = 0; w < 4; w++) {
+          const wAng = (w * Math.PI) / 2 + this.player.facing;
+          this.spawnSlashWave(
+            'crushing_paw_shock',
+            this.player.x,
+            this.player.y - 8,
+            wAng,
+            slamRadius * 1.1,
+            Math.PI * 0.85,
+            1,
+            0.32,
+            '#fef08a',
+            '#f59e0b'
+          );
+        }
+
+        for (const e of this.enemies) {
+          if (e.hp <= 0) continue;
+          if (Math.hypot(e.x - this.player.x, e.y - this.player.y) <= slamRadius + e.radius) {
+            const { dmg, isCrit } = this.rollPlayerDamage(this.apexDevastationMult, 0.35);
+            this.damageEnemy(e, dmg, isCrit, '#fbbf24');
+            if (e.hp > 0 && e.kind !== EnemyKind.TRAINING_DUMMY && e.kind !== EnemyKind.BOSS_WARDEN) {
+              const ka = Math.atan2(e.y - this.player.y, e.x - this.player.x);
+              this.tryMoveEntity(e.x, e.y, Math.cos(ka) * 95, Math.sin(ka) * 95, e.radius * 0.75, (nx, ny) => {
+                e.x = nx;
+                e.y = ny;
+              });
+              e.staggerTimer = Math.max(e.staggerTimer, 1.4);
+            }
+          }
+        }
+      }
+    }
+
     // Ghost Haunted Possession active state: ride inside possessed enemy & erupt when finished!
     if (this.player.possessingTimer > 0) {
       this.player.possessingTimer = Math.max(0, this.player.possessingTimer - dt);
@@ -7275,7 +7973,49 @@ export class GameEngine {
 
       if (this.pounceTimer <= 0) {
         this.player.airborneHeight = 0;
-        if (this.pounceIsPredatorLeap) {
+        if (this.pounceIsTigerkin) {
+          // Predator's Pounce: dual-claw crash impact upon landing!
+          soundEngine.playFeralClaw(1.15, true);
+          this.triggerShake(0.18, 5.0);
+          this.spawnSlashWave(
+            'crushing_paw_shock',
+            this.player.x,
+            this.player.y - 8,
+            this.player.facing,
+            this.pounceRadius * 1.25,
+            Math.PI * 1.4,
+            1,
+            0.28,
+            '#fef08a',
+            '#f59e0b'
+          );
+          this.spawnGroundEffect(
+            'tiger_crush_crater',
+            this.player.x,
+            this.player.y,
+            0,
+            0,
+            this.player.facing,
+            this.pounceRadius,
+            1.2,
+            '#f59e0b',
+            '#fef08a'
+          );
+          this.spawnRingEffect(this.player.x, this.player.y, this.pounceRadius * 1.15, '#f59e0b');
+          this.spawnBurstParticles(this.player.x, this.player.y - 8, '#fde047', 22, true);
+
+          for (const e of this.enemies) {
+            if (e.hp <= 0) continue;
+            if (Math.hypot(e.x - this.player.x, e.y - this.player.y) <= this.pounceRadius + e.radius) {
+              const { dmg, isCrit } = this.rollPlayerDamage(this.pounceMult, 0.25);
+              this.damageEnemy(e, dmg, isCrit, '#f59e0b');
+              if (e.hp > 0 && e.kind !== EnemyKind.TRAINING_DUMMY && e.kind !== EnemyKind.BOSS_WARDEN) {
+                e.staggerTimer = Math.max(e.staggerTimer, 1.1);
+              }
+            }
+          }
+          this.pounceIsTigerkin = false;
+        } else if (this.pounceIsPredatorLeap) {
           // Predator's Leap crash-down shockwave + queued sweeping claw follow-up!
           soundEngine.playSkill('ultimate');
           this.triggerShake(0.22, 6.2);
@@ -7559,6 +8299,25 @@ export class GameEngine {
             const restRank = Math.max(1, this.skillRanks.restless_spirit || 1);
             speedMult += this.player.restlessStacks * (0.06 + (restRank - 1) * 0.015);
           }
+        } else if (this.heroId === 'tigerkin') {
+          if ((this.player.kingOfBeastsTimer || 0) > 0) speedMult += 0.32;
+          if ((this.player.feralMomentumStacks || 0) > 0) {
+            speedMult += (this.player.feralMomentumStacks || 0) * 0.04;
+          }
+          let hasPrey = false;
+          for (let i = 0; i < this.enemies.length; i++) {
+            const e = this.enemies[i];
+            if (e.hp > 0 && e.kind !== EnemyKind.TRAINING_DUMMY && e.hp / Math.max(1, e.maxHp) <= 0.5) {
+              if (Math.hypot(e.x - this.player.x, e.y - this.player.y) <= 340) {
+                hasPrey = true;
+                break;
+              }
+            }
+          }
+          if (hasPrey) {
+            const preyRank = Math.max(1, this.skillRanks.predators_instinct || 1);
+            speedMult += 0.22 + (preyRank - 1) * 0.04;
+          }
         }
         const speed = this.moveSpeed * speedMult * Math.min(1, mag);
         const dx = (this.joyX / mag) * speed * dt;
@@ -7576,7 +8335,7 @@ export class GameEngine {
           },
           this.heroId === 'ghost'
         );
-        this.player.walkPhase += dt * (this.heroId === 'ghoul' ? 13.5 : 11) * Math.min(1, mag);
+        this.player.walkPhase += dt * (this.heroId === 'ghoul' || this.heroId === 'tigerkin' ? 13.5 : 11) * Math.min(1, mag);
         if (this.swordAnimTimer <= 0) {
           this.player.facing = Math.atan2(this.joyY, this.joyX);
         }
@@ -7629,6 +8388,8 @@ export class GameEngine {
     const isZombie = this.heroId === 'zombie';
     const isGhoul = this.heroId === 'ghoul';
     const isGhost = this.heroId === 'ghost';
+    const isTigerkin = this.heroId === 'tigerkin';
+    const hasOffhandClaw = isGhoul || isTigerkin;
     // Eaglekin Sky Marksman has integrated feathered wings attached to its body (no floating weapon)
     if (this.heroId === 'eaglekin') {
       this.breakWeaponTrail();
@@ -7689,7 +8450,7 @@ export class GameEngine {
       return;
     }
 
-    const baseScale = isTransformed ? (isGhoul ? 1.62 : 1.68) : 1.0;
+    const baseScale = isTransformed ? (isGhoul ? 1.62 : 1.68) : isTigerkin && (this.player.kingOfBeastsTimer || 0) > 0 ? 1.28 : 1.0;
     const liftY = this.player.airborneHeight || 0;
 
     let targetX = this.player.x;
@@ -7930,6 +8691,151 @@ export class GameEngine {
         targetY = this.player.y - liftY - 10 * baseScale + Math.sin(spin) * r * perspY;
         targetAngle = spin + Math.PI * 0.45;
         targetScale = baseScale * 1.32;
+      } else if (this.player.swordAnim === SwordAnimState.TIGER_SAVAGE_CLAW) {
+        // Savage Claw: swift forward slash with right claw, offhand claw coils ready
+        const arcSpan = 2.9;
+        const swing = -arcSpan * 0.5 + ease * arcSpan;
+        const orbit = ang + swing;
+        const r = (38 + reachBell * 10) * baseScale;
+        targetX = this.player.x + Math.cos(orbit) * r;
+        targetY = this.player.y - liftY - 10 * baseScale + Math.sin(orbit) * r * perspY;
+        targetAngle = orbit + 0.38;
+        const backAng = ang + 1.28 + ease * 0.25;
+        offTargetX = this.player.x + Math.cos(backAng) * (26 * baseScale);
+        offTargetY = this.player.y - liftY - 11 * baseScale + Math.sin(backAng) * (18 * baseScale);
+        offTargetAngle = backAng - 0.32;
+        targetScale = baseScale * (1.12 + reachBell * 0.12);
+        isEmittingTrail = true;
+      } else if (this.player.swordAnim === SwordAnimState.TIGER_REND) {
+        // Tiger's Rend: devastating cross-slash with both claws converging
+        const r = (42 + reachBell * 14) * baseScale;
+        const orbitR = ang - 1.4 + ease * 2.8;
+        const orbitL = ang + 1.4 - ease * 2.8;
+        targetX = this.player.x + Math.cos(orbitR) * r;
+        targetY = this.player.y - liftY - 10 * baseScale + Math.sin(orbitR) * r * perspY;
+        targetAngle = orbitR + 0.32;
+        offTargetX = this.player.x + Math.cos(orbitL) * r;
+        offTargetY = this.player.y - liftY - 10 * baseScale + Math.sin(orbitL) * r * perspY;
+        offTargetAngle = orbitL - 0.32;
+        emitOffhandTrail = true;
+        isEmittingTrail = true;
+        isSkillTrail = true;
+        targetScale = baseScale * (1.2 + reachBell * 0.12);
+      } else if (this.player.swordAnim === SwordAnimState.RENDING_FLURRY) {
+        // Rending Flurry: rapid alternating 5 strikes
+        const flurry = p * Math.PI * 3.5;
+        const r = (44 + reachBell * 8) * baseScale;
+        const orbitR = ang + Math.sin(flurry) * 1.35;
+        const orbitL = ang + Math.sin(flurry + Math.PI) * 1.35;
+        targetX = this.player.x + Math.cos(orbitR) * r;
+        targetY = this.player.y - liftY - 10 * baseScale + Math.sin(orbitR) * r * perspY;
+        targetAngle = orbitR + 0.28;
+        offTargetX = this.player.x + Math.cos(orbitL) * r;
+        offTargetY = this.player.y - liftY - 10 * baseScale + Math.sin(orbitL) * r * perspY;
+        offTargetAngle = orbitL - 0.28;
+        emitOffhandTrail = true;
+        isEmittingTrail = true;
+        isSkillTrail = true;
+        targetScale = baseScale * 1.25;
+      } else if (this.player.swordAnim === SwordAnimState.TIGERS_ROAR) {
+        // Tiger's Roar: both claws spread wide in terrifying roar stance
+        const spread = 1.35 + Math.sin(p * Math.PI) * 0.4;
+        const r = (40 + Math.sin(p * Math.PI) * 12) * baseScale;
+        targetX = this.player.x + Math.cos(ang - spread) * r;
+        targetY = this.player.y - liftY - 12 * baseScale + Math.sin(ang - spread) * r * perspY;
+        targetAngle = ang - spread * 0.8;
+        offTargetX = this.player.x + Math.cos(ang + spread) * r;
+        offTargetY = this.player.y - liftY - 12 * baseScale + Math.sin(ang + spread) * r * perspY;
+        offTargetAngle = ang + spread * 0.8;
+        emitOffhandTrail = true;
+        isEmittingTrail = true;
+        isSkillTrail = true;
+        targetScale = baseScale * (1.18 + Math.sin(p * Math.PI) * 0.2);
+      } else if (this.player.swordAnim === SwordAnimState.SAVAGE_PURSUIT) {
+        // Savage Pursuit: both claws forward ripping through path
+        targetX = this.player.x + Math.cos(ang - 0.38) * (36 * baseScale);
+        targetY = this.player.y - liftY - 10 * baseScale + Math.sin(ang - 0.38) * (28 * baseScale);
+        targetAngle = ang + 0.15;
+        offTargetX = this.player.x + Math.cos(ang + 0.38) * (36 * baseScale);
+        offTargetY = this.player.y - liftY - 10 * baseScale + Math.sin(ang + 0.38) * (28 * baseScale);
+        offTargetAngle = ang - 0.15;
+        emitOffhandTrail = true;
+        isEmittingTrail = true;
+        isSkillTrail = true;
+        targetScale = baseScale * 1.3;
+      } else if (this.player.swordAnim === SwordAnimState.CRUSHING_PAW) {
+        // Crushing Paw: right claw raised high and slamming into the ground
+        if (p < 0.4) {
+          const up = p / 0.4;
+          targetX = this.player.x + Math.cos(ang - 0.4) * (24 * baseScale);
+          targetY = this.player.y - (28 + up * 18) * baseScale;
+          targetAngle = -Math.PI * 0.5 - up * 0.3;
+          offTargetX = this.player.x + Math.cos(ang + 0.9) * (24 * baseScale);
+          offTargetY = this.player.y - liftY - 8 * baseScale + Math.sin(ang + 0.9) * 16;
+          offTargetAngle = ang + 0.5;
+        } else {
+          const slam = this.smoothSwingCurve((p - 0.4) / 0.6);
+          targetX = this.player.x + Math.cos(ang) * (20 + slam * 24);
+          targetY = this.player.y + (-38 + slam * 46) * baseScale;
+          targetAngle = ang + 0.6;
+          offTargetX = this.player.x + Math.cos(ang + 0.8) * (26 * baseScale);
+          offTargetY = this.player.y - liftY - 6 * baseScale + Math.sin(ang + 0.8) * 16;
+          offTargetAngle = ang + 0.4;
+        }
+        targetScale = baseScale * 1.35;
+        isEmittingTrail = true;
+        isSkillTrail = true;
+      } else if (this.player.swordAnim === SwordAnimState.KING_OF_BEASTS) {
+        // King of Beasts: feral roar stance, claws glowing fiery amber/solar
+        const pulse = Math.sin(p * Math.PI * 2);
+        targetX = this.player.x + Math.cos(ang - 1.1) * (34 + pulse * 6);
+        targetY = this.player.y - liftY - 16 * baseScale + Math.sin(ang - 1.1) * 20;
+        targetAngle = ang - 0.8;
+        offTargetX = this.player.x + Math.cos(ang + 1.1) * (34 + pulse * 6);
+        offTargetY = this.player.y - liftY - 16 * baseScale + Math.sin(ang + 1.1) * 20;
+        offTargetAngle = ang + 0.8;
+        emitOffhandTrail = true;
+        isEmittingTrail = true;
+        isSkillTrail = true;
+        targetScale = baseScale * (1.25 + Math.sin(p * Math.PI) * 0.25);
+      } else if (this.player.swordAnim === SwordAnimState.HEAVENLY_TIGER) {
+        // Heavenly Tiger: claws thrust forward summoning the great spectral tiger
+        const thrust = Math.sin(p * Math.PI) * 32;
+        targetX = this.player.x + Math.cos(ang - 0.32) * (28 + thrust);
+        targetY = this.player.y - liftY - 10 * baseScale + Math.sin(ang - 0.32) * (28 + thrust);
+        targetAngle = ang;
+        offTargetX = this.player.x + Math.cos(ang + 0.32) * (28 + thrust);
+        offTargetY = this.player.y - liftY - 10 * baseScale + Math.sin(ang + 0.32) * (28 + thrust);
+        offTargetAngle = ang;
+        emitOffhandTrail = true;
+        isEmittingTrail = true;
+        isSkillTrail = true;
+        targetScale = baseScale * 1.35;
+      } else if (this.player.swordAnim === SwordAnimState.APEX_DEVASTATION_RISE) {
+        // Apex Devastation: claws raised high overhead while airborne
+        targetX = this.player.x - 12;
+        targetY = this.player.y - liftY - 28 * baseScale;
+        targetAngle = -Math.PI * 0.65;
+        offTargetX = this.player.x + 12;
+        offTargetY = this.player.y - liftY - 28 * baseScale;
+        offTargetAngle = -Math.PI * 0.35;
+        emitOffhandTrail = true;
+        isEmittingTrail = true;
+        isSkillTrail = true;
+        targetScale = baseScale * 1.35;
+      } else if (this.player.swordAnim === SwordAnimState.APEX_DEVASTATION_SLAM) {
+        // Apex Devastation: massive dive claw strike
+        const slamR = 38 * baseScale;
+        targetX = this.player.x + Math.cos(ang - 0.25) * slamR;
+        targetY = this.player.y - liftY + Math.sin(ang - 0.25) * slamR;
+        targetAngle = ang + 0.4;
+        offTargetX = this.player.x + Math.cos(ang + 0.25) * slamR;
+        offTargetY = this.player.y - liftY + Math.sin(ang + 0.25) * slamR;
+        offTargetAngle = ang - 0.4;
+        emitOffhandTrail = true;
+        isEmittingTrail = true;
+        isSkillTrail = true;
+        targetScale = baseScale * 1.45;
       } else {
         const orbit = ang + ease * Math.PI * 2.0;
         targetX = this.player.x + Math.cos(orbit) * 42 * baseScale;
@@ -7938,7 +8844,7 @@ export class GameEngine {
         offTargetX = this.player.x + Math.cos(orbit + Math.PI) * 42 * baseScale;
         offTargetY = this.player.y - liftY - 12 * baseScale + Math.sin(orbit + Math.PI) * 32 * baseScale;
         offTargetAngle = orbit + Math.PI * 1.4;
-        if (isGhoul) emitOffhandTrail = true;
+        if (hasOffhandClaw) emitOffhandTrail = true;
         targetScale = baseScale * 1.28;
         isSkillTrail = true;
       }
@@ -7955,7 +8861,7 @@ export class GameEngine {
       this.player.swordAngle = this.blendAngle(this.player.swordAngle, targetAngle, activeSpring);
       this.player.swordScale += (targetScale - this.player.swordScale) * activeSpring;
 
-      if (isGhoul) {
+      if (hasOffhandClaw) {
         this.player.offhandX += (offTargetX - this.player.offhandX) * activeSpring;
         this.player.offhandY += (offTargetY - this.player.offhandY) * activeSpring;
         this.player.offhandAngle = this.blendAngle(this.player.offhandAngle, offTargetAngle, activeSpring);
@@ -7980,11 +8886,11 @@ export class GameEngine {
       isSkillTrail = true;
     } else {
       // Independent floating hover beside armless chibi body!
-      const sideAng = this.player.facing - (isGhoul ? 1.05 : 0.85);
+      const sideAng = this.player.facing - (hasOffhandClaw ? 1.05 : 0.85);
       const hoverY = Math.sin(this.elapsedTime * 3.8) * 3.8;
       targetX = this.player.x + Math.cos(sideAng) * (27 * baseScale);
       targetY = this.player.y - liftY - 11 * baseScale + Math.sin(sideAng) * (15 * baseScale) + hoverY;
-      targetAngle = isGhoul
+      targetAngle = hasOffhandClaw
         ? this.player.facing - 0.18 + Math.sin(this.elapsedTime * 4.2) * 0.1
         : isZombie
           ? this.player.facing * 0.15 - Math.PI * 0.18 + Math.sin(this.elapsedTime * 3.1) * 0.1
@@ -7996,7 +8902,7 @@ export class GameEngine {
       this.player.swordAngle = this.blendAngle(this.player.swordAngle, targetAngle, spring);
       this.player.swordScale += (baseScale - this.player.swordScale) * spring;
 
-      if (isGhoul) {
+      if (hasOffhandClaw) {
         const leftAng = this.player.facing + 1.05;
         const hoverY2 = Math.cos(this.elapsedTime * 3.8) * 3.8;
         const ox = this.player.x + Math.cos(leftAng) * (27 * baseScale);
@@ -8009,14 +8915,20 @@ export class GameEngine {
       }
 
       this.player.swordGlowIntensity =
-        isTransformed || this.player.ambushReady || this.player.lastStandTimer > 0 || this.player.oneManArmyTimer > 0
+        isTransformed || this.player.ambushReady || this.player.lastStandTimer > 0 || this.player.oneManArmyTimer > 0 || (isTigerkin && (this.player.kingOfBeastsTimer || 0) > 0)
           ? 1.0
-          : 0.32;
+          : isTigerkin
+            ? 0.38 + (this.player.feralMomentumStacks || 0) * 0.12
+            : 0.32;
       this.player.swordGlowColor =
         this.heroId === 'human'
           ? this.player.lastStandTimer > 0
             ? '#fde047'
             : '#fb923c'
+          : isTigerkin
+            ? (this.player.kingOfBeastsTimer || 0) > 0
+              ? '#fbbf24'
+              : '#f59e0b'
           : isGhoul
             ? this.player.ambushReady
               ? '#e11d48'
@@ -8033,7 +8945,7 @@ export class GameEngine {
 
       if (isTransformed && Math.hypot(this.joyX, this.joyY) > 0.25) {
         isEmittingTrail = true;
-        if (isGhoul) emitOffhandTrail = true;
+        if (hasOffhandClaw) emitOffhandTrail = true;
       }
     }
 
@@ -8044,14 +8956,22 @@ export class GameEngine {
         const tipLen =
           (this.player.isScytheForm
             ? 50
-            : isZombie || isGhoul
-              ? 31
+            : isZombie || isGhoul || isTigerkin
+              ? 32
               : this.heroId === 'human'
                 ? 44
                 : 40) * this.player.swordScale;
         const baseLen = 7 * this.player.swordScale;
         const coreColor =
-          isGhoul ? '#fff1f2' : isZombie ? '#ecfccb' : this.heroId === 'human' ? '#fef3c7' : '#ffffff';
+          isTigerkin
+            ? '#fef08a'
+            : isGhoul
+              ? '#fff1f2'
+              : isZombie
+                ? '#ecfccb'
+                : this.heroId === 'human'
+                  ? '#fef3c7'
+                  : '#ffffff';
 
         if (isEmittingTrail) {
           const cos = Math.cos(this.player.swordAngle);
@@ -8070,7 +8990,7 @@ export class GameEngine {
             isSkillTrail,
             0
           );
-          if (isSkillTrail && Math.random() < (isGhoul ? 0.35 : 0.65)) {
+          if (isSkillTrail && Math.random() < (isGhoul || isTigerkin ? 0.35 : 0.65)) {
             this.spawnParticle({
               x: tipX + (Math.random() - 0.5) * 6,
               y: tipY + (Math.random() - 0.5) * 6,
@@ -8081,14 +9001,14 @@ export class GameEngine {
               maxAge: 0.28 + Math.random() * 0.14,
               color: Math.random() < 0.3 ? '#ffffff' : this.player.swordGlowColor,
               glow: true,
-              shape: isGhoul || isZombie ? 'circle' : 'spark',
+              shape: isGhoul || isZombie || isTigerkin ? 'circle' : 'spark',
               rotation: Math.random() * Math.PI,
               vRot: (Math.random() - 0.5) * 4,
             });
           }
         }
 
-        if (emitOffhandTrail && isGhoul) {
+        if (emitOffhandTrail && hasOffhandClaw) {
           const cos2 = Math.cos(this.player.offhandAngle);
           const sin2 = Math.sin(this.player.offhandAngle);
           const tipX2 = this.player.offhandX + cos2 * tipLen;
@@ -8100,7 +9020,7 @@ export class GameEngine {
             tipY2,
             baseX2,
             baseY2,
-            '#fff1f2',
+            isTigerkin ? '#fef08a' : '#fff1f2',
             this.player.swordGlowColor,
             isSkillTrail,
             1
@@ -9035,6 +9955,16 @@ export class GameEngine {
             } else if (p.kind === 'piercing_feather') {
               this.spawnArcBurst(p.x, p.y, p.angle, 38, '#38bdf8', 8);
               this.spawnSoftMotes(p.x, p.y, p.angle, 20, '#e0f2fe', 4);
+            } else if (p.kind === 'tiger_rend_wave') {
+              this.spawnArcBurst(p.x, p.y, p.angle, 34, '#f59e0b', 6);
+              this.spawnSoftMotes(p.x, p.y, p.angle, 22, '#fef08a', 4);
+            } else if (p.kind === 'heavenly_tiger_beast') {
+              this.spawnArcBurst(p.x, p.y, p.angle, 60, '#fbbf24', 10);
+              this.triggerShake(0.08, 2.5);
+              if (!p.visualOnly && e.kind !== EnemyKind.TRAINING_DUMMY) {
+                e.staggerTimer = Math.max(e.staggerTimer, 0.6);
+                e.slowTimer = Math.max(e.slowTimer, 1.8);
+              }
             }
             if (!p.visualOnly) {
               this.damageEnemy(e, p.damage, p.isCrit, p.color);
@@ -9218,6 +10148,14 @@ export class GameEngine {
       }
       return atk;
     }
+    if (this.heroId === 'tigerkin') {
+      if (this.player.kingOfBeastsTimer > 0) atk *= 1.45;
+      if (this.player.feralMomentumStacks && this.player.feralMomentumStacks > 0) {
+        const momRank = Math.max(1, this.skillRanks.feral_momentum || 1);
+        atk *= 1 + this.player.feralMomentumStacks * (0.05 + (momRank - 1) * 0.01);
+      }
+      return atk;
+    }
     if (this.player.colossusTimer > 0) {
       if (this.heroId === 'ghoul') {
         const apexRank = Math.max(1, this.skillRanks.apex_predator || 1);
@@ -9256,6 +10194,11 @@ export class GameEngine {
       const eagleRank = Math.max(1, this.skillRanks.eagle_eyes || 1);
       critChance = 0.22 + 0.12 + (eagleRank - 1) * 0.03 + bonusCritChance;
       critMult = 1.75 + (eagleRank - 1) * 0.08;
+    } else if (this.heroId === 'tigerkin') {
+      const instRank = Math.max(1, this.skillRanks.predators_instinct || 1);
+      critChance = 0.28 + (instRank - 1) * 0.04 + bonusCritChance;
+      if (this.player.kingOfBeastsTimer > 0) critChance += 0.25;
+      critMult = 1.8 + (instRank - 1) * 0.08;
     }
     let blessingCrit = 0;
     for (const b of this.activeBlessings) {
@@ -9377,6 +10320,22 @@ export class GameEngine {
       adjustedDmg = Math.round(adjustedDmg * stackBonus);
       if (stacks > 1 && Math.random() < 0.35) {
         this.spawnFloatingText(e.x, e.y - e.radius - 28, `PRECISION x${stacks}!`, '#38bdf8', false);
+      }
+    }
+
+    // Tigerkin Passives on hit: Feral Momentum stack building + Predator's Instinct execution bonus!
+    if (this.heroId === 'tigerkin') {
+      this.player.feralMomentumStacks = Math.min(5, (this.player.feralMomentumStacks || 0) + 1);
+      this.player.feralMomentumTimer = 4.0;
+
+      const hpRatioBefore = e.hp / Math.max(1, e.maxHp);
+      if (hpRatioBefore <= 0.5) {
+        const instRank = Math.max(1, this.skillRanks.predators_instinct || 1);
+        const execMult = 1.25 + (instRank - 1) * 0.06;
+        adjustedDmg = Math.round(adjustedDmg * execMult);
+        if (Math.random() < 0.28) {
+          this.spawnFloatingText(e.x, e.y - e.radius - 28, 'PREDATOR INSTINCT!', '#fbbf24', false);
+        }
       }
     }
 
