@@ -49,6 +49,23 @@ export function HeroSelectScreen({
   const isGhoul = heroId === 'ghoul';
   const isGhost = heroId === 'ghost';
   const isEaglekin = heroId === 'eaglekin';
+  const isTigerkin = heroId === 'tigerkin';
+
+  const [activeCategory, setActiveCategory] = useState<'undead_legion' | 'wildborn_tribes' | 'default'>(() => {
+    if (heroId === 'eaglekin' || heroId === 'tigerkin') return 'wildborn_tribes';
+    if (heroId === 'human') return 'default';
+    return 'undead_legion';
+  });
+
+  useEffect(() => {
+    if (heroId === 'eaglekin' || heroId === 'tigerkin') {
+      setActiveCategory('wildborn_tribes');
+    } else if (heroId === 'human') {
+      setActiveCategory('default');
+    } else {
+      setActiveCategory('undead_legion');
+    }
+  }, [heroId]);
 
   const [inspectedSkillId, setInspectedSkillId] = useState<SkillId>(loadout[0]);
   const [slotChoiceSkillId, setSlotChoiceSkillId] = useState<NormalSkillId | null>(null);
@@ -94,83 +111,63 @@ export function HeroSelectScreen({
             Guild Lobby
           </span>
 
-          {/* Hero Switcher Tabs by Category: Default (Human) | Undead Legion | Wildborn Tribes */}
+          {/* Top Categories Switcher: Undead Legion | Wildborn Tribes | Default */}
           <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
-            {/* Standalone Default: Human */}
-            <div className="flex items-center gap-1 rounded-lg border border-amber-900/40 bg-stone-900/90 p-0.5">
-              <span className="px-1 text-[9px] font-bold uppercase tracking-wider text-amber-400/90">
-                Default:
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  soundEngine.playUiTap();
-                  onSelectHero('human');
-                }}
-                className={`h-7 whitespace-nowrap rounded-md px-2 text-[11px] font-semibold transition-colors sm:px-2.5 sm:text-xs ${
-                  heroId === 'human'
-                    ? 'bg-orange-400 text-stone-950 font-bold shadow-sm'
-                    : 'text-stone-300 hover:text-white'
-                }`}
-                title="Default Character"
-              >
-                Human
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => {
+                soundEngine.playUiTap();
+                setActiveCategory('undead_legion');
+                if (heroCategory.category !== 'undead_legion') {
+                  onSelectHero('skeleton');
+                }
+              }}
+              className={`flex h-7 items-center gap-1.5 whitespace-nowrap rounded-lg border px-2.5 text-xs font-semibold transition-all ${
+                activeCategory === 'undead_legion'
+                  ? 'border-purple-500/80 bg-purple-950/80 text-purple-100 shadow-sm ring-1 ring-purple-400/30'
+                  : 'border-purple-900/50 bg-stone-900/80 text-stone-300 hover:border-purple-700/60 hover:text-white'
+              }`}
+            >
+              <span className="h-2 w-2 rounded-full bg-purple-400" />
+              Undead Legion
+              <span className="rounded bg-purple-900/60 px-1 py-0.2 text-[10px] text-purple-300 font-mono">4</span>
+            </button>
 
-            {/* Category: Undead Legion */}
-            <div className="flex items-center gap-0.5 rounded-lg border border-purple-900/60 bg-purple-950/30 p-0.5 sm:gap-1">
-              <span className="px-1 text-[9px] font-bold uppercase tracking-wider text-purple-300/90">
-                Undead Legion:
-              </span>
-              {(['skeleton', 'zombie', 'ghoul', 'ghost'] as HeroId[]).map((id) => {
-                const active = heroId === id;
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => {
-                      soundEngine.playUiTap();
-                      onSelectHero(id);
-                    }}
-                    className={`h-7 whitespace-nowrap rounded-md px-2 text-[11px] font-semibold transition-colors sm:px-2 sm:text-xs ${
-                      active
-                        ? id === 'ghost'
-                          ? 'bg-indigo-400 text-stone-950 font-bold shadow-sm'
-                          : id === 'ghoul'
-                            ? 'bg-rose-500 text-white font-bold shadow-sm'
-                            : id === 'zombie'
-                              ? 'bg-lime-400 text-stone-950 font-bold shadow-sm'
-                              : 'bg-cyan-400 text-stone-950 font-bold shadow-sm'
-                        : 'text-stone-300 hover:text-white'
-                    }`}
-                  >
-                    {HERO_PROFILES[id].name}
-                  </button>
-                );
-              })}
-            </div>
+            <button
+              type="button"
+              onClick={() => {
+                soundEngine.playUiTap();
+                setActiveCategory('wildborn_tribes');
+                if (heroCategory.category !== 'wildborn_tribes') {
+                  onSelectHero('tigerkin');
+                }
+              }}
+              className={`flex h-7 items-center gap-1.5 whitespace-nowrap rounded-lg border px-2.5 text-xs font-semibold transition-all ${
+                activeCategory === 'wildborn_tribes'
+                  ? 'border-amber-500/80 bg-amber-950/80 text-amber-100 shadow-sm ring-1 ring-amber-400/30'
+                  : 'border-amber-900/50 bg-stone-900/80 text-stone-300 hover:border-amber-700/60 hover:text-white'
+              }`}
+            >
+              <span className="h-2 w-2 rounded-full bg-amber-400" />
+              Wildborn Tribes
+              <span className="rounded bg-amber-900/60 px-1 py-0.2 text-[10px] text-amber-300 font-mono">2</span>
+            </button>
 
-            {/* Category: Wildborn Tribes */}
-            <div className="flex items-center gap-0.5 rounded-lg border border-sky-900/60 bg-sky-950/30 p-0.5">
-              <span className="px-1 text-[9px] font-bold uppercase tracking-wider text-sky-300/90">
-                Wildborn Tribes:
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  soundEngine.playUiTap();
-                  onSelectHero('eaglekin');
-                }}
-                className={`h-7 whitespace-nowrap rounded-md px-2 text-[11px] font-semibold transition-colors sm:px-2.5 sm:text-xs ${
-                  heroId === 'eaglekin'
-                    ? 'bg-sky-400 text-stone-950 font-bold shadow-sm'
-                    : 'text-stone-300 hover:text-white'
-                }`}
-              >
-                Eaglekin
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => {
+                soundEngine.playUiTap();
+                setActiveCategory('default');
+                onSelectHero('human');
+              }}
+              className={`flex h-7 items-center gap-1.5 whitespace-nowrap rounded-lg border px-2 text-xs font-semibold transition-all ${
+                activeCategory === 'default'
+                  ? 'border-orange-500/80 bg-orange-950/80 text-orange-100 shadow-sm ring-1 ring-orange-400/30'
+                  : 'border-stone-800 bg-stone-900/70 text-stone-400 hover:text-stone-200'
+              }`}
+            >
+              Default
+            </button>
           </div>
         </div>
 
@@ -202,6 +199,84 @@ export function HeroSelectScreen({
           </button>
         </div>
       </header>
+
+      {/* Sub-Header: Heroes under the tapped Category */}
+      <div className="flex h-9 shrink-0 items-center gap-2 border-b border-stone-800/80 bg-[#16100d] px-3 sm:px-4">
+        <span className="whitespace-nowrap text-[10px] font-bold uppercase tracking-wider text-stone-400">
+          {activeCategory === 'undead_legion'
+            ? 'Undead Legion Heroes:'
+            : activeCategory === 'wildborn_tribes'
+              ? 'Wildborn Tribes Heroes:'
+              : 'Default Hero:'}
+        </span>
+
+        <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
+          {activeCategory === 'undead_legion' &&
+            (['skeleton', 'zombie', 'ghoul', 'ghost'] as HeroId[]).map((id) => {
+              const active = heroId === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => {
+                    soundEngine.playUiTap();
+                    onSelectHero(id);
+                  }}
+                  className={`h-6.5 whitespace-nowrap rounded-md px-2.5 text-[11px] font-semibold transition-all sm:text-xs ${
+                    active
+                      ? id === 'ghost'
+                        ? 'bg-indigo-400 text-stone-950 font-bold shadow-sm'
+                        : id === 'ghoul'
+                          ? 'bg-rose-500 text-white font-bold shadow-sm'
+                          : id === 'zombie'
+                            ? 'bg-lime-400 text-stone-950 font-bold shadow-sm'
+                            : 'bg-cyan-400 text-stone-950 font-bold shadow-sm'
+                      : 'border border-stone-800 bg-stone-900/80 text-stone-300 hover:border-stone-600 hover:text-white'
+                  }`}
+                >
+                  {HERO_PROFILES[id].name}
+                </button>
+              );
+            })}
+
+          {activeCategory === 'wildborn_tribes' &&
+            (['tigerkin', 'eaglekin'] as HeroId[]).map((id) => {
+              const active = heroId === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => {
+                    soundEngine.playUiTap();
+                    onSelectHero(id);
+                  }}
+                  className={`h-6.5 whitespace-nowrap rounded-md px-2.5 text-[11px] font-semibold transition-all sm:text-xs ${
+                    active
+                      ? id === 'tigerkin'
+                        ? 'bg-amber-400 text-stone-950 font-bold shadow-sm'
+                        : 'bg-sky-400 text-stone-950 font-bold shadow-sm'
+                      : 'border border-stone-800 bg-stone-900/80 text-stone-300 hover:border-stone-600 hover:text-white'
+                  }`}
+                >
+                  {HERO_PROFILES[id].name}
+                </button>
+              );
+            })}
+
+          {activeCategory === 'default' && (
+            <button
+              type="button"
+              onClick={() => {
+                soundEngine.playUiTap();
+                onSelectHero('human');
+              }}
+              className="h-6.5 whitespace-nowrap rounded-md bg-orange-400 px-2.5 text-[11px] font-bold text-stone-950 shadow-sm sm:text-xs"
+            >
+              Human
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* Strict Single-Screen Landscape Grid — Zero Scrolling / Zero Clipping */}
       <main className="mx-auto grid min-h-0 w-full max-w-6xl flex-1 grid-cols-12 gap-2.5 overflow-hidden px-3 py-2 sm:gap-3 sm:px-4 sm:py-2.5">
@@ -236,17 +311,19 @@ export function HeroSelectScreen({
 
             <p
               className={`truncate text-[11px] font-medium ${
-                isEaglekin
-                  ? 'text-sky-300'
-                  : isHuman
-                    ? 'text-orange-300'
-                    : isGhost
-                      ? 'text-indigo-300'
-                      : isGhoul
-                        ? 'text-rose-300'
-                        : isZombie
-                          ? 'text-lime-300'
-                          : 'text-cyan-300'
+                isTigerkin
+                  ? 'text-amber-400'
+                  : isEaglekin
+                    ? 'text-sky-300'
+                    : isHuman
+                      ? 'text-orange-300'
+                      : isGhost
+                        ? 'text-indigo-300'
+                        : isGhoul
+                          ? 'text-rose-300'
+                          : isZombie
+                            ? 'text-lime-300'
+                            : 'text-cyan-300'
               }`}
             >
               {profile.typeLine}
@@ -302,17 +379,19 @@ export function HeroSelectScreen({
             <div className="flex items-center justify-between gap-2">
               <h2
                 className={`text-xs font-semibold ${
-                  isEaglekin
-                    ? 'text-sky-200'
-                    : isHuman
-                      ? 'text-orange-200'
-                      : isGhost
-                        ? 'text-indigo-200'
-                        : isGhoul
-                          ? 'text-rose-200'
-                          : isZombie
-                            ? 'text-lime-200'
-                            : 'text-cyan-200'
+                  isTigerkin
+                    ? 'text-amber-200'
+                    : isEaglekin
+                      ? 'text-sky-200'
+                      : isHuman
+                        ? 'text-orange-200'
+                        : isGhost
+                          ? 'text-indigo-200'
+                          : isGhoul
+                            ? 'text-rose-200'
+                            : isZombie
+                              ? 'text-lime-200'
+                              : 'text-cyan-200'
                 }`}
               >
                 Normal Skills — Choose 2 of 5
@@ -347,17 +426,19 @@ export function HeroSelectScreen({
                     }}
                     className={`flex h-9 items-center justify-between gap-1.5 rounded-lg border px-2 text-left transition-colors sm:h-10 sm:px-2.5 ${
                       isSelected
-                        ? isEaglekin
-                          ? 'border-sky-400 bg-sky-950/40 text-stone-50'
-                          : isHuman
-                            ? 'border-orange-400 bg-orange-950/40 text-stone-50'
-                            : isGhost
-                              ? 'border-indigo-400 bg-indigo-950/45 text-stone-50'
-                              : isGhoul
-                                ? 'border-rose-400 bg-rose-950/40 text-stone-50'
-                                : isZombie
-                                  ? 'border-lime-400 bg-lime-950/40 text-stone-50'
-                                  : 'border-cyan-400 bg-cyan-950/40 text-stone-50'
+                        ? isTigerkin
+                          ? 'border-amber-400 bg-amber-950/45 text-stone-50'
+                          : isEaglekin
+                            ? 'border-sky-400 bg-sky-950/40 text-stone-50'
+                            : isHuman
+                              ? 'border-orange-400 bg-orange-950/40 text-stone-50'
+                              : isGhost
+                                ? 'border-indigo-400 bg-indigo-950/45 text-stone-50'
+                                : isGhoul
+                                  ? 'border-rose-400 bg-rose-950/40 text-stone-50'
+                                  : isZombie
+                                    ? 'border-lime-400 bg-lime-950/40 text-stone-50'
+                                    : 'border-cyan-400 bg-cyan-950/40 text-stone-50'
                         : isFocused
                           ? 'border-stone-500 bg-stone-800 text-stone-100'
                           : 'border-stone-800 bg-stone-900/75 text-stone-300 hover:border-stone-600'
@@ -372,17 +453,19 @@ export function HeroSelectScreen({
                     <span
                       className={`font-mono-num shrink-0 text-[10px] font-semibold ${
                         isSelected
-                          ? isEaglekin
-                            ? 'text-sky-300'
-                            : isHuman
-                              ? 'text-orange-300'
-                              : isGhost
-                                ? 'text-indigo-300'
-                                : isGhoul
-                                  ? 'text-rose-300'
-                                  : isZombie
-                                    ? 'text-lime-300'
-                                    : 'text-cyan-300'
+                          ? isTigerkin
+                            ? 'text-amber-300'
+                            : isEaglekin
+                              ? 'text-sky-300'
+                              : isHuman
+                                ? 'text-orange-300'
+                                : isGhost
+                                  ? 'text-indigo-300'
+                                  : isGhoul
+                                    ? 'text-rose-300'
+                                    : isZombie
+                                      ? 'text-lime-300'
+                                      : 'text-cyan-300'
                           : 'text-stone-400'
                       }`}
                     >

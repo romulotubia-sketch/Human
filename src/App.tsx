@@ -89,6 +89,7 @@ export default function App() {
     ghoul: [...HERO_PROFILES.ghoul.defaultLoadout],
     ghost: [...HERO_PROFILES.ghost.defaultLoadout],
     eaglekin: [...HERO_PROFILES.eaglekin.defaultLoadout],
+    tigerkin: [...HERO_PROFILES.tigerkin.defaultLoadout],
   });
 
   const [skillRanks, setSkillRanks] = useState<Record<SkillId, number>>(INITIAL_RANKS);

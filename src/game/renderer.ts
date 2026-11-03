@@ -65,6 +65,13 @@ export interface PlayerRenderState {
   wrathSkyTimer?: number;
   precisionStacks?: number;
   lastTargetHitId?: number | null;
+  kingOfBeastsTimer?: number;
+  feralMomentumStacks?: number;
+  feralMomentumTimer?: number;
+  tigerRoarTimer?: number;
+  crushingPawTimer?: number;
+  savagePursuitTimer?: number;
+  apexDevastationTimer?: number;
   airborneHeight: number;
   attackLunge: number;
   attackTwist: number;
@@ -271,6 +278,8 @@ export function renderGameWorld(
       drawChibiGhoulBody(ctx, ghost.x, ghost.y, player.facing, 0, gScale, true, player.colossusTimer > 0, 0, 0);
     } else if (player.heroId === 'eaglekin') {
       drawChibiEaglekinBody(ctx, ghost.x, ghost.y, player.facing, 0, gScale, true);
+    } else if (player.heroId === 'tigerkin') {
+      drawChibiTigerkinBody(ctx, ghost.x, ghost.y, player.facing, 0, gScale, true, (player.kingOfBeastsTimer || 0) > 0);
     } else {
       drawChibiSkeletonBody(ctx, ghost.x, ghost.y, player.facing, 0, gScale, '#67e8f9', true);
     }
@@ -360,6 +369,7 @@ export function renderHeroShowcaseCanvas(
   const isGhoul = heroId === 'ghoul';
   const isGhost = heroId === 'ghost';
   const isEaglekin = heroId === 'eaglekin';
+  const isTigerkin = heroId === 'tigerkin';
   const grad = ctx.createRadialGradient(w / 2, h * 0.56, 8, w / 2, h * 0.56, w * 0.52);
   grad.addColorStop(
     0,
@@ -373,7 +383,9 @@ export function renderHeroShowcaseCanvas(
             ? 'rgba(132, 204, 22, 0.2)'
             : isEaglekin
               ? 'rgba(56, 189, 248, 0.28)'
-              : 'rgba(56, 189, 248, 0.18)'
+              : isTigerkin
+                ? 'rgba(245, 158, 11, 0.32)'
+                : 'rgba(56, 189, 248, 0.18)'
   );
   grad.addColorStop(0.58, 'rgba(38, 29, 24, 0.55)');
   grad.addColorStop(1, 'rgba(20, 15, 12, 0)');
@@ -391,14 +403,16 @@ export function renderHeroShowcaseCanvas(
           ? 'rgba(163, 230, 53, 0.35)'
           : isEaglekin
             ? 'rgba(56, 189, 248, 0.45)'
-            : 'rgba(251, 191, 36, 0.32)';
+            : isTigerkin
+              ? 'rgba(245, 158, 11, 0.55)'
+              : 'rgba(251, 191, 36, 0.32)';
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.ellipse(w / 2, h * 0.78, 54, 17, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
 
-  const hx = isGhoul ? w * 0.5 : w * 0.43;
+  const hx = isGhoul || isTigerkin ? w * 0.5 : w * 0.43;
   const hy = h * 0.72;
   if (isHuman) {
     drawChibiHumanBody(ctx, hx, hy, 0.25, time * 2.5, 1.74, false, false, 0, 0);
@@ -410,14 +424,16 @@ export function renderHeroShowcaseCanvas(
     drawChibiZombieBody(ctx, hx, hy, 0.25, time * 2.2, 1.75, false, false, 0);
   } else if (isEaglekin) {
     drawChibiEaglekinBody(ctx, hx, hy, 0.25, time * 2.5, 1.75, false, 0, 0, Math.sin(time * 3) > 0.65 ? 0.35 : 0);
+  } else if (isTigerkin) {
+    drawChibiTigerkinBody(ctx, hx, hy, 0.25, time * 2.4, 1.75, false, false, 0, 0);
   } else {
     drawChibiSkeletonBody(ctx, hx, hy, 0.25, time * 2.4, 1.75, '#67e8f9', false, '#9a3412', null, 0);
   }
 
   const hover = Math.sin(time * 3.6) * 5;
-  const wx = isGhoul ? hx + 39 : isGhost ? hx + 43 : isEaglekin ? hx + 32 : hx + 46;
+  const wx = isGhoul || isTigerkin ? hx + 40 : isGhost ? hx + 43 : isEaglekin ? hx + 32 : hx + 46;
   const wy = (isGhost ? h * 0.51 : h * 0.55) + hover;
-  const ox = hx - 39;
+  const ox = hx - 40;
   const oy = h * 0.56 - hover * 0.85;
 
   // Eaglekin's wings are its weapon (no floating detached weapon)
@@ -463,13 +479,13 @@ export function renderHeroShowcaseCanvas(
         swordY: wy,
         swordAngle: isGhost
           ? Math.sin(time * 2.8) * 0.14
-          : isGhoul
+          : isGhoul || isTigerkin
             ? -Math.PI * 0.18 + Math.sin(time * 3.4) * 0.14
             : -Math.PI * 0.28 + Math.sin(time * 2.4) * 0.1,
         offhandX: ox,
         offhandY: oy,
         offhandAngle: Math.PI + Math.PI * 0.18 - Math.sin(time * 3.4) * 0.14,
-        swordScale: isGhoul ? 1.38 : 1.48,
+        swordScale: isGhoul || isTigerkin ? 1.38 : 1.48,
         swordAnim: SwordAnimState.IDLE,
         swordGlowColor: isHuman
           ? '#fb923c'
@@ -479,7 +495,9 @@ export function renderHeroShowcaseCanvas(
               ? '#f43f5e'
               : isZombie
                 ? '#a3e635'
-                : '#67e8f9',
+                : isTigerkin
+                  ? '#f59e0b'
+                  : '#67e8f9',
         swordGlowIntensity: 0.92,
         isScytheForm: false,
         dashGhostTrail: [],
@@ -492,7 +510,7 @@ export function renderHeroShowcaseCanvas(
   ctx.globalCompositeOperation = 'lighter';
   for (let i = 0; i < 5; i++) {
     const phase = (time * 1.45 + i * 0.37) % 1;
-    const px = (isGhoul || isEaglekin ? hx : wx + 8) + Math.cos(i * 2.1 + time * 2.0) * (isGhoul ? 36 : isEaglekin ? 24 : 18);
+    const px = (isGhoul || isEaglekin || isTigerkin ? hx : wx + 8) + Math.cos(i * 2.1 + time * 2.0) * (isGhoul || isTigerkin ? 36 : isEaglekin ? 24 : 18);
     const py = (isEaglekin ? hy - 16 : wy - 2) - phase * 26;
     ctx.globalAlpha = Math.sin(phase * Math.PI) * 0.85;
     ctx.fillStyle = isHuman
@@ -515,9 +533,13 @@ export function renderHeroShowcaseCanvas(
               ? i % 2 === 0
                 ? '#38bdf8'
                 : '#fde047'
-              : i % 2 === 0
-                ? '#67e8f9'
-                : '#ffffff';
+              : isTigerkin
+                ? i % 2 === 0
+                  ? '#fbbf24'
+                  : '#f97316'
+                : i % 2 === 0
+                  ? '#67e8f9'
+                  : '#ffffff';
     ctx.beginPath();
     ctx.arc(px, py, 2, 0, Math.PI * 2);
     ctx.fill();
@@ -1258,6 +1280,135 @@ function drawGroundEffects(
       }
       ctx.closePath();
       ctx.fill();
+    } else if (g.kind === 'tiger_crush_crater') {
+      // Tigerkin Crushing Paw / Predator's Pounce: Heavy beastkin ground fracture crater!
+      const easeOut = 1 - Math.pow(1 - p, 3);
+      ctx.translate(g.x, g.y);
+      ctx.scale(1, 0.72);
+
+      // Deep dark earthen depression
+      ctx.globalAlpha = fade * 0.55;
+      ctx.fillStyle = '#1c1917';
+      ctx.beginPath();
+      ctx.arc(0, 0, g.radius * 0.48, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Jagged golden fissure cracks
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.strokeStyle = g.color;
+      ctx.lineWidth = 2.4 * fade;
+      ctx.globalAlpha = fade * 0.88;
+      for (let c = 0; c < 8; c++) {
+        const ca = (c * Math.PI) / 4 + g.angle;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(ca) * 6, Math.sin(ca) * 6);
+        ctx.lineTo(Math.cos(ca + 0.1) * (g.radius * 0.55), Math.sin(ca + 0.1) * (g.radius * 0.55));
+        ctx.lineTo(Math.cos(ca - 0.08) * (g.radius * 0.95), Math.sin(ca - 0.08) * (g.radius * 0.95));
+        ctx.stroke();
+      }
+
+      // Outward concussive amber shockwave ring
+      ctx.strokeStyle = g.secondaryColor;
+      ctx.lineWidth = 3.4 * fade;
+      ctx.globalAlpha = fade * 0.92;
+      ctx.beginPath();
+      ctx.arc(0, 0, g.radius * (0.2 + 0.88 * easeOut), 0, Math.PI * 2);
+      ctx.stroke();
+    } else if (g.kind === 'heavenly_tiger_run') {
+      // Heavenly Tiger: Glowing celestial tiger footprint craters
+      ctx.translate(g.x, g.y);
+      ctx.rotate(g.angle);
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = fade * 0.85;
+
+      // Celestial golden paw print
+      ctx.fillStyle = g.color;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 14 * fade, 10 * fade, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      for (let t = -1.5; t <= 1.5; t += 1.0) {
+        ctx.beginPath();
+        ctx.arc(t * 7 * fade, -13 * fade, 3.2 * fade, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (g.kind === 'apex_shockwave_ring') {
+      // Apex Devastation: Concentric golden tectonic shockwaves expanding across the crypt
+      const easeOut = 1 - Math.pow(1 - p, 2.5);
+      const r = g.radius * (0.15 + 0.88 * easeOut);
+      ctx.translate(g.x, g.y);
+      ctx.scale(1, 0.72);
+
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.strokeStyle = g.color;
+      ctx.lineWidth = 4.2 * fade;
+      ctx.globalAlpha = fade * 0.94;
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.strokeStyle = g.secondaryColor;
+      ctx.lineWidth = 2.2 * fade;
+      ctx.globalAlpha = fade * 0.75;
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 0.82, 0, Math.PI * 2);
+      ctx.stroke();
+    } else if (g.kind === 'tiger_roar_burst') {
+      // Tiger's Roar: Concentric dashed sonic shockwave ring
+      const easeOut = 1 - Math.pow(1 - p, 3);
+      const r = g.radius * (0.2 + 0.85 * easeOut);
+      ctx.translate(g.x, g.y);
+
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.strokeStyle = g.color;
+      ctx.lineWidth = 3.5 * fade;
+      ctx.globalAlpha = fade * 0.88;
+      ctx.setLineDash([14, 8]);
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.strokeStyle = g.secondaryColor;
+      ctx.lineWidth = 1.8 * fade;
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 0.65, 0, Math.PI * 2);
+      ctx.stroke();
+    } else if (g.kind === 'savage_pursuit_track') {
+      // Savage Pursuit: 4 parallel razor gouges torn through the dungeon floor
+      const dx = g.x2 - g.x;
+      const dy = g.y2 - g.y;
+      const len = Math.hypot(dx, dy);
+      if (len > 4) {
+        const nx = -dy / len;
+        const ny = dx / len;
+        ctx.lineCap = 'round';
+        for (let k = -1.5; k <= 1.5; k += 1.0) {
+          const off = k * 7;
+          const sx = g.x + nx * off;
+          const sy = g.y + ny * off;
+          const ex = g.x2 + nx * off;
+          const ey = g.y2 + ny * off;
+
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.globalAlpha = fade * 0.6;
+          ctx.strokeStyle = '#1c1917';
+          ctx.lineWidth = 4.2;
+          ctx.beginPath();
+          ctx.moveTo(sx, sy);
+          ctx.lineTo(ex, ey);
+          ctx.stroke();
+
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.globalAlpha = fade * 0.88;
+          ctx.strokeStyle = k === -0.5 || k === 0.5 ? g.color : g.secondaryColor;
+          ctx.lineWidth = 2.4;
+          ctx.beginPath();
+          ctx.moveTo(sx, sy);
+          ctx.lineTo(ex, ey);
+          ctx.stroke();
+        }
+      }
     }
     ctx.restore();
   }
@@ -1837,6 +1988,110 @@ function drawSlashWaves(ctx: CanvasRenderingContext2D, waves: SlashWaveEffect[])
           fade * 0.86
         );
         ctx.restore();
+      }
+    } else if (w.kind === 'tiger_savage_slash') {
+      // Tigerkin Basic 1 (Savage Claw): 4 razor-curved golden-amber beastkin talon arcs
+      const reach = w.radius * (0.8 + 0.2 * ease);
+      const shift = (-0.2 + 0.4 * ease) * w.arcSpan * w.direction;
+      const half = w.arcSpan * 0.45;
+      const count = 4;
+      const spacing = 7;
+      for (let c = 0; c < count; c++) {
+        const off = (c - (count - 1) * 0.5) * spacing;
+        const r = Math.max(10, reach + off * 0.5);
+        ctx.save();
+        ctx.translate(0, off * 0.4);
+        drawSilkyCrescentArc(
+          ctx,
+          r,
+          shift - half,
+          shift + half,
+          (c === 1 || c === 2 ? 14 : 10) * fade,
+          c === 1 || c === 2 ? '#ffffff' : w.primaryColor,
+          w.secondaryColor,
+          fade * 0.95
+        );
+        ctx.restore();
+      }
+    } else if (w.kind === 'tiger_cross_rend') {
+      // Tigerkin Basic 2 (Tiger's Rend): Devastating double cross-slash with golden core
+      const reach = w.radius * (0.76 + 0.24 * ease);
+      for (let arm = -1; arm <= 1; arm += 2) {
+        ctx.save();
+        ctx.rotate(arm * (0.42 - 0.15 * ease));
+        drawSilkyCrescentArc(
+          ctx,
+          reach,
+          -0.78,
+          0.78,
+          18 * (0.55 + 0.45 * fade),
+          '#ffffff',
+          w.primaryColor,
+          fade * 0.95
+        );
+        drawSilkyCrescentArc(
+          ctx,
+          reach * 0.85,
+          -0.55,
+          0.55,
+          10 * fade,
+          w.secondaryColor,
+          '#ea580c',
+          fade * 0.8
+        );
+        ctx.restore();
+      }
+    } else if (w.kind === 'tiger_rend_crescent') {
+      // Tiger's Rend forward crescent wave visual
+      const reach = w.radius * (0.78 + 0.22 * ease);
+      drawSilkyCrescentArc(
+        ctx,
+        reach,
+        -0.85,
+        0.85,
+        22 * fade,
+        '#ffffff',
+        w.primaryColor,
+        fade * 0.96
+      );
+    } else if (w.kind === 'rending_flurry_slash') {
+      // Rending Flurry multi-hit rapid shredding claws
+      const reach = w.radius * (0.8 + 0.2 * ease);
+      const angleOffset = w.direction * 0.25;
+      drawSilkyCrescentArc(
+        ctx,
+        reach,
+        -0.65 + angleOffset,
+        0.65 + angleOffset,
+        16 * fade,
+        '#fffbeb',
+        w.primaryColor,
+        fade * 0.94
+      );
+    } else if (w.kind === 'crushing_paw_shock') {
+      // Crushing Paw ground shockwave
+      const reach = w.radius * (0.6 + 0.4 * ease);
+      drawSilkyCrescentArc(
+        ctx,
+        reach,
+        -1.3,
+        1.3,
+        26 * fade,
+        '#ffffff',
+        w.primaryColor,
+        fade * 0.9
+      );
+    } else if (w.kind === 'apex_claw_fissure') {
+      // Apex Devastation colossal shockwave burst
+      const reach = w.radius * (0.5 + 0.5 * ease);
+      for (let ring = 0; ring < 3; ring++) {
+        const rr = reach * (1 - ring * 0.18);
+        ctx.strokeStyle = ring === 0 ? '#ffffff' : ring === 1 ? '#fbbf24' : '#ea580c';
+        ctx.lineWidth = (4.5 - ring * 1.2) * fade;
+        ctx.globalAlpha = fade * 0.9;
+        ctx.beginPath();
+        ctx.arc(0, 0, rr, 0, Math.PI * 2);
+        ctx.stroke();
       }
     } else {
       // Smooth tapered crescent weapon wave for Skeleton, Bone Colossus, Crypt Rattler & Boss
@@ -3534,6 +3789,355 @@ function drawChibiEaglekinBody(
   ctx.restore();
 }
 
+/**
+ * Cute Chibi Tigerkin – Feral Berserker (Wildborn Tribes)
+ * Cozy chibi Beastkin design: cute round tiger head, warm orange tiger fur with dark stripes,
+ * iconic 王 (King) forehead rune stripe, round tiger ears with dark rims & cream tufts,
+ * glowing golden-amber feline slit eyes, fierce cute fang grin, fluffy striped tail swaying dynamically,
+ * rugged leather Beastkin vest with sabertooth necklace, and two cute stubby paws (NO ARMS)!
+ */
+function drawChibiTigerkinBody(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  facing: number,
+  walkPhase: number,
+  scale: number,
+  isAfterimage = false,
+  isKingOfBeasts = false,
+  hitFlash = 0,
+  airborneHeight = 0,
+  attackLunge = 0,
+  attackTwist = 0,
+  attackSquash = 0
+) {
+  ctx.save();
+  ctx.translate(x, y - airborneHeight);
+  ctx.scale(scale, scale);
+
+  const nowSec = performance.now() * 0.001;
+  const isMoving = Math.abs(Math.sin(walkPhase)) > 0.01;
+  const isAirborne = airborneHeight > 2;
+  const bob = isAirborne
+    ? Math.sin(nowSec * 16) * 3.8
+    : isMoving
+      ? Math.sin(walkPhase * 2.2) * -3.4
+      : Math.sin(nowSec * 4.2) * -1.4;
+
+  const footSwing = isAirborne ? 0 : Math.sin(walkPhase) * 6.0 + attackTwist * 4.2;
+
+  // Ground shadow when not an afterimage
+  if (!isAfterimage) {
+    ctx.save();
+    ctx.translate(0, airborneHeight);
+    const shadowScale = isAirborne ? Math.max(0.4, 1 - airborneHeight / 70) : 1.0;
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+    ctx.beginPath();
+    ctx.ellipse(
+      Math.cos(facing) * attackLunge * 2.6,
+      13,
+      (16 + attackLunge * 2) * shadowScale,
+      6.5 * shadowScale,
+      0,
+      0,
+      Math.PI * 2
+    );
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Fur base colors
+  const furOrange = hitFlash > 0 ? '#ffffff' : isAfterimage ? '#fb923c' : isKingOfBeasts ? '#fbbf24' : '#f97316';
+  const furDark = hitFlash > 0 ? '#ffffff' : isAfterimage ? '#ea580c' : isKingOfBeasts ? '#f59e0b' : '#c2410c';
+  const furCream = hitFlash > 0 ? '#ffffff' : isAfterimage ? '#fef3c7' : '#fffbeb';
+  const stripeColor = hitFlash > 0 ? '#ffffff' : isAfterimage ? '#7c2d12' : '#1c1917';
+  const pawPadColor = hitFlash > 0 ? '#ffffff' : '#f43f5e';
+
+  // Two cute stubby tiger paws/feet (NO ARMS!)
+  ctx.fillStyle = furDark;
+  ctx.strokeStyle = '#1c1917';
+  ctx.lineWidth = 1.9;
+
+  // Left Paw
+  ctx.beginPath();
+  ctx.ellipse(-6 + footSwing * 0.38 - attackLunge * 1.5, 9.5 - Math.max(0, footSwing * 0.44), 4.6, 5.4, -0.1, 0, Math.PI * 2);
+  ctx.fill();
+  if (!isAfterimage) ctx.stroke();
+
+  // Right Paw
+  ctx.beginPath();
+  ctx.ellipse(6 - footSwing * 0.38 + attackLunge * 1.9, 9.5 - Math.max(0, -footSwing * 0.44), 4.6, 5.4, 0.1, 0, Math.PI * 2);
+  ctx.fill();
+  if (!isAfterimage) ctx.stroke();
+
+  // Cute pinkish-coral paw pads under feet
+  if (!isAfterimage && hitFlash <= 0) {
+    ctx.fillStyle = pawPadColor;
+    ctx.beginPath();
+    ctx.arc(-6 + footSwing * 0.38 - attackLunge * 1.5, 12 - Math.max(0, footSwing * 0.44), 1.8, 0, Math.PI * 2);
+    ctx.arc(6 - footSwing * 0.38 + attackLunge * 1.9, 12 - Math.max(0, -footSwing * 0.44), 1.8, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.save();
+  ctx.translate(
+    Math.cos(facing) * attackLunge * 5.0,
+    bob + Math.sin(facing) * attackLunge * 2.8
+  );
+  ctx.rotate(attackTwist * 0.16 + Math.cos(facing) * attackLunge * 0.09);
+  if (attackSquash !== 0) {
+    ctx.scale(1 + attackSquash * 0.18, 1 - attackSquash * 0.18);
+  }
+
+  // Fluffy Animated Tiger Tail arching behind!
+  if (!isAfterimage) {
+    const tailDir = -Math.cos(facing);
+    const tailWag = Math.sin(nowSec * 5.5 + walkPhase) * 4.5 - attackTwist * 6;
+    ctx.strokeStyle = furOrange;
+    ctx.lineWidth = 4.2;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(tailDir * 6, 2);
+    ctx.quadraticCurveTo(tailDir * (19 + attackLunge * 3), -2 + tailWag, tailDir * (18 + attackLunge * 2.5), -14 + tailWag * 0.6);
+    ctx.stroke();
+
+    // Dark stripes on tail
+    ctx.strokeStyle = stripeColor;
+    ctx.lineWidth = 3.6;
+    ctx.setLineDash([3, 4]);
+    ctx.beginPath();
+    ctx.moveTo(tailDir * 8, 0);
+    ctx.quadraticCurveTo(tailDir * (18 + attackLunge * 3), -2 + tailWag, tailDir * (18 + attackLunge * 2.5), -14 + tailWag * 0.6);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Cream tail tip
+    ctx.fillStyle = furCream;
+    ctx.beginPath();
+    ctx.arc(tailDir * (18 + attackLunge * 2.5), -14 + tailWag * 0.6, 2.8, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Chibi Torso - Rugged Beastkin Warrior Leather Vest (NO ARMS)
+  ctx.fillStyle = hitFlash > 0 ? '#ffffff' : isAfterimage ? '#b45309' : '#78350f';
+  ctx.strokeStyle = '#1c1917';
+  ctx.lineWidth = 2.0;
+  ctx.beginPath();
+  ctx.roundRect(-9.0, -5.2, 18.0, 13.0, 5.8);
+  ctx.fill();
+  if (!isAfterimage) ctx.stroke();
+
+  // Cream fur chest tuft visible down the center of the vest
+  if (!isAfterimage && hitFlash <= 0) {
+    ctx.fillStyle = furCream;
+    ctx.beginPath();
+    ctx.moveTo(-3, -5);
+    ctx.lineTo(3, -5);
+    ctx.lineTo(2, 4);
+    ctx.lineTo(0, 7);
+    ctx.lineTo(-2, 4);
+    ctx.closePath();
+    ctx.fill();
+
+    // Sabertooth fang necklace around neck
+    ctx.strokeStyle = '#451a03';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.arc(0, -6, 6.5, 0.2, Math.PI - 0.2);
+    ctx.stroke();
+
+    ctx.fillStyle = '#fef3c7';
+    ctx.beginPath();
+    ctx.moveTo(-1.8, -4.5);
+    ctx.lineTo(0, 0);
+    ctx.lineTo(1.8, -4.5);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  const lookX = Math.cos(facing) * (3.0 + attackLunge * 1.2);
+  const lookY = Math.sin(facing) * (1.8 + attackLunge * 0.6);
+
+  // Cute rounded tiger ears!
+  for (const side of [-1, 1]) {
+    const ex = side * 11;
+    const ey = -24;
+    ctx.fillStyle = stripeColor;
+    ctx.beginPath();
+    ctx.arc(ex, ey, 6.2, 0, Math.PI * 2);
+    ctx.fill();
+    if (!isAfterimage) ctx.stroke();
+
+    ctx.fillStyle = furOrange;
+    ctx.beginPath();
+    ctx.arc(ex, ey, 4.2, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = furCream;
+    ctx.beginPath();
+    ctx.arc(ex + side * 0.8, ey + 0.6, 2.4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Cute oversized round chibi Tiger head
+  ctx.fillStyle = furOrange;
+  ctx.strokeStyle = '#1c1917';
+  ctx.lineWidth = 2.2;
+  ctx.beginPath();
+  ctx.arc(0, -19, 14.8, 0, Math.PI * 2);
+  ctx.fill();
+  if (!isAfterimage) ctx.stroke();
+
+  // Cheek fur tufts (fluffy feline cheeks)
+  if (!isAfterimage && hitFlash <= 0) {
+    ctx.fillStyle = furOrange;
+    ctx.strokeStyle = '#1c1917';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(-14, -18);
+    ctx.lineTo(-18, -16);
+    ctx.lineTo(-14, -13);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(14, -18);
+    ctx.lineTo(18, -16);
+    ctx.lineTo(14, -13);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  // Cream-white feline muzzle & cheeks
+  if (!isAfterimage && hitFlash <= 0) {
+    ctx.fillStyle = furCream;
+    ctx.beginPath();
+    ctx.ellipse(lookX * 0.55, -14.2 + lookY * 0.35, 7.8, 5.2, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Iconic 王 (King) Tiger Forehead Rune & Cheek Stripes!
+  if (!isAfterimage && hitFlash <= 0) {
+    ctx.strokeStyle = stripeColor;
+    ctx.lineWidth = 1.8;
+    ctx.lineCap = 'round';
+
+    const fx = lookX * 0.45;
+    const fy = -26 + lookY * 0.3;
+    ctx.beginPath();
+    ctx.moveTo(fx - 4.5, fy - 4);
+    ctx.lineTo(fx + 4.5, fy - 4);
+    ctx.moveTo(fx - 3.5, fy - 1);
+    ctx.lineTo(fx + 3.5, fy - 1);
+    ctx.moveTo(fx - 5.0, fy + 2);
+    ctx.lineTo(fx + 5.0, fy + 2);
+    ctx.moveTo(fx, fy - 4);
+    ctx.lineTo(fx, fy + 2);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(-13 + lookX * 0.3, -20 + lookY * 0.2);
+    ctx.lineTo(-8 + lookX * 0.3, -19 + lookY * 0.2);
+    ctx.moveTo(-13 + lookX * 0.3, -16 + lookY * 0.2);
+    ctx.lineTo(-9 + lookX * 0.3, -15.5 + lookY * 0.2);
+    ctx.moveTo(13 + lookX * 0.3, -20 + lookY * 0.2);
+    ctx.lineTo(8 + lookX * 0.3, -19 + lookY * 0.2);
+    ctx.moveTo(13 + lookX * 0.3, -16 + lookY * 0.2);
+    ctx.lineTo(9 + lookX * 0.3, -15.5 + lookY * 0.2);
+    ctx.stroke();
+  }
+
+  // Cute little dark pink/terracotta tiger nose
+  if (!isAfterimage && hitFlash <= 0) {
+    ctx.fillStyle = '#b91c1c';
+    ctx.beginPath();
+    ctx.moveTo(-2.2 + lookX * 0.6, -16.5 + lookY * 0.4);
+    ctx.lineTo(2.2 + lookX * 0.6, -16.5 + lookY * 0.4);
+    ctx.lineTo(lookX * 0.6, -14.2 + lookY * 0.4);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // Fierce Glowing Golden-Amber Feline Eyes + Slit Pupils!
+  const eyeColor = isKingOfBeasts ? '#fde047' : '#fbbf24';
+  ctx.fillStyle = '#1c1917';
+  ctx.beginPath();
+  ctx.ellipse(-5.5 + lookX * 0.55, -19 + lookY * 0.45, 3.8, 4.3, 0, 0, Math.PI * 2);
+  ctx.ellipse(5.5 + lookX * 0.55, -19 + lookY * 0.45, 3.8, 4.3, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = eyeColor;
+  ctx.beginPath();
+  ctx.arc(-5.5 + lookX * 0.75, -19 + lookY * 0.55, 2.6, 0, Math.PI * 2);
+  ctx.arc(5.5 + lookX * 0.75, -19 + lookY * 0.55, 2.6, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#1c1917';
+  ctx.beginPath();
+  ctx.ellipse(-5.5 + lookX * 0.85, -19 + lookY * 0.55, 0.9, 2.4, 0, 0, Math.PI * 2);
+  ctx.ellipse(5.5 + lookX * 0.85, -19 + lookY * 0.55, 0.9, 2.4, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(-6.2 + lookX * 0.75, -20.2 + lookY * 0.55, 1.1, 0, Math.PI * 2);
+  ctx.arc(4.8 + lookX * 0.75, -20.2 + lookY * 0.55, 1.1, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Cute tiger fang grin!
+  if (!isAfterimage) {
+    ctx.strokeStyle = '#1c1917';
+    ctx.lineWidth = 1.7;
+    const mx = lookX * 0.55;
+    const my = -12.2 + lookY * 0.35;
+    ctx.beginPath();
+    ctx.moveTo(-4 + mx, my);
+    ctx.quadraticCurveTo(0 + mx, my + 1.2, 4 + mx, my);
+    ctx.stroke();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.moveTo(-3.2 + mx, my);
+    ctx.lineTo(-2.2 + mx, my + 3.0);
+    ctx.lineTo(-1.2 + mx, my);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(1.2 + mx, my);
+    ctx.lineTo(2.2 + mx, my + 3.0);
+    ctx.lineTo(3.2 + mx, my);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // King of Beasts Blazing Tiger Crown & Raging Golden Aura
+  if (isKingOfBeasts && !isAfterimage) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = 'rgba(251, 191, 36, 0.32)';
+    ctx.beginPath();
+    ctx.arc(0, -20, 22, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = '#fde047';
+    ctx.lineWidth = 2.4;
+    ctx.beginPath();
+    ctx.moveTo(-8, -32);
+    ctx.lineTo(-15, -44);
+    ctx.lineTo(-3, -36);
+    ctx.moveTo(8, -32);
+    ctx.lineTo(15, -44);
+    ctx.lineTo(3, -36);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  ctx.restore();
+  ctx.restore();
+}
+
 function drawHeroAndEffects(ctx: CanvasRenderingContext2D, player: PlayerRenderState, time: number) {
   if (player.isDowned) {
     drawRevivalCircle(ctx, player.x, player.y, player.reviveProgress || 0, time);
@@ -3549,6 +4153,8 @@ function drawHeroAndEffects(ctx: CanvasRenderingContext2D, player: PlayerRenderS
       drawChibiZombieBody(ctx, player.x, player.y + 6, player.facing, 0, 0.88, false, false, 0, 0, 0, 0);
     } else if (player.heroId === 'eaglekin') {
       drawChibiEaglekinBody(ctx, player.x, player.y + 6, player.facing, 0, 0.88, false);
+    } else if (player.heroId === 'tigerkin') {
+      drawChibiTigerkinBody(ctx, player.x, player.y + 6, player.facing, 0, 0.88, false, false, 0, 0, 0, 0, 0);
     } else {
       drawChibiSkeletonBody(ctx, player.x, player.y + 6, player.facing, 0, 0.88, '#67e8f9', false, '#9a3412', null, 0, 0, 0, 0);
     }
@@ -3556,8 +4162,9 @@ function drawHeroAndEffects(ctx: CanvasRenderingContext2D, player: PlayerRenderS
     return;
   }
 
-  const isTransformed = player.colossusTimer > 0;
-  const heroScale = isTransformed ? (player.heroId === 'ghoul' ? 1.6 : 1.72) : 1.0;
+  const isKingOfBeasts = (player.kingOfBeastsTimer || 0) > 0;
+  const isTransformed = player.colossusTimer > 0 || isKingOfBeasts;
+  const heroScale = isKingOfBeasts ? 1.55 : isTransformed ? (player.heroId === 'ghoul' ? 1.6 : 1.72) : 1.0;
 
   if (isTransformed) {
     ctx.save();
@@ -3829,6 +4436,22 @@ function drawHeroAndEffects(ctx: CanvasRenderingContext2D, player: PlayerRenderS
       player.rainOfFeathersTimer || 0,
       player.wrathSkyTimer || 0
     );
+  } else if (player.heroId === 'tigerkin') {
+    drawChibiTigerkinBody(
+      ctx,
+      player.x,
+      player.y,
+      player.facing,
+      player.walkPhase,
+      heroScale,
+      false,
+      (player.kingOfBeastsTimer || 0) > 0,
+      player.hitFlash,
+      player.airborneHeight || 0,
+      player.attackLunge,
+      player.attackTwist,
+      player.attackSquash
+    );
   } else {
     drawChibiSkeletonBody(
       ctx,
@@ -4023,15 +4646,19 @@ function drawPlayerNameBadge(
 
   ctx.strokeStyle = isDowned
     ? 'rgba(239, 68, 68, 0.65)'
-    : heroId === 'human'
-      ? 'rgba(251, 146, 60, 0.55)'
-      : heroId === 'ghost'
-        ? 'rgba(129, 140, 248, 0.55)'
-        : heroId === 'ghoul'
-          ? 'rgba(251, 113, 133, 0.55)'
-          : heroId === 'zombie'
-            ? 'rgba(163, 230, 53, 0.55)'
-            : 'rgba(103, 232, 249, 0.55)';
+    : heroId === 'tigerkin'
+      ? 'rgba(245, 158, 11, 0.65)'
+      : heroId === 'eaglekin'
+        ? 'rgba(56, 189, 248, 0.55)'
+        : heroId === 'human'
+          ? 'rgba(251, 146, 60, 0.55)'
+          : heroId === 'ghost'
+            ? 'rgba(129, 140, 248, 0.55)'
+            : heroId === 'ghoul'
+              ? 'rgba(251, 113, 133, 0.55)'
+              : heroId === 'zombie'
+                ? 'rgba(163, 230, 53, 0.55)'
+                : 'rgba(103, 232, 249, 0.55)';
   ctx.lineWidth = 1;
   ctx.stroke();
 
@@ -4238,6 +4865,111 @@ function drawSingleGhoulFeralClaw(
     ctx.beginPath();
     ctx.moveTo(8, oy - 1.8);
     ctx.quadraticCurveTo(tipL * 0.56, oy - 4.0, tipL - 1, oy + 2.2);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+function drawSingleTigerkinClaw(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  angle: number,
+  scale: number,
+  glowColor: string,
+  glowIntensity: number,
+  isKing: boolean,
+  momentumStacks: number,
+  mirror: 1 | -1
+) {
+  ctx.save();
+  ctx.translate(x, y);
+
+  // Soft ambient ground shadow underneath the floating claw
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.24)';
+  ctx.beginPath();
+  ctx.ellipse(0, 19, 9 * scale, 3.6, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.rotate(angle);
+  ctx.scale(scale, scale * mirror);
+
+  // Feral Amber Beast Glow / King of Beasts blazing solar corona
+  if (glowIntensity > 0.05 || isKing || momentumStacks > 0) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const auraAlpha = isKing ? 0.65 : Math.min(0.55, 0.15 + momentumStacks * 0.08 + glowIntensity * 0.35);
+    ctx.globalAlpha = auraAlpha;
+    const clawGlow = ctx.createRadialGradient(16, 0, 2, 16, 0, isKing ? 36 : 26);
+    clawGlow.addColorStop(0, '#fef08a');
+    clawGlow.addColorStop(0.5, '#f59e0b');
+    clawGlow.addColorStop(1, 'rgba(234, 88, 12, 0)');
+    ctx.fillStyle = clawGlow;
+    ctx.beginPath();
+    ctx.ellipse(16, 0, isKing ? 34 : 26, isKing ? 16 : 12, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Beastkin Brass Tiger-Jaw Gauntlet Plate (sturdy knuckle guard with carved feline fangs)
+  ctx.fillStyle = '#78350f';
+  ctx.strokeStyle = isKing ? '#fef08a' : '#d97706';
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.moveTo(-6, -11);
+  ctx.quadraticCurveTo(8, 0, -6, 11);
+  ctx.quadraticCurveTo(2, 0, -6, -11);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // Brass gauntlet fang inlays
+  ctx.fillStyle = '#b45309';
+  ctx.beginPath();
+  ctx.moveTo(-2, -7); ctx.lineTo(3, -7); ctx.lineTo(0, -3); ctx.closePath();
+  ctx.moveTo(-2, 7); ctx.lineTo(3, 7); ctx.lineTo(0, 3); ctx.closePath();
+  ctx.fill();
+
+  // Pulsing Amber Tiger-Eye core gem
+  ctx.fillStyle = isKing ? '#fef08a' : '#f59e0b';
+  ctx.beginPath();
+  ctx.arc(2.5, 0, isKing ? 3.8 : 3.0, 0, Math.PI * 2);
+  ctx.fill();
+  // Feral slit pupil
+  ctx.fillStyle = '#451a03';
+  ctx.beginPath();
+  ctx.ellipse(2.5, 0, 0.9, isKing ? 3.0 : 2.4, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 4 Broad, Razor-Curved Golden Feline Talons!
+  const talonLen = isKing ? 44 : 34;
+  const talonOffsets = [-7.5, -2.5, 2.5, 7.5];
+  for (let i = 0; i < 4; i++) {
+    const oy = talonOffsets[i];
+    // Center claws are slightly longer, outer claws curve dynamically
+    const isCenter = i === 1 || i === 2;
+    const curLen = isCenter ? talonLen : talonLen - 6;
+    const curveD = oy * 0.35;
+
+    // Heavy amber-bronze talon core
+    ctx.fillStyle = isKing ? '#fbbf24' : '#d97706';
+    ctx.strokeStyle = '#78350f';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(3, oy - 2.0);
+    ctx.quadraticCurveTo(curLen * 0.52, oy - 4.5 + curveD, curLen, oy + 2.5 + curveD);
+    ctx.quadraticCurveTo(curLen * 0.50, oy + 1.2 + curveD, 3, oy + 2.0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Razor golden-white cutting edge
+    ctx.strokeStyle = isKing ? '#ffffff' : (isCenter ? '#fef08a' : '#fbbf24');
+    ctx.lineWidth = isCenter ? 1.8 : 1.4;
+    ctx.beginPath();
+    ctx.moveTo(7, oy - 1.6);
+    ctx.quadraticCurveTo(curLen * 0.55, oy - 3.5 + curveD, curLen - 1, oy + 2.2 + curveD);
     ctx.stroke();
   }
 
@@ -5271,6 +6003,37 @@ function drawFloatingHeroWeapon(ctx: CanvasRenderingContext2D, player: PlayerRen
       player.swordGlowIntensity,
       isApex,
       player.ambushReady,
+      1
+    );
+    return;
+  }
+
+  if (player.heroId === 'tigerkin') {
+    const isKing = (player.kingOfBeastsTimer || 0) > 0;
+    const airLift = player.airborneHeight;
+    const momentum = player.feralMomentumStacks || 0;
+    drawSingleTigerkinClaw(
+      ctx,
+      player.offhandX,
+      player.offhandY - airLift,
+      player.offhandAngle,
+      player.swordScale,
+      player.swordGlowColor || '#f59e0b',
+      player.swordGlowIntensity,
+      isKing,
+      momentum,
+      -1
+    );
+    drawSingleTigerkinClaw(
+      ctx,
+      player.swordX,
+      player.swordY - airLift,
+      player.swordAngle,
+      player.swordScale,
+      player.swordGlowColor || '#f59e0b',
+      player.swordGlowIntensity,
+      isKing,
+      momentum,
       1
     );
     return;
@@ -6764,6 +7527,109 @@ function drawProjectile(ctx: CanvasRenderingContext2D, p: Projectile, time: numb
     ctx.beginPath();
     ctx.arc(8, 0, 5.5, 0, Math.PI * 2);
     ctx.fill();
+  } else if (p.kind === 'tiger_rend_wave') {
+    // Crescent shockwave arc unleashed by Tiger's Rend double claw slash!
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const waveGrad = ctx.createRadialGradient(0, 0, 4, 0, 0, 36);
+    waveGrad.addColorStop(0, '#fef08a');
+    waveGrad.addColorStop(0.45, '#f59e0b');
+    waveGrad.addColorStop(1, 'rgba(234, 88, 12, 0)');
+    ctx.fillStyle = waveGrad;
+    ctx.beginPath();
+    ctx.arc(0, 0, 32, -Math.PI * 0.42, Math.PI * 0.42);
+    ctx.arc(-8, 0, 20, Math.PI * 0.42, -Math.PI * 0.42, true);
+    ctx.closePath();
+    ctx.fill();
+
+    // Sharp outer razor shockwave crescent
+    ctx.strokeStyle = '#fde047';
+    ctx.lineWidth = 3.2;
+    ctx.beginPath();
+    ctx.arc(0, 0, 30, -Math.PI * 0.45, Math.PI * 0.45);
+    ctx.stroke();
+
+    // Hot white-hot inner energy arc
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.arc(2, 0, 28, -Math.PI * 0.32, Math.PI * 0.32);
+    ctx.stroke();
+    ctx.restore();
+  } else if (p.kind === 'heavenly_tiger_beast') {
+    // Summoned spectral giant celestial tiger charging across the battlefield!
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+
+    // Radiant celestial aura
+    const glow = ctx.createRadialGradient(0, 0, 10, 0, 0, 68);
+    glow.addColorStop(0, 'rgba(254, 240, 138, 0.45)');
+    glow.addColorStop(0.5, 'rgba(245, 158, 11, 0.3)');
+    glow.addColorStop(1, 'rgba(217, 119, 6, 0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(0, 0, 68, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Spectral beast body silhouette
+    ctx.fillStyle = 'rgba(245, 158, 11, 0.85)';
+    ctx.strokeStyle = '#fef08a';
+    ctx.lineWidth = 2.8;
+    ctx.beginPath();
+    ctx.moveTo(42, -6);
+    ctx.lineTo(34, -20);
+    ctx.lineTo(24, -14);
+    ctx.quadraticCurveTo(0, -26, -34, -18);
+    ctx.quadraticCurveTo(-52, 0, -42, 18);
+    ctx.quadraticCurveTo(-16, 22, 18, 18);
+    ctx.lineTo(32, 16);
+    ctx.lineTo(38, 6);
+    ctx.lineTo(46, 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Forehead '王' (King) rune in burning divine white-gold
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2.4;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(22, -10); ctx.lineTo(30, -10);
+    ctx.moveTo(23, -6); ctx.lineTo(29, -6);
+    ctx.moveTo(21, -2); ctx.lineTo(31, -2);
+    ctx.moveTo(26, -11); ctx.lineTo(26, -1);
+    ctx.stroke();
+
+    // Piercing celestial amber eye
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(32, -8, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#451a03';
+    ctx.beginPath();
+    ctx.ellipse(32, -8, 1.2, 2.8, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Roaring sabertooth fangs
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.moveTo(38, 2);
+    ctx.lineTo(35, 11);
+    ctx.lineTo(33, 4);
+    ctx.closePath();
+    ctx.fill();
+
+    // Swirling ethereal wind trails trailing behind
+    ctx.strokeStyle = 'rgba(254, 240, 138, 0.6)';
+    ctx.lineWidth = 2;
+    for (let w = 0; w < 4; w++) {
+      const trailY = -12 + w * 9;
+      ctx.beginPath();
+      ctx.moveTo(-20, trailY);
+      ctx.quadraticCurveTo(-45, trailY + Math.sin(time * 8 + w) * 6, -75 - w * 8, trailY - 2);
+      ctx.stroke();
+    }
+    ctx.restore();
   } else {
     // High Warden Ossian 'boss_shard' spinning crimson crystal!
     ctx.save();

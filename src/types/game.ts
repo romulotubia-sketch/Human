@@ -1,4 +1,4 @@
-export type HeroId = 'human' | 'skeleton' | 'zombie' | 'ghoul' | 'ghost' | 'eaglekin';
+export type HeroId = 'human' | 'skeleton' | 'zombie' | 'ghoul' | 'ghost' | 'eaglekin' | 'tigerkin';
 
 export type HeroCategory = 'undead_legion' | 'wildborn_tribes' | 'none';
 
@@ -9,6 +9,7 @@ export const HERO_CATEGORY_MAP: Record<HeroId, { category: HeroCategory; label: 
   ghoul: { category: 'undead_legion', label: 'Undead Legion', factionName: 'Undead Legion' },
   ghost: { category: 'undead_legion', label: 'Undead Legion', factionName: 'Undead Legion' },
   eaglekin: { category: 'wildborn_tribes', label: 'Wildborn Tribes', factionName: 'Wildborn Tribes' },
+  tigerkin: { category: 'wildborn_tribes', label: 'Wildborn Tribes', factionName: 'Wildborn Tribes' },
 };
 
 export enum GamePhase {
@@ -118,27 +119,44 @@ export type EaglekinUltimateSkillId =
 
 export type EaglekinPassiveSkillId = 'eagle_eyes' | 'predators_precision';
 
+export type TigerkinNormalSkillId =
+  | 'predators_pounce'
+  | 'rending_flurry'
+  | 'tigers_roar'
+  | 'savage_pursuit'
+  | 'crushing_paw';
+
+export type TigerkinUltimateSkillId =
+  | 'king_of_beasts'
+  | 'heavenly_tiger'
+  | 'apex_devastation';
+
+export type TigerkinPassiveSkillId = 'predators_instinct' | 'feral_momentum';
+
 export type NormalSkillId =
   | HumanNormalSkillId
   | SkeletonNormalSkillId
   | ZombieNormalSkillId
   | GhoulNormalSkillId
   | GhostNormalSkillId
-  | EaglekinNormalSkillId;
+  | EaglekinNormalSkillId
+  | TigerkinNormalSkillId;
 export type UltimateSkillId =
   | HumanUltimateSkillId
   | SkeletonUltimateSkillId
   | ZombieUltimateSkillId
   | GhoulUltimateSkillId
   | GhostUltimateSkillId
-  | EaglekinUltimateSkillId;
+  | EaglekinUltimateSkillId
+  | TigerkinUltimateSkillId;
 export type PassiveSkillId =
   | HumanPassiveSkillId
   | SkeletonPassiveSkillId
   | ZombiePassiveSkillId
   | GhoulPassiveSkillId
   | GhostPassiveSkillId
-  | EaglekinPassiveSkillId;
+  | EaglekinPassiveSkillId
+  | TigerkinPassiveSkillId;
 
 export type ActiveSkillId = NormalSkillId | UltimateSkillId;
 export type SkillId = ActiveSkillId | PassiveSkillId;
@@ -255,6 +273,17 @@ export enum SwordAnimState {
   WRATH_OF_THE_SKY = 'WRATH_OF_THE_SKY',
   CELESTIAL_BARRAGE = 'CELESTIAL_BARRAGE',
   FINAL_HORIZON = 'FINAL_HORIZON',
+  TIGER_SAVAGE_CLAW = 'TIGER_SAVAGE_CLAW',
+  TIGER_REND = 'TIGER_REND',
+  PREDATORS_POUNCE = 'PREDATORS_POUNCE',
+  RENDING_FLURRY = 'RENDING_FLURRY',
+  TIGERS_ROAR = 'TIGERS_ROAR',
+  SAVAGE_PURSUIT = 'SAVAGE_PURSUIT',
+  CRUSHING_PAW = 'CRUSHING_PAW',
+  KING_OF_BEASTS = 'KING_OF_BEASTS',
+  HEAVENLY_TIGER = 'HEAVENLY_TIGER',
+  APEX_DEVASTATION_RISE = 'APEX_DEVASTATION_RISE',
+  APEX_DEVASTATION_SLAM = 'APEX_DEVASTATION_SLAM',
 }
 
 export interface SwordTrailPoint {
@@ -324,7 +353,13 @@ export interface SlashWaveEffect {
     | 'twin_rend'
     | 'rending_finale'
     | 'shadow_ambush'
-    | 'feral_whirl';
+    | 'feral_whirl'
+    | 'tiger_savage_slash'
+    | 'tiger_cross_rend'
+    | 'tiger_rend_crescent'
+    | 'rending_flurry_slash'
+    | 'crushing_paw_shock'
+    | 'apex_claw_fissure';
   x: number;
   y: number;
   angle: number;
@@ -359,7 +394,12 @@ export interface GroundEffect {
     | 'headcracker_dent'
     | 'seismic_pipe_shockwave'
     | 'brawler_stance_ring'
-    | 'oma_blitz_streak';
+    | 'oma_blitz_streak'
+    | 'tiger_crush_crater'
+    | 'heavenly_tiger_run'
+    | 'apex_shockwave_ring'
+    | 'tiger_roar_burst'
+    | 'savage_pursuit_track';
   x: number;
   y: number;
   x2: number;
@@ -570,7 +610,9 @@ export interface Projectile {
     | 'sky_feather'
     | 'celestial_feather'
     | 'final_feather'
-    | 'horizon_feather';
+    | 'horizon_feather'
+    | 'tiger_rend_wave'
+    | 'heavenly_tiger_beast';
   x: number;
   y: number;
   vx: number;

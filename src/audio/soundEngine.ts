@@ -315,6 +315,50 @@ class SoundEngine {
       osc.stop(now + 0.36);
     });
   }
+
+  public playFeralClaw(pitch = 1, heavy = false) {
+    const ctx = this.ensureContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+
+    // Razor-sharp predator claw slash through flesh and air
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = heavy ? 'sawtooth' : 'triangle';
+    osc.frequency.setValueAtTime((heavy ? 440 : 580) * pitch, now);
+    osc.frequency.exponentialRampToValueAtTime((heavy ? 110 : 160) * pitch, now + (heavy ? 0.16 : 0.11));
+
+    gain.gain.setValueAtTime((heavy ? 0.2 : 0.15) * this.volume, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + (heavy ? 0.17 : 0.12));
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + (heavy ? 0.18 : 0.13));
+  }
+
+  public playTigerRoar(pitch = 1) {
+    const ctx = this.ensureContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+
+    // Primal feline apex roar with low guttural rumble & reverberating chest growl
+    [140, 280, 420].forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = idx === 0 ? 'sawtooth' : 'triangle';
+      osc.frequency.setValueAtTime(freq * pitch, now);
+      osc.frequency.exponentialRampToValueAtTime((freq * 0.6) * pitch, now + 0.42);
+
+      gain.gain.setValueAtTime((idx === 0 ? 0.22 : 0.12) * this.volume, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.46);
+    });
+  }
 }
 
 export const soundEngine = new SoundEngine();

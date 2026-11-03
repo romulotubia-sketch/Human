@@ -140,6 +140,7 @@ export function MobaControls({
   const isGhoul = heroId === 'ghoul';
   const isGhost = heroId === 'ghost';
   const isEaglekin = heroId === 'eaglekin';
+  const isTigerkin = heroId === 'tigerkin';
 
   // Maps physical screen delta (clientX/clientY) into game landscape coordinate delta
   const mapScreenDelta = (physDx: number, physDy: number) => {
@@ -538,17 +539,19 @@ export function MobaControls({
                     fill={
                       dragVisual.willCancel
                         ? '#f43f5e'
-                        : isEaglekin
-                          ? '#38bdf8'
-                          : isHuman
-                            ? '#fb923c'
-                            : isGhost
-                              ? '#818cf8'
-                              : isGhoul
-                                ? '#fb7185'
-                                : isZombie
-                                  ? '#a3e635'
-                                  : '#67e8f9'
+                        : isTigerkin
+                          ? '#f59e0b'
+                          : isEaglekin
+                            ? '#38bdf8'
+                            : isHuman
+                              ? '#fb923c'
+                              : isGhost
+                                ? '#818cf8'
+                                : isGhoul
+                                  ? '#fb7185'
+                                  : isZombie
+                                    ? '#a3e635'
+                                    : '#67e8f9'
                     }
                   />
                 </svg>
@@ -560,17 +563,19 @@ export function MobaControls({
                     ? 'border-stone-600 bg-stone-900/85'
                     : isUlt
                       ? 'border-amber-300/95 bg-stone-900/95'
-                      : isEaglekin
-                        ? 'border-sky-300/90 bg-stone-900/95'
-                        : isHuman
-                          ? 'border-orange-400/90 bg-stone-900/95'
-                          : isGhost
-                            ? 'border-indigo-400/90 bg-stone-900/95'
-                            : isGhoul
-                              ? 'border-rose-400/90 bg-stone-900/95'
-                              : isZombie
-                                ? 'border-lime-300/85 bg-stone-900/95'
-                                : 'border-cyan-300/85 bg-stone-900/95'
+                      : isTigerkin
+                        ? 'border-amber-400/90 bg-stone-900/95'
+                        : isEaglekin
+                          ? 'border-sky-300/90 bg-stone-900/95'
+                          : isHuman
+                            ? 'border-orange-400/90 bg-stone-900/95'
+                            : isGhost
+                              ? 'border-indigo-400/90 bg-stone-900/95'
+                              : isGhoul
+                                ? 'border-rose-400/90 bg-stone-900/95'
+                                : isZombie
+                                  ? 'border-lime-300/85 bg-stone-900/95'
+                                  : 'border-cyan-300/85 bg-stone-900/95'
                 } ${isDraggingThis ? 'scale-95' : ''}`}
               >
                 <SkillIcon skillId={skillId} className="h-7 w-7" />
@@ -589,15 +594,17 @@ export function MobaControls({
                         r="28"
                         fill="none"
                         stroke={
-                          isHuman
-                            ? '#fb923c'
-                            : isGhost
-                              ? '#818cf8'
-                              : isGhoul
-                                ? '#fb7185'
-                                : isZombie
-                                  ? '#84cc16'
-                                  : '#38bdf8'
+                          isTigerkin
+                            ? '#f59e0b'
+                            : isHuman
+                              ? '#fb923c'
+                              : isGhost
+                                ? '#818cf8'
+                                : isGhoul
+                                  ? '#fb7185'
+                                  : isZombie
+                                    ? '#84cc16'
+                                    : '#38bdf8'
                         }
                         strokeWidth="3.5"
                         strokeDasharray={circumference}
@@ -644,34 +651,38 @@ export function MobaControls({
           }}
           className={`pointer-events-auto absolute bottom-2 right-2 flex h-[86px] w-[86px] items-center justify-center rounded-full border-[3px] shadow-xl will-change-transform transition-all duration-75 ${
             atkPressed
-              ? isEaglekin
-                ? 'scale-[0.92] border-sky-400 bg-sky-950/60 shadow-[0_0_24px_rgba(56,189,248,0.7)]'
-                : isHuman
-                  ? 'scale-[0.92] border-orange-400 bg-orange-950/60 shadow-[0_0_24px_rgba(249,115,22,0.65)]'
-                  : isGhost
-                    ? 'scale-[0.92] border-indigo-400 bg-indigo-950/60 shadow-[0_0_24px_rgba(129,140,248,0.65)]'
-                    : isGhoul
-                      ? 'scale-[0.92] border-rose-400 bg-rose-950/60 shadow-[0_0_24px_rgba(251,113,133,0.65)]'
-                      : isZombie
-                        ? 'scale-[0.92] border-lime-300 bg-lime-950/60 shadow-[0_0_24px_rgba(163,230,53,0.65)]'
-                        : 'scale-[0.92] border-cyan-300 bg-cyan-950/60 shadow-[0_0_24px_rgba(103,232,249,0.65)]'
+              ? isTigerkin
+                ? 'scale-[0.92] border-amber-400 bg-amber-950/60 shadow-[0_0_24px_rgba(245,158,11,0.7)]'
+                : isEaglekin
+                  ? 'scale-[0.92] border-sky-400 bg-sky-950/60 shadow-[0_0_24px_rgba(56,189,248,0.7)]'
+                  : isHuman
+                    ? 'scale-[0.92] border-orange-400 bg-orange-950/60 shadow-[0_0_24px_rgba(249,115,22,0.65)]'
+                    : isGhost
+                      ? 'scale-[0.92] border-indigo-400 bg-indigo-950/60 shadow-[0_0_24px_rgba(129,140,248,0.65)]'
+                      : isGhoul
+                        ? 'scale-[0.92] border-rose-400 bg-rose-950/60 shadow-[0_0_24px_rgba(251,113,133,0.65)]'
+                        : isZombie
+                          ? 'scale-[0.92] border-lime-300 bg-lime-950/60 shadow-[0_0_24px_rgba(163,230,53,0.65)]'
+                          : 'scale-[0.92] border-cyan-300 bg-cyan-950/60 shadow-[0_0_24px_rgba(103,232,249,0.65)]'
               : 'scale-100 border-amber-200/90 bg-gradient-to-br from-stone-800 via-stone-900 to-stone-950 shadow-lg hover:border-amber-300'
           }`}
         >
           <div className="flex h-[70px] w-[70px] items-center justify-center rounded-full border border-stone-600/70 bg-stone-900/80">
             <SkillIcon
               skillId={
-                isEaglekin
-                  ? 'basic_feather'
-                  : isHuman
-                    ? 'basic_pipe'
-                    : isGhost
-                      ? 'basic_ghost'
-                      : isGhoul
-                        ? 'basic_ghoul'
-                        : isZombie
-                          ? 'basic_claw'
-                          : 'basic_sword'
+                isTigerkin
+                  ? 'basic_tiger_claw'
+                  : isEaglekin
+                    ? 'basic_feather'
+                    : isHuman
+                      ? 'basic_pipe'
+                      : isGhost
+                        ? 'basic_ghost'
+                        : isGhoul
+                          ? 'basic_ghoul'
+                          : isZombie
+                            ? 'basic_claw'
+                            : 'basic_sword'
               }
               className="h-10 w-10"
             />

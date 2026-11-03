@@ -1,7 +1,7 @@
 import { SkillId } from '../types/game';
 
 interface SkillIconProps {
-  skillId: SkillId | 'basic_sword' | 'basic_claw' | 'basic_ghoul' | 'basic_ghost' | 'basic_pipe' | 'basic_feather';
+  skillId: SkillId | 'basic_sword' | 'basic_claw' | 'basic_ghoul' | 'basic_ghost' | 'basic_pipe' | 'basic_feather' | 'basic_tiger_claw';
   className?: string;
 }
 
@@ -723,6 +723,113 @@ export function SkillIcon({ skillId, className = 'w-7 h-7' }: SkillIconProps) {
           <circle cx="18" cy="18" r="10" stroke="#ef4444" strokeWidth="2.4" />
           <path d="M18 10V26M10 18H26" stroke="#f87171" strokeWidth="2" strokeLinecap="round" />
           <circle cx="18" cy="18" r="3" fill="#fee2e2" stroke="#dc2626" strokeWidth="2" />
+        </svg>
+      );
+
+    case 'basic_tiger_claw':
+      return (
+        <svg viewBox="0 0 36 36" fill="none" className={className} aria-hidden="true">
+          <path d="M7 28C11 17 20 10 30 7" stroke="#f59e0b" strokeWidth="2.8" strokeLinecap="round" />
+          <path d="M10 31C14 20 23 13 32 10" stroke="#fbbf24" strokeWidth="2.6" strokeLinecap="round" />
+          <path d="M5 24C9 14 17 8 26 5" stroke="#ea580c" strokeWidth="2.4" strokeLinecap="round" />
+          <path d="M13 33C17 23 25 16 33 13" stroke="#fef08a" strokeWidth="2.2" strokeLinecap="round" />
+        </svg>
+      );
+
+    case 'predators_pounce':
+      return (
+        <svg viewBox="0 0 36 36" fill="none" className={className} aria-hidden="true">
+          <path d="M8 26L18 8L28 26" stroke="#f59e0b" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M14 26L18 14L22 26" stroke="#fef08a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M6 29H30" stroke="#ea580c" strokeWidth="2.6" strokeLinecap="round" />
+        </svg>
+      );
+
+    case 'rending_flurry':
+      return (
+        <svg viewBox="0 0 36 36" fill="none" className={className} aria-hidden="true">
+          <path d="M6 14C12 9 24 9 30 14" stroke="#f97316" strokeWidth="2.6" strokeLinecap="round" />
+          <path d="M8 20C13 16 23 16 28 20" stroke="#fbbf24" strokeWidth="2.8" strokeLinecap="round" />
+          <path d="M6 26C12 22 24 22 30 26" stroke="#ea580c" strokeWidth="2.6" strokeLinecap="round" />
+          <path d="M12 9L24 27M24 9L12 27" stroke="#ffedd5" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+      );
+
+    case 'tigers_roar':
+      return (
+        <svg viewBox="0 0 36 36" fill="none" className={className} aria-hidden="true">
+          <circle cx="18" cy="18" r="6" fill="#fbbf24" fillOpacity="0.4" stroke="#f59e0b" strokeWidth="2.2" />
+          <path d="M25 12C28 15 28 21 25 24M11 12C8 15 8 21 11 24" stroke="#f59e0b" strokeWidth="2.5" strokeLinecap="round" />
+          <path d="M29 8C34 13 34 23 29 28M7 8C2 13 2 23 7 28" stroke="#ea580c" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+      );
+
+    case 'savage_pursuit':
+      return (
+        <svg viewBox="0 0 36 36" fill="none" className={className} aria-hidden="true">
+          <path d="M4 18H28M20 10L30 18L20 26" stroke="#ea580c" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M10 11L18 18L10 25" stroke="#fef08a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M4 12H12M4 24H12" stroke="#fed7aa" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+      );
+
+    case 'crushing_paw':
+      return (
+        <svg viewBox="0 0 36 36" fill="none" className={className} aria-hidden="true">
+          <ellipse cx="18" cy="22" rx="10" ry="7" fill="#f59e0b" fillOpacity="0.3" stroke="#f59e0b" strokeWidth="2.5" />
+          <circle cx="12" cy="11" r="2.8" fill="#fbbf24" stroke="#f59e0b" strokeWidth="1.8" />
+          <circle cx="18" cy="9" r="3" fill="#fbbf24" stroke="#f59e0b" strokeWidth="1.8" />
+          <circle cx="24" cy="11" r="2.8" fill="#fbbf24" stroke="#f59e0b" strokeWidth="1.8" />
+          <path d="M6 31L12 28M30 31L24 28M18 29V33" stroke="#ea580c" strokeWidth="2.4" strokeLinecap="round" />
+        </svg>
+      );
+
+    case 'king_of_beasts':
+      return (
+        <svg viewBox="0 0 36 36" fill="none" className={className} aria-hidden="true">
+          <path d="M8 25L12 11L18 17L24 11L28 25H8Z" fill="#fbbf24" fillOpacity="0.4" stroke="#fbbf24" strokeWidth="2.5" strokeLinejoin="round" />
+          <circle cx="12" cy="11" r="2.2" fill="#ffffff" />
+          <circle cx="18" cy="17" r="2.2" fill="#ffffff" />
+          <circle cx="24" cy="11" r="2.2" fill="#ffffff" />
+          <path d="M13 22H23M15 25H21" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+      );
+
+    case 'heavenly_tiger':
+      return (
+        <svg viewBox="0 0 36 36" fill="none" className={className} aria-hidden="true">
+          <path d="M6 22C10 12 24 10 30 18" stroke="#fbbf24" strokeWidth="3" strokeLinecap="round" />
+          <path d="M14 6L18 12L22 6" stroke="#fef3c7" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M9 28C14 20 22 18 28 24" stroke="#f59e0b" strokeWidth="2.6" strokeLinecap="round" />
+          <circle cx="15" cy="15" r="2" fill="#fef08a" />
+          <circle cx="23" cy="15" r="2" fill="#fef08a" />
+        </svg>
+      );
+
+    case 'apex_devastation':
+      return (
+        <svg viewBox="0 0 36 36" fill="none" className={className} aria-hidden="true">
+          <path d="M18 5V24M12 18L18 25L24 18" stroke="#ea580c" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+          <ellipse cx="18" cy="28" rx="12" ry="5" stroke="#fde047" strokeWidth="2.4" />
+          <ellipse cx="18" cy="28" rx="6" ry="2.5" fill="#f59e0b" fillOpacity="0.5" stroke="#f59e0b" strokeWidth="1.8" />
+        </svg>
+      );
+
+    case 'predators_instinct':
+      return (
+        <svg viewBox="0 0 36 36" fill="none" className={className} aria-hidden="true">
+          <path d="M7 18C11 11 25 11 29 18C25 25 11 25 7 18Z" stroke="#fbbf24" strokeWidth="2.4" strokeLinejoin="round" />
+          <ellipse cx="18" cy="18" rx="4" ry="5.5" fill="#fef3c7" stroke="#ea580c" strokeWidth="2" />
+          <path d="M18 14V22" stroke="#1c1917" strokeWidth="2.2" strokeLinecap="round" />
+        </svg>
+      );
+
+    case 'feral_momentum':
+      return (
+        <svg viewBox="0 0 36 36" fill="none" className={className} aria-hidden="true">
+          <path d="M8 28L18 6L28 28" stroke="#f97316" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M12 22L18 12L24 22" stroke="#ffedd5" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+          <circle cx="18" cy="26" r="2.5" fill="#fbbf24" />
         </svg>
       );
 
