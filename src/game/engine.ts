@@ -754,7 +754,7 @@ export class GameEngine {
     }
   }
 
-  public getBlessingDamageMult(skillId: ActiveSkillId): number {
+  public getBlessingDamageMult(skillId: ActiveSkillId | 'basic_attack'): number {
     let mult = 0;
     for (const b of this.activeBlessings) {
       if (b.skillId === skillId || b.skillId === 'all_skills') {
@@ -764,7 +764,7 @@ export class GameEngine {
     return mult;
   }
 
-  public getBlessingCooldownReduction(skillId: ActiveSkillId): number {
+  public getBlessingCooldownReduction(skillId: ActiveSkillId | 'basic_attack'): number {
     let cdr = 0;
     for (const b of this.activeBlessings) {
       if (b.skillId === skillId || b.skillId === 'all_skills') {
@@ -774,7 +774,7 @@ export class GameEngine {
     return Math.min(0.65, cdr);
   }
 
-  public getBlessingRadiusBonus(skillId: ActiveSkillId): number {
+  public getBlessingRadiusBonus(skillId: ActiveSkillId | 'basic_attack'): number {
     let rad = 0;
     for (const b of this.activeBlessings) {
       if (b.skillId === skillId || b.skillId === 'all_skills') {
@@ -784,17 +784,17 @@ export class GameEngine {
     return rad;
   }
 
-  public getBlessingLifesteal(skillId: ActiveSkillId): number {
+  public getBlessingLifesteal(skillId?: ActiveSkillId | 'basic_attack'): number {
     let ls = 0;
     for (const b of this.activeBlessings) {
-      if (b.skillId === skillId || b.skillId === 'all_skills') {
+      if (!skillId || b.skillId === skillId || b.skillId === 'all_skills' || b.skillId === 'basic_attack') {
         if (b.modifiers.lifestealPct) ls += b.modifiers.lifestealPct;
       }
     }
-    return ls;
+    return Math.min(0.65, ls);
   }
 
-  public getBlessingExtraProjectiles(skillId: ActiveSkillId): number {
+  public getBlessingExtraProjectiles(skillId: ActiveSkillId | 'basic_attack'): number {
     let proj = 0;
     for (const b of this.activeBlessings) {
       if (b.skillId === skillId || b.skillId === 'all_skills') {
@@ -804,9 +804,24 @@ export class GameEngine {
     return proj;
   }
 
-  public hasBlessingEffect(skillId: ActiveSkillId, effectKey: keyof BlessingModifier): boolean {
+  public getBlessingShieldBonus(skillId?: ActiveSkillId | 'basic_attack'): number {
+    let s = 0;
+    for (const b of this.activeBlessings) {
+      if (!skillId || b.skillId === skillId || b.skillId === 'all_skills') {
+        if (b.modifiers.shieldBonus) s += b.modifiers.shieldBonus;
+      }
+    }
+    return s;
+  }
+
+  public hasBlessingEffect(
+    skillId: ActiveSkillId | 'basic_attack',
+    effectKey: keyof BlessingModifier
+  ): boolean {
     return this.activeBlessings.some(
-      (b) => (b.skillId === skillId || b.skillId === 'all_skills') && Boolean(b.modifiers[effectKey])
+      (b) =>
+        (b.skillId === skillId || b.skillId === 'all_skills' || b.skillId === 'basic_attack') &&
+        Boolean(b.modifiers[effectKey])
     );
   }
 
@@ -2244,7 +2259,9 @@ export class GameEngine {
     const prevShield = this.player.shield;
     const def = HERO_SKILLS[skillId];
     const rank = Math.max(1, this.skillRanks[skillId] || 1);
-    const mult = def.baseMultiplier + (rank - 1) * def.rankMultiplier;
+    const blessingDmg = this.getBlessingDamageMult(skillId);
+    const mult = def.baseMultiplier + (rank - 1) * def.rankMultiplier + blessingDmg;
+    const cdr = this.getBlessingCooldownReduction(skillId);
 
     // Auto-target nearest enemy unless manually dragged
     let targetAngle = manualAngle;
@@ -2265,7 +2282,7 @@ export class GameEngine {
     }
 
     this.player.facing = targetAngle;
-    this.cooldowns[skillId] = def.cooldown;
+    this.cooldowns[skillId] = Math.max(0.18, def.cooldown * (1 - cdr));
     this.swordCastAngle = targetAngle;
     this.player.swordGlowColor = def.glowColor;
     this.player.swordGlowIntensity = 1.25;
@@ -2310,32 +2327,38 @@ export class GameEngine {
       this.player.swordAnim = SwordAnimState.BONE_SPEAR;
       this.swordAnimDuration = 0.28;
       this.swordAnimTimer = 0.28;
-      soundEngine.playSkill('spear');
-
       const { dmg, isCrit } = this.rollPlayerDamage(mult, 0.08);
-      this.spawnProjectile({
-        fromPlayer: true,
-        kind: 'bone_spear',
-        x: this.player.x + Math.cos(targetAngle) * 24,
-        y: this.player.y - 8 + Math.sin(targetAngle) * 24,
-        vx: Math.cos(targetAngle) * 680,
-        vy: Math.sin(targetAngle) * 680,
-        angle: targetAngle,
-        radius: 18,
-        damage: dmg,
-        isCrit,
-        pierce: true,
-        maxLife: def.range / 680 + 0.08,
-        color: def.glowColor,
-      });
+      const extraSpears = this.getBlessingExtraProjectiles('bone_spear');
+      const spearCount = 1 + extraSpears;
+      const spread = 0.18;
+      for (let sp = 0; sp < spearCount; sp++) {
+        const offsetAng = spearCount > 1 ? (sp - (spearCount - 1) / 2) * spread : 0;
+        const ang = targetAngle + offsetAng;
+        this.spawnProjectile({
+          fromPlayer: true,
+          kind: 'bone_spear',
+          x: this.player.x + Math.cos(ang) * 24,
+          y: this.player.y - 8 + Math.sin(ang) * 24,
+          vx: Math.cos(ang) * 680,
+          vy: Math.sin(ang) * 680,
+          angle: ang,
+          radius: 18,
+          damage: dmg,
+          isCrit,
+          pierce: true,
+          maxLife: def.range / 680 + 0.08,
+          color: def.glowColor,
+        });
+      }
     } else if (skillId === 'ribcage_shield') {
       this.player.swordAnim = SwordAnimState.RIBCAGE_SHIELD;
       this.swordAnimDuration = 0.34;
       this.swordAnimTimer = 0.34;
       soundEngine.playSkill('shield');
 
-      const shieldVal = Math.round(this.player.maxHp * (0.35 + (rank - 1) * 0.08));
-      this.player.shield = shieldVal;
+      const bonusShield = this.getBlessingShieldBonus('ribcage_shield');
+      const shieldVal = Math.round(this.player.maxHp * (0.35 + (rank - 1) * 0.08)) + bonusShield;
+      this.player.shield += shieldVal;
       this.player.ribShieldTimer = 5.5;
       this.spawnFloatingText(this.player.x, this.player.y - 36, `+${shieldVal} Shield`, '#fde68a', false);
       this.spawnRingEffect(this.player.x, this.player.y, def.range, '#fde68a');
@@ -3059,21 +3082,28 @@ export class GameEngine {
         '#2dd4bf',
         '#818cf8'
       );
-      this.spawnProjectile({
-        fromPlayer: true,
-        kind: 'spectral_bolt',
-        x: launchX,
-        y: launchY,
-        vx: Math.cos(targetAngle) * 650,
-        vy: Math.sin(targetAngle) * 650,
-        angle: targetAngle,
-        radius: 22,
-        damage: dmg,
-        isCrit,
-        pierce: true,
-        maxLife: def.range / 650 + 0.1,
-        color: '#2dd4bf',
-      });
+      const extraBolts = this.getBlessingExtraProjectiles('spectral_bolt');
+      const boltCount = 1 + extraBolts;
+      const spread = 0.2;
+      for (let b = 0; b < boltCount; b++) {
+        const offAng = boltCount > 1 ? (b - (boltCount - 1) / 2) * spread : 0;
+        const ang = targetAngle + offAng;
+        this.spawnProjectile({
+          fromPlayer: true,
+          kind: 'spectral_bolt',
+          x: launchX,
+          y: launchY,
+          vx: Math.cos(ang) * 650,
+          vy: Math.sin(ang) * 650,
+          angle: ang,
+          radius: 22,
+          damage: dmg,
+          isCrit,
+          pierce: true,
+          maxLife: def.range / 650 + 0.1,
+          color: '#2dd4bf',
+        });
+      }
       this.spawnSoftMotes(launchX, launchY, targetAngle, 22, '#5eead4', 6);
     } else if (skillId === 'phantom_dash') {
       this.player.swordAnim = SwordAnimState.PHANTOM_DASH;
@@ -8498,6 +8528,13 @@ export class GameEngine {
       critChance = 0.18 + this.player.restlessStacks * 0.02 + (restRank - 1) * 0.02 + bonusCritChance;
       critMult = 1.62 + (restRank - 1) * 0.06;
     }
+    let blessingCrit = 0;
+    for (const b of this.activeBlessings) {
+      if (b.modifiers.critChanceBonus) {
+        blessingCrit += b.modifiers.critChanceBonus;
+      }
+    }
+    critChance += blessingCrit;
     const isCrit = Math.random() < critChance;
     const raw = this.getEffectiveAtk() * multiplier * (0.93 + Math.random() * 0.14);
     const dmg = Math.max(1, Math.round(isCrit ? raw * critMult : raw));
@@ -8663,6 +8700,68 @@ export class GameEngine {
       }
     }
 
+    // --- Active Blessing Combat Modifiers ---
+    const blessingLifesteal = this.getBlessingLifesteal();
+    if (blessingLifesteal > 0 && finalDmg > 0) {
+      const healAmt = Math.max(1, Math.round(finalDmg * blessingLifesteal));
+      this.healPlayer(healAmt, false);
+      if (Math.random() < 0.35) {
+        this.spawnFloatingText(this.player.x + (Math.random() - 0.5) * 16, this.player.y - 32, `+${healAmt}`, '#4ade80', false);
+      }
+    }
+
+    let blessingBurn = 0;
+    let blessingBurnDur = 3.0;
+    let blessingSlow = 0;
+    let blessingStagger = 0;
+    let blessingChain = false;
+
+    for (const b of this.activeBlessings) {
+      if (b.modifiers.burnDpsPct) {
+        blessingBurn = Math.max(blessingBurn, b.modifiers.burnDpsPct);
+        blessingBurnDur = Math.max(blessingBurnDur, b.modifiers.durationBonus || 3.0);
+      }
+      if (b.modifiers.slowPct) blessingSlow = Math.max(blessingSlow, b.modifiers.slowPct);
+      if (b.modifiers.staggerBonus) blessingStagger = Math.max(blessingStagger, b.modifiers.staggerBonus);
+      if (b.modifiers.chainHits) blessingChain = true;
+    }
+
+    if (blessingBurn > 0) {
+      e.poisonTimer = Math.max(e.poisonTimer, blessingBurnDur);
+      e.poisonDps = Math.max(e.poisonDps, Math.round(this.getEffectiveAtk() * blessingBurn));
+    }
+    if (blessingSlow > 0) {
+      e.slowTimer = Math.max(e.slowTimer, 2.5);
+    }
+    if (blessingStagger > 0 && Math.random() < 0.65) {
+      e.staggerTimer = Math.max(e.staggerTimer, blessingStagger);
+    }
+
+    if (blessingChain && Math.random() < 0.6) {
+      for (const other of this.enemies) {
+        if (other.id === e.id || other.hp <= 0 || other.kind === EnemyKind.TRAINING_DUMMY) continue;
+        if (Math.hypot(other.x - e.x, other.y - e.y) <= 190 + other.radius) {
+          const sa = Math.atan2(other.y - e.y, other.x - e.x);
+          this.spawnProjectile({
+            fromPlayer: true,
+            kind: this.heroId === 'ghost' ? 'ghost_wisp' : 'homing_splinter',
+            x: e.x,
+            y: e.y,
+            vx: Math.cos(sa) * 420,
+            vy: Math.sin(sa) * 420,
+            angle: sa,
+            radius: 12,
+            damage: Math.max(6, Math.round(finalDmg * 0.35)),
+            isCrit: false,
+            pierce: false,
+            maxLife: 0.85,
+            color: this.heroId === 'ghost' ? '#818cf8' : '#f59e0b',
+          });
+          break;
+        }
+      }
+    }
+
     if (!this.isMultiplayer && e.hp <= 0 && e.kind !== EnemyKind.TRAINING_DUMMY) {
       this.handleEnemyDefeated(e);
     }
@@ -8724,6 +8823,17 @@ export class GameEngine {
     this.spawnPickup(e.x, e.y, 'shard', isBoss ? 15 : 4);
     if (Math.random() < 0.28 || isBoss) {
       this.spawnPickup(e.x, e.y, 'heal', 32);
+    }
+
+    if (isBoss) {
+      soundEngine.playSkill('ultimate');
+      this.spawnBurstParticles(e.x, e.y, '#fde047', 48, true);
+      this.spawnFloatingText(e.x, e.y - 48, 'BOSS VANQUISHED! DIVINE BLESSING EARNED!', '#fbbf24', true);
+      if (this.activeBlessings.length < this.maxBlessings) {
+        setTimeout(() => {
+          this.promptBlessingSelection();
+        }, 500);
+      }
     }
   }
 

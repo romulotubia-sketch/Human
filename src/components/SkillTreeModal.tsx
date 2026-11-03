@@ -17,6 +17,7 @@ interface SkillTreeModalProps {
   skillRanks: Record<SkillId, number>;
   skillPoints: number;
   loadout: SkillLoadout;
+  isDungeon?: boolean;
   onUpgradeSkill: (skillId: SkillId) => void;
   onSetNormalSlot: (slotIndex: 0 | 1, skillId: NormalSkillId) => void;
   onSetUltimateSlot: (skillId: UltimateSkillId) => void;
@@ -28,6 +29,7 @@ export function SkillTreeModal({
   skillRanks,
   skillPoints,
   loadout,
+  isDungeon = false,
   onUpgradeSkill,
   onSetNormalSlot,
   onSetUltimateSlot,
@@ -41,6 +43,7 @@ export function SkillTreeModal({
 
   const [activeTab, setActiveTab] = useState<'loadout' | 'upgrades'>('loadout');
   const [selectedId, setSelectedId] = useState<SkillId>(loadout[0]);
+  const [slotChoiceSkillId, setSlotChoiceSkillId] = useState<NormalSkillId | null>(null);
 
   useEffect(() => {
     setSelectedId(loadout[0]);
@@ -48,13 +51,13 @@ export function SkillTreeModal({
 
   const selectedDef = HERO_SKILLS[selectedId] || HERO_SKILLS[loadout[0]];
   const selectedRank = skillRanks[selectedDef.id] || 1;
-  const canUpgrade = skillPoints > 0 && selectedRank < selectedDef.maxRank;
+  const canUpgrade = isDungeon && skillPoints > 0 && selectedRank < selectedDef.maxRank;
 
   const isSelectedNormal = selectedDef.category === SkillCategory.NORMAL;
 
   return (
     <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/75 p-2 backdrop-blur-sm sm:p-3">
-      <div className="flex h-full max-h-[410px] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-stone-700/80 bg-[#181310] text-stone-100 shadow-2xl">
+      <div className="relative flex h-full max-h-[410px] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-stone-700/80 bg-[#181310] text-stone-100 shadow-2xl">
         {/* Compact Top Bar */}
         <div className="flex h-10 shrink-0 items-center justify-between gap-2 border-b border-stone-800 px-3 sm:px-4">
           <div className="flex items-center gap-2.5">
@@ -125,7 +128,7 @@ export function SkillTreeModal({
                             : 'text-cyan-200'
                   }`}
                 >
-                  Normal Skills — Pick 2 of 5
+                  Normal Skills — Tap to Equip in Slot 1 or 2
                 </span>
                 <span className="font-mono-num text-[11px] text-stone-400">
                   Slot 1: {HERO_SKILLS[loadout[0]].name} · Slot 2: {HERO_SKILLS[loadout[1]].name}
@@ -146,9 +149,7 @@ export function SkillTreeModal({
                       onClick={() => {
                         soundEngine.playUiTap();
                         setSelectedId(id);
-                        if (!equipped) {
-                          onSetNormalSlot(1, id);
-                        }
+                        setSlotChoiceSkillId(id);
                       }}
                       className={`flex h-10 items-center justify-between gap-1.5 rounded-lg border px-2 text-left transition-colors ${
                         equipped
@@ -459,6 +460,10 @@ export function SkillTreeModal({
                           100
                       )}%`}
                   </p>
+                {!isDungeon && (
+                  <p className="mt-2 rounded-lg border border-amber-500/30 bg-amber-950/40 px-2.5 py-1.5 text-center text-[11px] text-amber-200">
+                    Skill upgrades can only be purchased inside the dungeon.
+                  </p>
                 )}
               </div>
 
@@ -480,9 +485,80 @@ export function SkillTreeModal({
                     : 'cursor-not-allowed bg-stone-800 text-stone-500'
                 }`}
               >
-                {selectedRank >= selectedDef.maxRank
-                  ? 'Max Rank Reached'
-                  : `Upgrade Rank (1 SP · ${skillPoints} Left)`}
+                {!isDungeon
+                  ? 'Locked in Guild (Dungeon Only)'
+                  : selectedRank >= selectedDef.maxRank
+                    ? 'Max Rank Reached'
+                    : `Upgrade Rank (1 SP · ${skillPoints} Left)`}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Modal Prompt: Choose Slot 1 or Slot 2 for Tapped Skill */}
+        {slotChoiceSkillId && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-xs">
+            <div className="w-full max-w-sm rounded-2xl border border-stone-700 bg-[#1c1612] p-4 text-center shadow-2xl">
+              <div className="mb-2 flex items-center justify-center gap-2">
+                <SkillIcon skillId={slotChoiceSkillId} className="h-6 w-6" />
+                <h3 className="font-display text-sm font-bold text-amber-100 sm:text-base">
+                  {HERO_SKILLS[slotChoiceSkillId].name}
+                </h3>
+              </div>
+              <p className="mb-3 text-xs leading-relaxed text-stone-300">
+                Which skill slot would you like to equip this to?
+              </p>
+
+              <div className="mb-3 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    soundEngine.playUiTap();
+                    onSetNormalSlot(0, slotChoiceSkillId);
+                    setSlotChoiceSkillId(null);
+                  }}
+                  className={`flex flex-col items-center justify-center rounded-xl border p-2.5 transition-transform active:scale-95 ${
+                    loadout[0] === slotChoiceSkillId
+                      ? 'border-amber-400 bg-amber-950/60 text-amber-100 shadow-md'
+                      : 'border-stone-700 bg-stone-900 text-stone-200 hover:border-amber-400/60'
+                  }`}
+                >
+                  <span className="text-xs font-bold text-amber-300">Slot 1</span>
+                  <span className="mt-1 max-w-[125px] truncate font-mono text-[10px] text-stone-400">
+                    {loadout[0] === slotChoiceSkillId
+                      ? 'Current: Equipped'
+                      : `Replaces: ${HERO_SKILLS[loadout[0]].name}`}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    soundEngine.playUiTap();
+                    onSetNormalSlot(1, slotChoiceSkillId);
+                    setSlotChoiceSkillId(null);
+                  }}
+                  className={`flex flex-col items-center justify-center rounded-xl border p-2.5 transition-transform active:scale-95 ${
+                    loadout[1] === slotChoiceSkillId
+                      ? 'border-amber-400 bg-amber-950/60 text-amber-100 shadow-md'
+                      : 'border-stone-700 bg-stone-900 text-stone-200 hover:border-amber-400/60'
+                  }`}
+                >
+                  <span className="text-xs font-bold text-amber-300">Slot 2</span>
+                  <span className="mt-1 max-w-[125px] truncate font-mono text-[10px] text-stone-400">
+                    {loadout[1] === slotChoiceSkillId
+                      ? 'Current: Equipped'
+                      : `Replaces: ${HERO_SKILLS[loadout[1]].name}`}
+                  </span>
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSlotChoiceSkillId(null)}
+                className="rounded-lg px-3 py-1 text-xs text-stone-400 transition-colors hover:text-stone-200"
+              >
+                Cancel
               </button>
             </div>
           </div>

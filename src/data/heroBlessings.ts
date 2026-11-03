@@ -3,9 +3,10 @@ import { Blessing } from '../types/blessing';
 
 export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
   // =========================================================================
-  // 1. SKELETON (Swift Bone Blademaster)
+  // 1. SKELETON (Swift Bone Blademaster) - 18 Strategic Blessings
   // =========================================================================
   skeleton: [
+    // --- Bone Slash (Normal 1) ---
     {
       id: 'skel_bone_slash_whirlwind',
       heroId: 'skeleton',
@@ -42,6 +43,8 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
         durationBonus: 3.0,
       },
     },
+
+    // --- Bone Spear (Normal 2) ---
     {
       id: 'skel_bone_spear_twin',
       heroId: 'skeleton',
@@ -49,7 +52,7 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
       skillName: 'Bone Spear',
       name: 'Twin Javelins',
       title: 'Dual Piercing Projectiles',
-      description: 'Bone Spear launches two piercing bone spears side-by-side with +20% faster flight speed.',
+      description: 'Bone Spear launches two piercing bone spears side-by-side with +25% bonus damage.',
       type: 'enhancement',
       typeLabel: 'Skill Enhancement',
       iconName: 'Zap',
@@ -57,7 +60,7 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
       secondaryColor: '#bae6fd',
       modifiers: {
         extraProjectiles: 1,
-        damageMultBonus: 0.2,
+        damageMultBonus: 0.25,
       },
     },
     {
@@ -67,7 +70,7 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
       skillName: 'Bone Spear',
       name: 'Splinter Shrapnel',
       title: 'Homing Marrow Shards',
-      description: 'Upon striking an enemy, Bone Spear shatters into 4 homing bone shards that strike adjacent foes.',
+      description: 'Upon striking an enemy, Bone Spear shatters into homing bone shards that strike adjacent foes.',
       type: 'new_effect',
       typeLabel: 'New Effect',
       iconName: 'Crosshair',
@@ -78,6 +81,8 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
         damageMultBonus: 0.25,
       },
     },
+
+    // --- Ribcage Shield (Normal 3) ---
     {
       id: 'skel_ribcage_fortress',
       heroId: 'skeleton',
@@ -85,7 +90,7 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
       skillName: 'Ribcage Shield',
       name: 'Ossified Bastion',
       title: 'Reinforced Bone Plating',
-      description: 'Ribcage Shield absorption increased by +65% and grants 25% cooldown reduction.',
+      description: 'Ribcage Shield absorption increased by +85 shield and grants 25% cooldown reduction.',
       type: 'enhancement',
       typeLabel: 'Skill Enhancement',
       iconName: 'Shield',
@@ -103,15 +108,36 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
       skillName: 'Ribcage Shield',
       name: 'Spiked Retaliation',
       title: 'Thorned Rib Spikes',
-      description: 'While shielded, taking damage fires outward bone spikes dealing 50% damage back to attackers.',
+      description: 'While shielded, taking damage retaliates with outward bone spikes that stagger attackers.',
       type: 'new_effect',
       typeLabel: 'New Effect',
       iconName: 'Flame',
       glowColor: '#fb923c',
       secondaryColor: '#ffedd5',
       modifiers: {
-        knockbackMultBonus: 0.5,
+        knockbackMultBonus: 0.6,
         damageMultBonus: 0.3,
+        staggerBonus: 0.8,
+      },
+    },
+
+    // --- Skeletal Rush (Normal 4) ---
+    {
+      id: 'skel_rush_haste',
+      heroId: 'skeleton',
+      skillId: 'skeletal_rush',
+      skillName: 'Skeletal Rush',
+      name: 'Grave Stride',
+      title: 'Extended Leap & Momentum',
+      description: 'Increases rush distance by +40% and grants 3 seconds of +35% bonus movement speed on arrival.',
+      type: 'enhancement',
+      typeLabel: 'Skill Enhancement',
+      iconName: 'Zap',
+      glowColor: '#a7f3d0',
+      secondaryColor: '#34d399',
+      modifiers: {
+        radiusMultBonus: 0.4,
+        cooldownReduction: 0.2,
       },
     },
     {
@@ -132,22 +158,24 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
         durationBonus: 3.0,
       },
     },
+
+    // --- Bone Storm (Normal 5) ---
     {
-      id: 'skel_rush_haste',
+      id: 'skel_storm_tempest',
       heroId: 'skeleton',
-      skillId: 'skeletal_rush',
-      skillName: 'Skeletal Rush',
-      name: 'Grave Stride',
-      title: 'Extended Leap & Momentum',
-      description: 'Increases rush distance by +40% and grants 3 seconds of +45% bonus movement speed on arrival.',
+      skillId: 'bone_storm',
+      skillName: 'Bone Storm',
+      name: 'Hurricane Blades',
+      title: 'Extended Blade Tempest',
+      description: 'Bone Storm radius expanded by +35% and deals +40% increased slicing damage.',
       type: 'enhancement',
       typeLabel: 'Skill Enhancement',
-      iconName: 'Zap',
-      glowColor: '#a7f3d0',
-      secondaryColor: '#34d399',
+      iconName: 'Compass',
+      glowColor: '#38bdf8',
+      secondaryColor: '#e0f2fe',
       modifiers: {
-        radiusMultBonus: 0.4,
-        cooldownReduction: 0.2,
+        radiusMultBonus: 0.35,
+        damageMultBonus: 0.4,
       },
     },
     {
@@ -157,15 +185,36 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
       skillName: 'Bone Storm',
       name: 'Gravitational Vortex',
       title: 'Cyclonic Marrow Pull',
-      description: 'Bone Storm creates a vortex pulling all nearby enemies into the spinning blade storm.',
+      description: 'Bone Storm creates a vortex pulling all nearby enemies inward and slows them by 40%.',
       type: 'new_effect',
       typeLabel: 'New Effect',
       iconName: 'Compass',
       glowColor: '#67e8f9',
       secondaryColor: '#cffafe',
       modifiers: {
-        radiusMultBonus: 0.35,
-        damageMultBonus: 0.25,
+        radiusMultBonus: 0.3,
+        slowPct: 0.4,
+        damageMultBonus: 0.2,
+      },
+    },
+
+    // --- Bone Colossus (Ultimate 1) ---
+    {
+      id: 'skel_colossus_might',
+      heroId: 'skeleton',
+      skillId: 'bone_colossus',
+      skillName: 'Bone Colossus',
+      name: 'Megalithic Might',
+      title: 'Colossal Form Duration',
+      description: 'Bone Colossus form duration extended by +40% and giant cleaves deal +45% bonus damage.',
+      type: 'enhancement',
+      typeLabel: 'Skill Enhancement',
+      iconName: 'Swords',
+      glowColor: '#f59e0b',
+      secondaryColor: '#fef3c7',
+      modifiers: {
+        durationBonus: 3.0,
+        damageMultBonus: 0.45,
       },
     },
     {
@@ -175,14 +224,34 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
       skillName: 'Bone Colossus',
       name: 'Titanic Quake',
       title: 'Seismic Shockwaves',
-      description: 'Bone Colossus form slam releases seismic aftershocks that stagger foes for 1.2s.',
+      description: 'Bone Colossus slams release seismic shockwaves that stun and daze foes for 1.4s.',
       type: 'new_effect',
       typeLabel: 'New Effect',
       iconName: 'Activity',
       glowColor: '#f59e0b',
       secondaryColor: '#fef3c7',
       modifiers: {
-        staggerBonus: 1.2,
+        staggerBonus: 1.4,
+        damageMultBonus: 0.3,
+      },
+    },
+
+    // --- Army of Bones (Ultimate 2) ---
+    {
+      id: 'skel_army_phalanx',
+      heroId: 'skeleton',
+      skillId: 'army_of_bones',
+      skillName: 'Army of Bones',
+      name: 'Undead Phalanx',
+      title: 'Reinforced Skeletal Vanguard',
+      description: 'Army of Bones summons +2 additional skeletal soldiers with +40% bonus health and attack speed.',
+      type: 'enhancement',
+      typeLabel: 'Skill Enhancement',
+      iconName: 'Users',
+      glowColor: '#34d399',
+      secondaryColor: '#d1fae5',
+      modifiers: {
+        durationBonus: 3.5,
         damageMultBonus: 0.35,
       },
     },
@@ -204,6 +273,26 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
         durationBonus: 3.0,
       },
     },
+
+    // --- Reaper's Judgment (Ultimate 3) ---
+    {
+      id: 'skel_reaper_executioner',
+      heroId: 'skeleton',
+      skillId: 'reapers_judgment',
+      skillName: "Reaper's Judgment",
+      name: "Executioner's Scythe",
+      title: 'Decapitating Slash',
+      description: "Reaper's Judgment critical strike chance +40% and deals +60% bonus damage to foes below 50% HP.",
+      type: 'enhancement',
+      typeLabel: 'Skill Enhancement',
+      iconName: 'Swords',
+      glowColor: '#e879f9',
+      secondaryColor: '#fae8ff',
+      modifiers: {
+        critChanceBonus: 0.4,
+        damageMultBonus: 0.5,
+      },
+    },
     {
       id: 'skel_reaper_siphon',
       heroId: 'skeleton',
@@ -211,23 +300,62 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
       skillName: "Reaper's Judgment",
       name: 'Soul Harvest',
       title: 'Vampiric Scythe Cleave',
-      description: "Reaper's Judgment converts 30% of damage dealt into HP and resets cooldown on boss/elite hit.",
+      description: "Reaper's Judgment converts 35% of damage dealt into HP and resets cooldown on elite kill.",
       type: 'new_effect',
       typeLabel: 'New Effect',
       iconName: 'Heart',
       glowColor: '#c084fc',
       secondaryColor: '#f3e8ff',
       modifiers: {
-        lifestealPct: 0.3,
+        lifestealPct: 0.35,
         damageMultBonus: 0.25,
+      },
+    },
+
+    // --- Skeleton Basic Attacks ---
+    {
+      id: 'skel_basic_razor',
+      heroId: 'skeleton',
+      skillId: 'basic_attack',
+      skillName: 'Floating Blade Attacks',
+      name: 'Razor Marrow Edge',
+      title: 'Honed Bone Blades',
+      description: 'Basic attacks strike 25% faster and deal +30% increased physical damage.',
+      type: 'enhancement',
+      typeLabel: 'Skill Enhancement',
+      iconName: 'Swords',
+      glowColor: '#38bdf8',
+      secondaryColor: '#bae6fd',
+      modifiers: {
+        damageMultBonus: 0.3,
+        critChanceBonus: 0.15,
+      },
+    },
+    {
+      id: 'skel_basic_splinters',
+      heroId: 'skeleton',
+      skillId: 'basic_attack',
+      skillName: 'Floating Blade Attacks',
+      name: 'Splinter Flurry',
+      title: 'Ricochet Bone Shards',
+      description: 'Basic attack finishers launch ricocheting bone fragments that pierce nearby foes.',
+      type: 'new_effect',
+      typeLabel: 'New Effect',
+      iconName: 'Sparkles',
+      glowColor: '#f472b6',
+      secondaryColor: '#fbcfe8',
+      modifiers: {
+        chainHits: true,
+        damageMultBonus: 0.2,
       },
     },
   ],
 
   // =========================================================================
-  // 2. HUMAN (Pipe Brawler)
+  // 2. HUMAN (Pipe Brawler) - 18 Strategic Blessings
   // =========================================================================
   human: [
+    // --- Pipe Swing (Normal 1) ---
     {
       id: 'hum_pipe_swing_knockback',
       heroId: 'human',
@@ -261,9 +389,11 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
       secondaryColor: '#ffedd5',
       modifiers: {
         damageMultBonus: 0.25,
-        staggerBonus: 0.5,
+        staggerBonus: 0.6,
       },
     },
+
+    // --- Headcracker (Normal 2) ---
     {
       id: 'hum_headcracker_impact',
       heroId: 'human',
@@ -300,6 +430,26 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
         staggerBonus: 1.4,
       },
     },
+
+    // --- Scrapper's Dash (Normal 3) ---
+    {
+      id: 'hum_dash_agility',
+      heroId: 'human',
+      skillId: 'scrappers_dash',
+      skillName: "Scrapper's Dash",
+      name: 'Alley Cat Reflexes',
+      title: 'Rapid Evasion Recoil',
+      description: "Scrapper's Dash cooldown reduced by 35% and grants 3 seconds of +30% move speed.",
+      type: 'enhancement',
+      typeLabel: 'Skill Enhancement',
+      iconName: 'Zap',
+      glowColor: '#38bdf8',
+      secondaryColor: '#bae6fd',
+      modifiers: {
+        cooldownReduction: 0.35,
+        radiusMultBonus: 0.25,
+      },
+    },
     {
       id: 'hum_dash_friction',
       heroId: 'human',
@@ -318,22 +468,24 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
         durationBonus: 2.5,
       },
     },
+
+    // --- Improvised Throw (Normal 4) ---
     {
-      id: 'hum_dash_agility',
+      id: 'hum_throw_heavy',
       heroId: 'human',
-      skillId: 'scrappers_dash',
-      skillName: "Scrapper's Dash",
-      name: 'Alley Cat Reflexes',
-      title: 'Rapid Evasion Recoil',
-      description: "Scrapper's Dash cooldown reduced by 35% and grants 3 seconds of +30% move speed.",
+      skillId: 'improvised_throw',
+      skillName: 'Improvised Throw',
+      name: 'Galvanized Steam Pipe',
+      title: 'High-Velocity Penetration',
+      description: 'Thrown Pipe flies 35% faster, pierces all obstacles, and deals +40% bonus damage.',
       type: 'enhancement',
       typeLabel: 'Skill Enhancement',
-      iconName: 'Zap',
-      glowColor: '#38bdf8',
-      secondaryColor: '#bae6fd',
+      iconName: 'Crosshair',
+      glowColor: '#cbd5e1',
+      secondaryColor: '#f8fafc',
       modifiers: {
-        cooldownReduction: 0.35,
-        radiusMultBonus: 0.25,
+        damageMultBonus: 0.4,
+        cooldownReduction: 0.2,
       },
     },
     {
@@ -354,24 +506,8 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
         damageMultBonus: 0.25,
       },
     },
-    {
-      id: 'hum_throw_heavy',
-      heroId: 'human',
-      skillId: 'improvised_throw',
-      skillName: 'Improvised Throw',
-      name: 'Galvanized Steam Pipe',
-      title: 'High-Velocity Penetration',
-      description: 'Thrown Pipe flies 35% faster, pierces all obstacles, and deals +40% bonus damage.',
-      type: 'enhancement',
-      typeLabel: 'Skill Enhancement',
-      iconName: 'Crosshair',
-      glowColor: '#cbd5e1',
-      secondaryColor: '#f8fafc',
-      modifiers: {
-        damageMultBonus: 0.4,
-        cooldownReduction: 0.2,
-      },
-    },
+
+    // --- Street Fighter (Normal 5) ---
     {
       id: 'hum_street_flurry',
       heroId: 'human',
@@ -391,6 +527,27 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
       },
     },
     {
+      id: 'hum_street_haymaker',
+      heroId: 'human',
+      skillId: 'street_fighter',
+      skillName: 'Street Fighter',
+      name: 'Haymaker Shock',
+      title: 'Concussive Finisher Shockwave',
+      description: 'The final knee strike emits a radial concussive blast that knocks back and stuns all nearby foes.',
+      type: 'new_effect',
+      typeLabel: 'New Effect',
+      iconName: 'Zap',
+      glowColor: '#f59e0b',
+      secondaryColor: '#fed7aa',
+      modifiers: {
+        staggerBonus: 1.2,
+        knockbackMultBonus: 0.8,
+        damageMultBonus: 0.3,
+      },
+    },
+
+    // --- Last Stand (Ultimate 1) ---
+    {
       id: 'hum_last_stand_grit',
       heroId: 'human',
       skillId: 'last_stand',
@@ -405,6 +562,45 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
       secondaryColor: '#fef3c7',
       modifiers: {
         shieldBonus: 80,
+        damageMultBonus: 0.35,
+      },
+    },
+    {
+      id: 'hum_last_stand_counter',
+      heroId: 'human',
+      skillId: 'last_stand',
+      skillName: 'Last Stand',
+      name: 'Spiteful Retaliation',
+      title: 'Radial Steel Blast',
+      description: 'Taking hits during Last Stand discharges concussive metal shrapnel hitting all surrounding enemies.',
+      type: 'new_effect',
+      typeLabel: 'New Effect',
+      iconName: 'Flame',
+      glowColor: '#ea580c',
+      secondaryColor: '#fdba74',
+      modifiers: {
+        knockbackMultBonus: 0.7,
+        damageMultBonus: 0.3,
+        staggerBonus: 0.8,
+      },
+    },
+
+    // --- Scrapstorm (Ultimate 2) ---
+    {
+      id: 'hum_scrapstorm_vortex',
+      heroId: 'human',
+      skillId: 'scrapstorm',
+      skillName: 'Scrapstorm',
+      name: 'High-Caliber Whirl',
+      title: 'Heavy Scrap Ingestion',
+      description: 'Scrapstorm draws in +4 additional scrap pieces and deals +35% increased hurricane damage.',
+      type: 'enhancement',
+      typeLabel: 'Skill Enhancement',
+      iconName: 'Compass',
+      glowColor: '#f97316',
+      secondaryColor: '#ffedd5',
+      modifiers: {
+        extraProjectiles: 4,
         damageMultBonus: 0.35,
       },
     },
@@ -426,6 +622,26 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
         durationBonus: 3.0,
       },
     },
+
+    // --- One Man Army (Ultimate 3) ---
+    {
+      id: 'hum_oma_frenzy',
+      heroId: 'human',
+      skillId: 'one_man_army',
+      skillName: 'One Man Army',
+      name: 'Relentless Blitz',
+      title: 'Extended Strike Rampage',
+      description: 'One Man Army grants +2 extra blitz strikes and deals +35% bonus damage on all impacts.',
+      type: 'enhancement',
+      typeLabel: 'Skill Enhancement',
+      iconName: 'Swords',
+      glowColor: '#f97316',
+      secondaryColor: '#ffedd5',
+      modifiers: {
+        durationBonus: 2.0,
+        damageMultBonus: 0.35,
+      },
+    },
     {
       id: 'hum_oma_thunder',
       heroId: 'human',
@@ -440,34 +656,55 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
       glowColor: '#38bdf8',
       secondaryColor: '#ffffff',
       modifiers: {
-        staggerBonus: 1.0,
+        staggerBonus: 1.2,
         damageMultBonus: 0.4,
+      },
+    },
+
+    // --- Human Basic Attacks ---
+    {
+      id: 'hum_basic_brawler',
+      heroId: 'human',
+      skillId: 'basic_attack',
+      skillName: 'Pipe Combo Attacks',
+      name: 'Heavy Brawler',
+      title: 'Hardened Steel Strikes',
+      description: 'Basic pipe swings deal +30% more damage and grant +20% faster combo recovery.',
+      type: 'enhancement',
+      typeLabel: 'Skill Enhancement',
+      iconName: 'Swords',
+      glowColor: '#fb923c',
+      secondaryColor: '#fed7aa',
+      modifiers: {
+        damageMultBonus: 0.3,
+        cooldownReduction: 0.2,
+      },
+    },
+    {
+      id: 'hum_basic_stun_baton',
+      heroId: 'human',
+      skillId: 'basic_attack',
+      skillName: 'Pipe Combo Attacks',
+      name: 'Stun Baton',
+      title: 'Concussive Pipe Jab',
+      description: 'Every 3rd basic attack hit staggers enemies and pushes them back with force.',
+      type: 'new_effect',
+      typeLabel: 'New Effect',
+      iconName: 'Zap',
+      glowColor: '#f59e0b',
+      secondaryColor: '#fef3c7',
+      modifiers: {
+        staggerBonus: 0.8,
+        knockbackMultBonus: 0.5,
       },
     },
   ],
 
   // =========================================================================
-  // 3. ZOMBIE (Plaguebound Brawler)
+  // 3. ZOMBIE (Plaguebound Brawler) - 18 Strategic Blessings
   // =========================================================================
   zombie: [
-    {
-      id: 'zomb_rotting_contagion',
-      heroId: 'zombie',
-      skillId: 'rotting_claw',
-      skillName: 'Rotting Claw',
-      name: 'Plague Spreader',
-      title: 'Explosive Contagion Spores',
-      description: 'Rotting Claw causes poisoned foes to erupt in spores, spreading contagion to all nearby enemies.',
-      type: 'new_effect',
-      typeLabel: 'New Effect',
-      iconName: 'Sparkles',
-      glowColor: '#a3e635',
-      secondaryColor: '#d9f99d',
-      modifiers: {
-        chainHits: true,
-        damageMultBonus: 0.3,
-      },
-    },
+    // --- Rotting Claw (Normal 1) ---
     {
       id: 'zomb_rotting_fester',
       heroId: 'zombie',
@@ -486,6 +723,26 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
         burnDpsPct: 0.25,
       },
     },
+    {
+      id: 'zomb_rotting_contagion',
+      heroId: 'zombie',
+      skillId: 'rotting_claw',
+      skillName: 'Rotting Claw',
+      name: 'Plague Spreader',
+      title: 'Explosive Contagion Spores',
+      description: 'Rotting Claw causes poisoned foes to erupt in spores, spreading contagion to all nearby enemies.',
+      type: 'new_effect',
+      typeLabel: 'New Effect',
+      iconName: 'Sparkles',
+      glowColor: '#a3e635',
+      secondaryColor: '#d9f99d',
+      modifiers: {
+        chainHits: true,
+        damageMultBonus: 0.3,
+      },
+    },
+
+    // --- Plague Burst (Normal 2) ---
     {
       id: 'zomb_burst_expanding',
       heroId: 'zombie',
@@ -511,7 +768,7 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
       skillName: 'Plague Burst',
       name: 'Suffocating Miasma',
       title: 'Crippling Neurotoxin',
-      description: 'Enemies standing inside Plague Burst clouds are slowed by 45% and deal 20% less damage.',
+      description: 'Enemies standing inside Plague Burst clouds are slowed by 45% and take continuous poison damage.',
       type: 'new_effect',
       typeLabel: 'New Effect',
       iconName: 'Shield',
@@ -519,27 +776,11 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
       secondaryColor: '#e9d5ff',
       modifiers: {
         slowPct: 0.45,
-        burnDpsPct: 0.2,
+        burnDpsPct: 0.25,
       },
     },
-    {
-      id: 'zomb_ripper_leech',
-      heroId: 'zombie',
-      skillId: 'flesh_ripper',
-      skillName: 'Flesh Ripper',
-      name: 'Cannibal Feast',
-      title: 'Predatory Vitality Siphon',
-      description: 'Flesh Ripper restores 12% max HP when striking enemies already poisoned with plague.',
-      type: 'new_effect',
-      typeLabel: 'New Effect',
-      iconName: 'Heart',
-      glowColor: '#4ade80',
-      secondaryColor: '#bbf7d0',
-      modifiers: {
-        lifestealPct: 0.2,
-        damageMultBonus: 0.25,
-      },
-    },
+
+    // --- Flesh Ripper (Normal 3) ---
     {
       id: 'zomb_ripper_eviscerate',
       heroId: 'zombie',
@@ -559,6 +800,26 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
       },
     },
     {
+      id: 'zomb_ripper_leech',
+      heroId: 'zombie',
+      skillId: 'flesh_ripper',
+      skillName: 'Flesh Ripper',
+      name: 'Cannibal Feast',
+      title: 'Predatory Vitality Siphon',
+      description: 'Flesh Ripper restores 14% max HP when striking enemies already poisoned with plague.',
+      type: 'new_effect',
+      typeLabel: 'New Effect',
+      iconName: 'Heart',
+      glowColor: '#4ade80',
+      secondaryColor: '#bbf7d0',
+      modifiers: {
+        lifestealPct: 0.25,
+        damageMultBonus: 0.25,
+      },
+    },
+
+    // --- Undying Flesh (Normal 4) ---
+    {
       id: 'zomb_undying_fortified',
       heroId: 'zombie',
       skillId: 'undying_flesh',
@@ -573,7 +834,7 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
       secondaryColor: '#ecfccb',
       modifiers: {
         cooldownReduction: 0.25,
-        shieldBonus: 60,
+        shieldBonus: 70,
       },
     },
     {
@@ -583,7 +844,7 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
       skillName: 'Undying Flesh',
       name: 'Vitality Pulse',
       title: 'Shockwave Rejuvenation',
-      description: 'Activating Undying Flesh emits a healing shockwave that damages surrounding foes.',
+      description: 'Activating Undying Flesh emits a healing shockwave that damages and knocks back surrounding foes.',
       type: 'new_effect',
       typeLabel: 'New Effect',
       iconName: 'Zap',
@@ -591,6 +852,27 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
       secondaryColor: '#86efac',
       modifiers: {
         radiusMultBonus: 0.35,
+        damageMultBonus: 0.3,
+        knockbackMultBonus: 0.5,
+      },
+    },
+
+    // --- Grave Call (Normal 5) ---
+    {
+      id: 'zomb_call_overlord',
+      heroId: 'zombie',
+      skillId: 'grave_call',
+      skillName: 'Grave Call',
+      name: 'Horde Overlord',
+      title: 'Multi-Minion Surge',
+      description: 'Grave Call summons +2 additional zombies with +35% increased attack rate.',
+      type: 'enhancement',
+      typeLabel: 'Skill Enhancement',
+      iconName: 'Users',
+      glowColor: '#a3e635',
+      secondaryColor: '#ecfccb',
+      modifiers: {
+        durationBonus: 3.0,
         damageMultBonus: 0.3,
       },
     },
@@ -612,6 +894,8 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
         durationBonus: 3.0,
       },
     },
+
+    // --- Abomination Form (Ultimate 1) ---
     {
       id: 'zomb_abomination_speed',
       heroId: 'zombie',
@@ -627,7 +911,45 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
       secondaryColor: '#f3e8ff',
       modifiers: {
         damageMultBonus: 0.4,
-        lifestealPct: 0.1,
+        lifestealPct: 0.12,
+      },
+    },
+    {
+      id: 'zomb_abomination_bile',
+      heroId: 'zombie',
+      skillId: 'abomination_form',
+      skillName: 'Abomination Form',
+      name: 'Caustic Belch',
+      title: 'Virulent Bile Eruptions',
+      description: 'During Abomination Form, giant slams periodically belch toxic bile pools that melt foes.',
+      type: 'new_effect',
+      typeLabel: 'New Effect',
+      iconName: 'Flame',
+      glowColor: '#84cc16',
+      secondaryColor: '#bef264',
+      modifiers: {
+        burnDpsPct: 0.4,
+        staggerBonus: 1.0,
+      },
+    },
+
+    // --- Kingdom of the Dead (Ultimate 2) ---
+    {
+      id: 'zomb_kingdom_ground',
+      heroId: 'zombie',
+      skillId: 'kingdom_of_the_dead',
+      skillName: 'Kingdom of the Dead',
+      name: 'Desecrated Ground',
+      title: 'Amplified Necrotic Sigil',
+      description: 'Kingdom of the Dead sigil radius expanded by +40% and deals +35% bonus necrotic damage.',
+      type: 'enhancement',
+      typeLabel: 'Skill Enhancement',
+      iconName: 'Compass',
+      glowColor: '#c084fc',
+      secondaryColor: '#f3e8ff',
+      modifiers: {
+        radiusMultBonus: 0.4,
+        damageMultBonus: 0.35,
       },
     },
     {
@@ -648,6 +970,26 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
         radiusMultBonus: 0.3,
       },
     },
+
+    // --- Death's Embrace (Ultimate 3) ---
+    {
+      id: 'zomb_deaths_embrace_gravitas',
+      heroId: 'zombie',
+      skillId: 'deaths_embrace',
+      skillName: "Death's Embrace",
+      name: 'Catacomb Gravitas',
+      title: 'Massive Siphon Radius',
+      description: "Death's Embrace pull radius expanded by +50% and final eruption deals +45% bonus damage.",
+      type: 'enhancement',
+      typeLabel: 'Skill Enhancement',
+      iconName: 'Zap',
+      glowColor: '#a855f7',
+      secondaryColor: '#f3e8ff',
+      modifiers: {
+        radiusMultBonus: 0.5,
+        damageMultBonus: 0.45,
+      },
+    },
     {
       id: 'zomb_deaths_embrace_drain',
       heroId: 'zombie',
@@ -666,12 +1008,51 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
         damageMultBonus: 0.3,
       },
     },
+
+    // --- Zombie Basic Attacks ---
+    {
+      id: 'zomb_basic_toxic',
+      heroId: 'zombie',
+      skillId: 'basic_attack',
+      skillName: 'Plagued Claw Attacks',
+      name: 'Toxic Talons',
+      title: 'Necrotic Claw Strikes',
+      description: 'Basic claw strikes deal +30% more damage and apply stacking plague poison.',
+      type: 'enhancement',
+      typeLabel: 'Skill Enhancement',
+      iconName: 'Swords',
+      glowColor: '#84cc16',
+      secondaryColor: '#d9f99d',
+      modifiers: {
+        damageMultBonus: 0.3,
+        burnDpsPct: 0.2,
+      },
+    },
+    {
+      id: 'zomb_basic_leecher',
+      heroId: 'zombie',
+      skillId: 'basic_attack',
+      skillName: 'Plagued Claw Attacks',
+      name: 'Carrion Leecher',
+      title: 'Vampiric Claw Swipes',
+      description: 'Basic attacks against poisoned foes heal the Zombie for 8% of damage dealt.',
+      type: 'new_effect',
+      typeLabel: 'New Effect',
+      iconName: 'Heart',
+      glowColor: '#4ade80',
+      secondaryColor: '#bbf7d0',
+      modifiers: {
+        lifestealPct: 0.12,
+        damageMultBonus: 0.2,
+      },
+    },
   ],
 
   // =========================================================================
-  // 4. GHOUL (Feral Stalker)
+  // 4. GHOUL (Feral Stalker) - 18 Strategic Blessings
   // =========================================================================
   ghoul: [
+    // --- Rending Claws (Normal 1) ---
     {
       id: 'ghoul_rending_serrated',
       heroId: 'ghoul',
@@ -697,7 +1078,7 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
       skillName: 'Rending Claws',
       name: 'Hemorrhage',
       title: 'Deep Artery Laceration',
-      description: 'Rending Claws applies bleeding, dealing 20% weapon damage every second for 4 seconds.',
+      description: 'Rending Claws applies bleeding, dealing 40% weapon damage every second for 4 seconds.',
       type: 'new_effect',
       typeLabel: 'New Effect',
       iconName: 'Flame',
@@ -708,24 +1089,8 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
         durationBonus: 4.0,
       },
     },
-    {
-      id: 'ghoul_pounce_crush',
-      heroId: 'ghoul',
-      skillId: 'feral_pounce',
-      skillName: 'Feral Pounce',
-      name: "Predator's Impact",
-      title: 'Staggering Aerial Slam',
-      description: 'Feral Pounce impact creates a bone-crushing shockwave that stuns struck foes for 1.2s.',
-      type: 'new_effect',
-      typeLabel: 'New Effect',
-      iconName: 'Activity',
-      glowColor: '#f43f5e',
-      secondaryColor: '#fff1f2',
-      modifiers: {
-        staggerBonus: 1.2,
-        damageMultBonus: 0.3,
-      },
-    },
+
+    // --- Feral Pounce (Normal 2) ---
     {
       id: 'ghoul_pounce_reset',
       heroId: 'ghoul',
@@ -744,6 +1109,26 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
         radiusMultBonus: 0.35,
       },
     },
+    {
+      id: 'ghoul_pounce_crush',
+      heroId: 'ghoul',
+      skillId: 'feral_pounce',
+      skillName: 'Feral Pounce',
+      name: "Predator's Impact",
+      title: 'Staggering Aerial Slam',
+      description: 'Feral Pounce impact creates a bone-crushing shockwave that stuns struck foes for 1.4s.',
+      type: 'new_effect',
+      typeLabel: 'New Effect',
+      iconName: 'Activity',
+      glowColor: '#f43f5e',
+      secondaryColor: '#fff1f2',
+      modifiers: {
+        staggerBonus: 1.4,
+        damageMultBonus: 0.3,
+      },
+    },
+
+    // --- Shadow Stalker (Normal 3) ---
     {
       id: 'ghoul_stalker_lethal',
       heroId: 'ghoul',
@@ -780,24 +1165,8 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
         durationBonus: 3.0,
       },
     },
-    {
-      id: 'ghoul_frenzy_carrion',
-      heroId: 'ghoul',
-      skillId: 'blood_frenzy',
-      skillName: 'Blood Frenzy',
-      name: 'Thirst for Sanguine',
-      title: 'Feral Lifeleech',
-      description: 'Every claw strike during Blood Frenzy heals the Ghoul for 8% of damage dealt.',
-      type: 'new_effect',
-      typeLabel: 'New Effect',
-      iconName: 'Heart',
-      glowColor: '#f43f5e',
-      secondaryColor: '#fda4af',
-      modifiers: {
-        lifestealPct: 0.16,
-        damageMultBonus: 0.2,
-      },
-    },
+
+    // --- Blood Frenzy (Normal 4) ---
     {
       id: 'ghoul_frenzy_hyper',
       heroId: 'ghoul',
@@ -817,6 +1186,26 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
       },
     },
     {
+      id: 'ghoul_frenzy_carrion',
+      heroId: 'ghoul',
+      skillId: 'blood_frenzy',
+      skillName: 'Blood Frenzy',
+      name: 'Thirst for Sanguine',
+      title: 'Feral Lifeleech',
+      description: 'Every claw strike during Blood Frenzy heals the Ghoul for 12% of damage dealt.',
+      type: 'new_effect',
+      typeLabel: 'New Effect',
+      iconName: 'Heart',
+      glowColor: '#f43f5e',
+      secondaryColor: '#fda4af',
+      modifiers: {
+        lifestealPct: 0.18,
+        damageMultBonus: 0.2,
+      },
+    },
+
+    // --- Predator's Leap (Normal 5) ---
+    {
       id: 'ghoul_leap_whirl',
       heroId: 'ghoul',
       skillId: 'predators_leap',
@@ -834,6 +1223,26 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
         damageMultBonus: 0.35,
       },
     },
+    {
+      id: 'ghoul_leap_shockwave',
+      heroId: 'ghoul',
+      skillId: 'predators_leap',
+      skillName: "Predator's Leap",
+      name: 'Crimson Quake',
+      title: 'Seismic Impact Eruption',
+      description: "Predator's Leap landing erupts in 4 cardinal shockwaves that stun and daze enemies for 1.2s.",
+      type: 'new_effect',
+      typeLabel: 'New Effect',
+      iconName: 'Activity',
+      glowColor: '#fb7185',
+      secondaryColor: '#fff1f2',
+      modifiers: {
+        staggerBonus: 1.2,
+        damageMultBonus: 0.3,
+      },
+    },
+
+    // --- Apex Predator (Ultimate 1) ---
     {
       id: 'ghoul_apex_monstrous',
       heroId: 'ghoul',
@@ -853,6 +1262,45 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
       },
     },
     {
+      id: 'ghoul_apex_roar',
+      heroId: 'ghoul',
+      skillId: 'apex_predator',
+      skillName: 'Apex Predator',
+      name: 'Terrifying Roar',
+      title: 'Primal Fear Shockwave',
+      description: 'Activating Apex Predator unleashes a primal roar that terrifies and slows all nearby foes for 2.2s.',
+      type: 'new_effect',
+      typeLabel: 'New Effect',
+      iconName: 'Zap',
+      glowColor: '#e11d48',
+      secondaryColor: '#fda4af',
+      modifiers: {
+        staggerBonus: 1.2,
+        slowPct: 0.5,
+        damageMultBonus: 0.25,
+      },
+    },
+
+    // --- Carnage Unleashed (Ultimate 2) ---
+    {
+      id: 'ghoul_carnage_rampage',
+      heroId: 'ghoul',
+      skillId: 'carnage_unleashed',
+      skillName: 'Carnage Unleashed',
+      name: 'Endless Rampage',
+      title: 'Maximized Carnage Multiplier',
+      description: 'Carnage Unleashed deals +40% increased dash damage with +25% bonus critical strike chance.',
+      type: 'enhancement',
+      typeLabel: 'Skill Enhancement',
+      iconName: 'Swords',
+      glowColor: '#f43f5e',
+      secondaryColor: '#ffe4e6',
+      modifiers: {
+        damageMultBonus: 0.4,
+        critChanceBonus: 0.25,
+      },
+    },
+    {
       id: 'ghoul_carnage_chain',
       heroId: 'ghoul',
       skillId: 'carnage_unleashed',
@@ -866,8 +1314,28 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
       glowColor: '#e11d48',
       secondaryColor: '#fff1f2',
       modifiers: {
+        damageMultBonus: 0.35,
+        critChanceBonus: 0.2,
+      },
+    },
+
+    // --- King of the Hunt (Ultimate 3) ---
+    {
+      id: 'ghoul_hunt_dominance',
+      heroId: 'ghoul',
+      skillId: 'king_of_the_hunt',
+      skillName: 'King of the Hunt',
+      name: 'Apex Dominance',
+      title: 'Accelerated Pursuit',
+      description: 'King of the Hunt strikes deal +40% bonus damage and dash travel speed increased by +35%.',
+      type: 'enhancement',
+      typeLabel: 'Skill Enhancement',
+      iconName: 'Zap',
+      glowColor: '#f43f5e',
+      secondaryColor: '#fda4af',
+      modifiers: {
         damageMultBonus: 0.4,
-        critChanceBonus: 0.25,
+        radiusMultBonus: 0.3,
       },
     },
     {
@@ -885,15 +1353,54 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
       secondaryColor: '#e11d48',
       modifiers: {
         damageMultBonus: 0.35,
-        lifestealPct: 0.15,
+        lifestealPct: 0.18,
+      },
+    },
+
+    // --- Ghoul Basic Attacks ---
+    {
+      id: 'ghoul_basic_shredder',
+      heroId: 'ghoul',
+      skillId: 'basic_attack',
+      skillName: 'Feral Claw Combos',
+      name: 'Frenzied Shredder',
+      title: 'Swift Claw Flurry',
+      description: 'Basic attacks strike 25% faster and deal +30% increased physical claw damage.',
+      type: 'enhancement',
+      typeLabel: 'Skill Enhancement',
+      iconName: 'Swords',
+      glowColor: '#fb7185',
+      secondaryColor: '#fda4af',
+      modifiers: {
+        damageMultBonus: 0.3,
+        critChanceBonus: 0.15,
+      },
+    },
+    {
+      id: 'ghoul_basic_rend',
+      heroId: 'ghoul',
+      skillId: 'basic_attack',
+      skillName: 'Feral Claw Combos',
+      name: 'Rend & Tear',
+      title: 'Vitality Leech Combo',
+      description: 'Every 3-hit basic attack combo finisher restores 6% max HP and applies bleeding.',
+      type: 'new_effect',
+      typeLabel: 'New Effect',
+      iconName: 'Heart',
+      glowColor: '#f43f5e',
+      secondaryColor: '#fff1f2',
+      modifiers: {
+        lifestealPct: 0.14,
+        burnDpsPct: 0.25,
       },
     },
   ],
 
   // =========================================================================
-  // 5. GHOST (Ethereal Spirit)
+  // 5. GHOST (Ethereal Spirit) - 18 Strategic Blessings
   // =========================================================================
   ghost: [
+    // --- Spectral Bolt (Normal 1) ---
     {
       id: 'ghost_bolt_pierce',
       heroId: 'ghost',
@@ -931,24 +1438,8 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
         damageMultBonus: 0.2,
       },
     },
-    {
-      id: 'ghost_dash_frost',
-      heroId: 'ghost',
-      skillId: 'phantom_dash',
-      skillName: 'Phantom Dash',
-      name: 'Glacial Chill',
-      title: 'Freezing Spirit Mist',
-      description: 'Phantom Dash mist trail chills enemies, reducing their movement speed by 50% for 3 seconds.',
-      type: 'new_effect',
-      typeLabel: 'New Effect',
-      iconName: 'Compass',
-      glowColor: '#5eead4',
-      secondaryColor: '#ccfbf1',
-      modifiers: {
-        slowPct: 0.5,
-        durationBonus: 3.0,
-      },
-    },
+
+    // --- Phantom Dash (Normal 2) ---
     {
       id: 'ghost_dash_phase',
       heroId: 'ghost',
@@ -967,6 +1458,26 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
         durationBonus: 1.2,
       },
     },
+    {
+      id: 'ghost_dash_frost',
+      heroId: 'ghost',
+      skillId: 'phantom_dash',
+      skillName: 'Phantom Dash',
+      name: 'Glacial Chill',
+      title: 'Freezing Spirit Mist',
+      description: 'Phantom Dash mist trail chills enemies, reducing their movement speed by 50% for 3 seconds.',
+      type: 'new_effect',
+      typeLabel: 'New Effect',
+      iconName: 'Compass',
+      glowColor: '#5eead4',
+      secondaryColor: '#ccfbf1',
+      modifiers: {
+        slowPct: 0.5,
+        durationBonus: 3.0,
+      },
+    },
+
+    // --- Soul Drain (Normal 3) ---
     {
       id: 'ghost_drain_vampiric',
       heroId: 'ghost',
@@ -1003,6 +1514,8 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
         knockbackMultBonus: -0.5,
       },
     },
+
+    // --- Wailing Scream (Normal 4) ---
     {
       id: 'ghost_scream_daze',
       heroId: 'ghost',
@@ -1039,6 +1552,8 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
         staggerBonus: 0.8,
       },
     },
+
+    // --- Haunted Possession (Normal 5) ---
     {
       id: 'ghost_possession_overdrive',
       heroId: 'ghost',
@@ -1046,17 +1561,38 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
       skillName: 'Haunted Possession',
       name: 'Mind Domination',
       title: 'Puppet Frenzy & Wisps',
-      description: 'Possessed puppet attacks 50% faster and releases homing ghost wisps on every hit.',
+      description: 'Possessed puppet attacks 50% faster and deals +40% increased damage while controlled.',
       type: 'enhancement',
       typeLabel: 'Skill Enhancement',
       iconName: 'Users',
       glowColor: '#5eead4',
       secondaryColor: '#a7f3d0',
       modifiers: {
-        damageMultBonus: 0.5,
-        extraProjectiles: 1,
+        damageMultBonus: 0.45,
+        durationBonus: 1.5,
       },
     },
+    {
+      id: 'ghost_possession_poltergeist',
+      heroId: 'ghost',
+      skillId: 'haunted_possession',
+      skillName: 'Haunted Possession',
+      name: 'Poltergeist Shock',
+      title: 'Catastrophic Host Eruption',
+      description: 'Erupting out of the possessed host releases a massive astral nova that knocks back all foes.',
+      type: 'new_effect',
+      typeLabel: 'New Effect',
+      iconName: 'Zap',
+      glowColor: '#c084fc',
+      secondaryColor: '#fae8ff',
+      modifiers: {
+        radiusMultBonus: 0.45,
+        staggerBonus: 1.2,
+        damageMultBonus: 0.35,
+      },
+    },
+
+    // --- Eternal Nightmare (Ultimate 1) ---
     {
       id: 'ghost_nightmare_abyss',
       heroId: 'ghost',
@@ -1064,7 +1600,7 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
       skillName: 'Eternal Nightmare',
       name: 'Abyssal Eclipse',
       title: 'Extended Shadow Dominion',
-      description: 'Eternal Nightmare realm lasts 3 seconds longer and increases Ghost attack damage by +30%.',
+      description: 'Eternal Nightmare realm lasts 3 seconds longer and increases Ghost attack damage by +35%.',
       type: 'enhancement',
       typeLabel: 'Skill Enhancement',
       iconName: 'Flame',
@@ -1072,7 +1608,45 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
       secondaryColor: '#c084fc',
       modifiers: {
         durationBonus: 3.0,
-        damageMultBonus: 0.3,
+        damageMultBonus: 0.35,
+      },
+    },
+    {
+      id: 'ghost_nightmare_phobia',
+      heroId: 'ghost',
+      skillId: 'eternal_nightmare',
+      skillName: 'Eternal Nightmare',
+      name: 'Phantasmal Phobia',
+      title: 'Terrifying Shadow Domain',
+      description: 'Enemies caught within Eternal Nightmare realm are slowed by 45% and lose 3% max HP per second.',
+      type: 'new_effect',
+      typeLabel: 'New Effect',
+      iconName: 'Compass',
+      glowColor: '#c084fc',
+      secondaryColor: '#e9d5ff',
+      modifiers: {
+        slowPct: 0.45,
+        burnDpsPct: 0.3,
+      },
+    },
+
+    // --- Spirit Legion (Ultimate 2) ---
+    {
+      id: 'ghost_legion_armada',
+      heroId: 'ghost',
+      skillId: 'spirit_legion',
+      skillName: 'Spirit Legion',
+      name: 'Phantom Armada',
+      title: 'Expanded Spirit Swarm',
+      description: 'Summons +3 additional orbiting phantoms with +35% increased charge damage.',
+      type: 'enhancement',
+      typeLabel: 'Skill Enhancement',
+      iconName: 'Users',
+      glowColor: '#2dd4bf',
+      secondaryColor: '#99f6e4',
+      modifiers: {
+        extraProjectiles: 3,
+        damageMultBonus: 0.35,
       },
     },
     {
@@ -1089,10 +1663,13 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
       glowColor: '#c084fc',
       secondaryColor: '#e9d5ff',
       modifiers: {
-        extraProjectiles: 3,
+        extraProjectiles: 2,
         damageMultBonus: 0.25,
+        chainHits: true,
       },
     },
+
+    // --- Death's Passage (Ultimate 3) ---
     {
       id: 'ghost_passage_singularity',
       heroId: 'ghost',
@@ -1101,8 +1678,8 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
       name: 'Supernova Singularity',
       title: 'Devastating Gravity Collapse',
       description: "Death's Passage rift pulls 35% harder and the final explosion radius is expanded by +50%.",
-      type: 'new_effect',
-      typeLabel: 'New Effect',
+      type: 'enhancement',
+      typeLabel: 'Skill Enhancement',
       iconName: 'Compass',
       glowColor: '#2dd4bf',
       secondaryColor: '#5eead4',
@@ -1111,12 +1688,70 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
         damageMultBonus: 0.45,
       },
     },
+    {
+      id: 'ghost_passage_maw',
+      heroId: 'ghost',
+      skillId: 'deaths_passage',
+      skillName: "Death's Passage",
+      name: 'Gravity Maw',
+      title: 'Silencing Dimensional Abyss',
+      description: "Death's Passage rift continually silences and staggers enemies pulled inside for 1.8s.",
+      type: 'new_effect',
+      typeLabel: 'New Effect',
+      iconName: 'Zap',
+      glowColor: '#818cf8',
+      secondaryColor: '#c7d2fe',
+      modifiers: {
+        staggerBonus: 1.8,
+        slowPct: 0.55,
+        damageMultBonus: 0.3,
+      },
+    },
+
+    // --- Ghost Basic Attacks ---
+    {
+      id: 'ghost_basic_flare',
+      heroId: 'ghost',
+      skillId: 'basic_attack',
+      skillName: 'Astral Orb Attacks',
+      name: 'Soul Flare',
+      title: 'Radiant Spirit Projectiles',
+      description: 'Basic spirit orb attacks deal +30% increased damage and travel 25% faster.',
+      type: 'enhancement',
+      typeLabel: 'Skill Enhancement',
+      iconName: 'Zap',
+      glowColor: '#5eead4',
+      secondaryColor: '#ccfbf1',
+      modifiers: {
+        damageMultBonus: 0.3,
+        critChanceBonus: 0.15,
+      },
+    },
+    {
+      id: 'ghost_basic_splinter',
+      heroId: 'ghost',
+      skillId: 'basic_attack',
+      skillName: 'Astral Orb Attacks',
+      name: 'Astral Splinter',
+      title: 'Homing Spirit Wisps',
+      description: 'Basic attack critical strikes release a homing spirit wisp seeking nearby foes.',
+      type: 'new_effect',
+      typeLabel: 'New Effect',
+      iconName: 'Sparkles',
+      glowColor: '#818cf8',
+      secondaryColor: '#c7d2fe',
+      modifiers: {
+        chainHits: true,
+        damageMultBonus: 0.2,
+      },
+    },
   ],
 };
 
 /**
- * Filters blessings by hero, matches against the player's equipped skill loadout,
- * excludes already acquired blessing IDs, and randomly selects up to 3 diverse strategic choices.
+ * Filters blessings by hero, strictly matches against the player's equipped skill loadout
+ * (or basic attacks / hero core boons), excludes already acquired blessing IDs,
+ * and randomly selects up to 3 diverse strategic choices (mixing enhancements & new effects).
  */
 export function getBlessingOptions(
   heroId: HeroId,
@@ -1129,18 +1764,17 @@ export function getBlessingOptions(
   // Exclude already owned blessings
   const available = pool.filter((b) => !currentBlessingIds.includes(b.id));
 
-  // Primary preference: blessings that specifically enhance or add effects to currently equipped skills!
+  // Primary preference: blessings that strictly match currently equipped skills or basic attack!
   const loadoutSkillSet = new Set<string>(loadout);
-  const matchingLoadout = available.filter(
-    (b) => b.skillId === 'all_skills' || loadoutSkillSet.has(b.skillId)
-  );
+  loadoutSkillSet.add('basic_attack');
+  loadoutSkillSet.add('all_skills');
 
-  // Fallback candidates if the player has already acquired many blessings matching their loadout
-  const others = available.filter(
-    (b) => b.skillId !== 'all_skills' && !loadoutSkillSet.has(b.skillId)
-  );
+  const matchingLoadout = available.filter((b) => loadoutSkillSet.has(b.skillId));
 
-  // Shuffle arrays
+  // Fallback candidate if player somehow collected all matching blessings
+  const others = available.filter((b) => !loadoutSkillSet.has(b.skillId));
+
+  // Shuffle helper
   const shuffle = <T>(arr: T[]): T[] => {
     const copy = [...arr];
     for (let i = copy.length - 1; i > 0; i--) {
@@ -1151,20 +1785,36 @@ export function getBlessingOptions(
   };
 
   const shuffledMatching = shuffle(matchingLoadout);
-  const shuffledOthers = shuffle(others);
-
   const selected: Blessing[] = [];
 
-  // Take as many matching as possible up to desiredCount
-  for (const b of shuffledMatching) {
-    if (selected.length >= desiredCount) break;
-    selected.push(b);
+  // Strive to include both an enhancement and a new effect when possible for diverse strategic choice
+  const enhancements = shuffledMatching.filter((b) => b.type === 'enhancement');
+  const newEffects = shuffledMatching.filter((b) => b.type === 'new_effect');
+
+  if (enhancements.length > 0 && selected.length < desiredCount) {
+    selected.push(enhancements[0]);
+  }
+  if (newEffects.length > 0 && selected.length < desiredCount) {
+    selected.push(newEffects[0]);
   }
 
-  // If we still need more to offer 3 choices, pull from other hero blessings
-  for (const b of shuffledOthers) {
+  // Fill remaining slots with other matching blessings
+  for (const b of shuffledMatching) {
     if (selected.length >= desiredCount) break;
-    selected.push(b);
+    if (!selected.some((s) => s.id === b.id)) {
+      selected.push(b);
+    }
+  }
+
+  // If still need more to offer desiredCount choices (e.g. late in a run), pull from remaining pool
+  if (selected.length < desiredCount) {
+    const shuffledOthers = shuffle(others);
+    for (const b of shuffledOthers) {
+      if (selected.length >= desiredCount) break;
+      if (!selected.some((s) => s.id === b.id)) {
+        selected.push(b);
+      }
+    }
   }
 
   return selected;

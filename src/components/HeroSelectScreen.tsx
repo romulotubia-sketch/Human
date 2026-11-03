@@ -19,6 +19,7 @@ interface HeroSelectScreenProps {
   isFullscreen: boolean;
   onSelectHero: (heroId: HeroId) => void;
   onSelectNormalSkill: (skillId: NormalSkillId) => void;
+  onSetNormalSlot?: (slotIdx: 0 | 1, skillId: NormalSkillId) => void;
   onSwapNormalSlots: () => void;
   onSelectUltimateSkill: (skillId: UltimateSkillId) => void;
   onToggleFullscreen: () => void;
@@ -32,6 +33,7 @@ export function HeroSelectScreen({
   isFullscreen,
   onSelectHero,
   onSelectNormalSkill,
+  onSetNormalSlot,
   onSwapNormalSlots,
   onSelectUltimateSkill,
   onToggleFullscreen,
@@ -46,6 +48,7 @@ export function HeroSelectScreen({
   const isGhost = heroId === 'ghost';
 
   const [inspectedSkillId, setInspectedSkillId] = useState<SkillId>(loadout[0]);
+  const [slotChoiceSkillId, setSlotChoiceSkillId] = useState<NormalSkillId | null>(null);
 
   useEffect(() => {
     setInspectedSkillId(HERO_PROFILES[heroId].defaultLoadout[0]);
@@ -271,7 +274,7 @@ export function HeroSelectScreen({
                     onClick={() => {
                       soundEngine.playUiTap();
                       setInspectedSkillId(id);
-                      onSelectNormalSkill(id);
+                      setSlotChoiceSkillId(id);
                     }}
                     className={`flex h-9 items-center justify-between gap-1.5 rounded-lg border px-2 text-left transition-colors sm:h-10 sm:px-2.5 ${
                       isSelected
@@ -390,6 +393,83 @@ export function HeroSelectScreen({
           </section>
         </div>
       </main>
+
+      {/* Modal Prompt: Choose Slot 1 or Slot 2 for Normal Skill in Hero Select */}
+      {slotChoiceSkillId && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-sm rounded-2xl border border-stone-700 bg-[#1c1612] p-4 text-center shadow-2xl">
+            <div className="mb-2 flex items-center justify-center gap-2">
+              <SkillIcon skillId={slotChoiceSkillId} className="h-6 w-6" />
+              <h3 className="font-display text-sm font-bold text-amber-100 sm:text-base">
+                {HERO_SKILLS[slotChoiceSkillId].name}
+              </h3>
+            </div>
+            <p className="mb-3 text-xs leading-relaxed text-stone-300">
+              Choose which slot to equip this skill in:
+            </p>
+
+            <div className="mb-3 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  soundEngine.playUiTap();
+                  if (onSetNormalSlot) {
+                    onSetNormalSlot(0, slotChoiceSkillId);
+                  } else {
+                    onSelectNormalSkill(slotChoiceSkillId);
+                  }
+                  setSlotChoiceSkillId(null);
+                }}
+                className={`flex flex-col items-center justify-center rounded-xl border p-2.5 transition-transform active:scale-95 ${
+                  loadout[0] === slotChoiceSkillId
+                    ? 'border-amber-400 bg-amber-950/60 text-amber-100 shadow-md'
+                    : 'border-stone-700 bg-stone-900 text-stone-200 hover:border-amber-400/60'
+                }`}
+              >
+                <span className="text-xs font-bold text-amber-300">Slot 1</span>
+                <span className="mt-1 max-w-[125px] truncate font-mono text-[10px] text-stone-400">
+                  {loadout[0] === slotChoiceSkillId
+                    ? 'Current: Equipped'
+                    : `Replaces: ${HERO_SKILLS[loadout[0]].name}`}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  soundEngine.playUiTap();
+                  if (onSetNormalSlot) {
+                    onSetNormalSlot(1, slotChoiceSkillId);
+                  } else {
+                    onSelectNormalSkill(slotChoiceSkillId);
+                  }
+                  setSlotChoiceSkillId(null);
+                }}
+                className={`flex flex-col items-center justify-center rounded-xl border p-2.5 transition-transform active:scale-95 ${
+                  loadout[1] === slotChoiceSkillId
+                    ? 'border-amber-400 bg-amber-950/60 text-amber-100 shadow-md'
+                    : 'border-stone-700 bg-stone-900 text-stone-200 hover:border-amber-400/60'
+                }`}
+              >
+                <span className="text-xs font-bold text-amber-300">Slot 2</span>
+                <span className="mt-1 max-w-[125px] truncate font-mono text-[10px] text-stone-400">
+                  {loadout[1] === slotChoiceSkillId
+                    ? 'Current: Equipped'
+                    : `Replaces: ${HERO_SKILLS[loadout[1]].name}`}
+                </span>
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setSlotChoiceSkillId(null)}
+              className="rounded-lg px-3 py-1 text-xs text-stone-400 transition-colors hover:text-stone-200"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,5 +1,19 @@
 import React, { useState } from 'react';
-import { Sparkles, Zap, Shield, Heart, Flame, Swords, Check, ArrowRight } from 'lucide-react';
+import {
+  Sparkles,
+  Zap,
+  Shield,
+  Heart,
+  Flame,
+  Swords,
+  Check,
+  ArrowRight,
+  Compass,
+  Crosshair,
+  Activity,
+  RotateCcw,
+  Users,
+} from 'lucide-react';
 import { soundEngine } from '../audio/soundEngine';
 import { Blessing } from '../types/blessing';
 import { HeroId } from '../types/game';
@@ -48,6 +62,16 @@ export function BlessingSelectionModal({
         return <Zap className={className} />;
       case 'Swords':
         return <Swords className={className} />;
+      case 'Compass':
+        return <Compass className={className} />;
+      case 'Crosshair':
+        return <Crosshair className={className} />;
+      case 'Activity':
+        return <Activity className={className} />;
+      case 'RotateCcw':
+        return <RotateCcw className={className} />;
+      case 'Users':
+        return <Users className={className} />;
       default:
         return <Sparkles className={className} />;
     }
