@@ -211,6 +211,41 @@ export function Minimap({ minimap, heroId, floor }: MinimapProps) {
           )
         )}
 
+        {/* Co-Op Teammate Beacons */}
+        {minimap.teammates &&
+          minimap.teammates.map((tm) => {
+            const tmColor = tm.isDowned
+              ? '#ef4444'
+              : tm.heroId === 'human'
+                ? '#fb923c'
+                : tm.heroId === 'ghost'
+                  ? '#818cf8'
+                  : tm.heroId === 'ghoul'
+                    ? '#fb7185'
+                    : tm.heroId === 'zombie'
+                      ? '#a3e635'
+                      : '#67e8f9';
+            return (
+              <g key={`tm_${tm.id}`}>
+                <circle
+                  cx={tm.x}
+                  cy={tm.y}
+                  r={unit * (tm.isDowned ? 1.55 : 1.15)}
+                  fill={tmColor}
+                  fillOpacity={tm.isDowned ? '0.42' : '0.25'}
+                />
+                <circle
+                  cx={tm.x}
+                  cy={tm.y}
+                  r={unit * 0.72}
+                  fill={tmColor}
+                  stroke="#f8fafc"
+                  strokeWidth={unit * 0.18}
+                />
+              </g>
+            );
+          })}
+
         {/* Player Directional Arrow & Beacon */}
         <circle
           cx={minimap.playerX}

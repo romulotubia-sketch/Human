@@ -11,7 +11,7 @@ const __dirname = path.dirname(__filename);
 const app = express();
 app.use(express.json());
 
-// REST API for room discovery
+// REST API for health & public room discovery
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', online: true });
 });
@@ -27,7 +27,7 @@ wss.on('connection', (ws: WebSocket) => {
   let attachedPlayerId: string | null = null;
   let attachedRoomCode: string | null = null;
 
-  ws.on('message', (raw: string) => {
+  ws.on('message', (raw) => {
     try {
       const data = JSON.parse(raw.toString());
 
@@ -47,6 +47,7 @@ wss.on('connection', (ws: WebSocket) => {
               roomCode: res.roomCode,
               playerId: res.playerId,
               isHost: true,
+              roomDetails: res.roomDetails,
             })
           );
           break;
@@ -76,7 +77,7 @@ wss.on('connection', (ws: WebSocket) => {
             ws.send(
               JSON.stringify({
                 type: 's:join_error',
-                error: res.error || 'Failed to join room',
+                error: res.error || 'Failed to join room.',
               })
             );
           }
@@ -98,6 +99,7 @@ wss.on('connection', (ws: WebSocket) => {
               roomCode: res.roomCode,
               playerId: res.playerId,
               isHost: res.isHost,
+              roomDetails: res.roomDetails,
             })
           );
           break;
@@ -148,6 +150,17 @@ wss.on('connection', (ws: WebSocket) => {
           break;
         }
 
+        case 'c:player_heal': {
+          if (attachedPlayerId) {
+            roomManager.handlePlayerHealOrShield(
+              attachedPlayerId,
+              Number(data.healAmount) || 0,
+              Number(data.shieldAmount) || 0
+            );
+          }
+          break;
+        }
+
         case 'c:player_attack': {
           if (attachedPlayerId) {
             roomManager.handlePlayerAttack(attachedPlayerId, data);
@@ -169,7 +182,9 @@ wss.on('connection', (ws: WebSocket) => {
               data.enemyId,
               data.damage || 10,
               Boolean(data.isCrit),
-              data.sparkColor || '#ffffff'
+              data.sparkColor || '#ffffff',
+              Number(data.slowDuration) || 0,
+              Number(data.staggerDuration) || 0
             );
           }
           break;
@@ -178,6 +193,13 @@ wss.on('connection', (ws: WebSocket) => {
         case 'c:loot_pickup': {
           if (attachedPlayerId && typeof data.lootId === 'number') {
             roomManager.handleLootPickup(attachedPlayerId, data.lootId);
+          }
+          break;
+        }
+
+        case 'c:open_chest': {
+          if (attachedPlayerId && typeof data.propId === 'string') {
+            roomManager.handleOpenChest(attachedPlayerId, data.propId);
           }
           break;
         }
@@ -245,7 +267,9 @@ async function startServer() {
 
   const PORT = 3000;
   server.listen(PORT, '0.0.0.0', () => {
-    console.log(`Bonehearth server running at http://0.0.0.0:${PORT} [${isProduction ? 'PROD' : 'DEV'}]`);
+    console.log(
+      `Bonehearth server running at http://0.0.0.0:${PORT} [${isProduction ? 'PROD' : 'DEV'}]`
+    );
   });
 }
 

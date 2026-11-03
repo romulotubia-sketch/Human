@@ -1,7 +1,18 @@
-import { EnemyEntity, HeroId, SkillLoadout, WorldMap } from '../types/game';
 import {
+  ActiveSkillId,
+  EnemyEntity,
+  HeroId,
+  SkillLoadout,
+  WorldMap,
+  WorldProp,
+} from '../types/game';
+import {
+  ClientAttackMessage,
+  ClientSkillMessage,
+  FullGameSyncPayload,
   RemotePlayerSyncState,
   RoomDetails,
+  SyncEnemyAttackEvent,
   SyncEnemyState,
   SyncLootItem,
 } from '../types/multiplayer';
@@ -10,32 +21,64 @@ export type ConnectionStatus = 'connected' | 'connecting' | 'disconnected';
 
 export interface MultiplayerCallbacks {
   onLobbyUpdate?: (details: RoomDetails) => void;
-  onGameStart?: (
-    floor: number,
-    map: WorldMap,
-    enemies: EnemyEntity[],
-    players: RoomDetails['players']
-  ) => void;
-  onGameTick?: (
-    players: Record<string, RemotePlayerSyncState>,
-    enemies: SyncEnemyState[]
-  ) => void;
-  onPlayerAttack?: (playerId: string, attackData: any) => void;
-  onPlayerSkill?: (playerId: string, skillData: any) => void;
-  onEnemyDamaged?: (
-    enemyId: number,
-    hp: number,
-    damage: number,
-    isCrit: boolean,
-    sparkColor: string,
-    attackerId: string
-  ) => void;
-  onEnemyDied?: (enemyId: number, killerId: string, loot: SyncLootItem[]) => void;
-  onLootCollected?: (lootId: number, collectorId: string, kind: string, value: number) => void;
-  onPlayerDowned?: (playerId: string, name: string) => void;
-  onPlayerRevived?: (targetId: string, reviverId: string) => void;
-  onNextFloor?: (floor: number, map: WorldMap, enemies: EnemyEntity[]) => void;
-  onGameOver?: (reason: string, floorReached: number) => void;
+  onHostMigrated?: (newHostId: string, newHostName: string) => void;
+  onGameStart?: (payload: {
+    floor: number;
+    map: WorldMap;
+    enemies: EnemyEntity[];
+    players: RemotePlayerSyncState[];
+    roomDetails?: RoomDetails;
+  }) => void;
+  onGameTick?: (payload: {
+    players: Record<string, RemotePlayerSyncState>;
+    enemies: SyncEnemyState[];
+  }) => void;
+  onPlayerAttack?: (playerId: string, attackData: ClientAttackMessage) => void;
+  onPlayerSkill?: (playerId: string, skillData: ClientSkillMessage) => void;
+  onPlayerDamaged?: (payload: {
+    playerId: string;
+    hp: number;
+    shield: number;
+    damage: number;
+    blocked: boolean;
+  }) => void;
+  onEnemyAttack?: (evt: SyncEnemyAttackEvent) => void;
+  onEnemyDamaged?: (payload: {
+    enemyId: number;
+    hp: number;
+    damage: number;
+    isCrit: boolean;
+    sparkColor: string;
+    attackerId: string;
+  }) => void;
+  onEnemyDied?: (payload: {
+    enemyId: number;
+    killerId: string;
+    isBoss: boolean;
+    loot: SyncLootItem[];
+  }) => void;
+  onLootCollected?: (payload: {
+    lootId: number;
+    collectorId: string;
+    kind: 'shard' | 'heal' | 'xp';
+    value: number;
+  }) => void;
+  onChestOpened?: (payload: { propId: string; openerId: string }) => void;
+  onPlayerDowned?: (payload: { playerId: string; name: string }) => void;
+  onPlayerRevived?: (payload: { targetId: string; reviverId: string; hp: number }) => void;
+  onPlayerDisconnected?: (payload: { playerId: string; name: string }) => void;
+  onPlayerReconnected?: (payload: { playerId: string; name: string }) => void;
+  onPlayerLeft?: (payload: { playerId: string; name: string }) => void;
+  onFloorCleared?: (payload: { floor: number; portalProp?: WorldProp }) => void;
+  onPortalWaiting?: (payload: { readyCount: number; requiredCount: number }) => void;
+  onNextFloor?: (payload: {
+    floor: number;
+    map: WorldMap;
+    enemies: EnemyEntity[];
+    players: RemotePlayerSyncState[];
+  }) => void;
+  onFullStateSync?: (payload: FullGameSyncPayload) => void;
+  onGameOver?: (payload: { reason: string; floorReached: number }) => void;
   onConnectionChange?: (status: ConnectionStatus) => void;
   onError?: (message: string) => void;
 }
@@ -48,28 +91,37 @@ export class MultiplayerClient {
   private currentRoomCode: string | null = null;
   private isHost = false;
   private reconnectAttempts = 0;
-  private reconnectTimer: any = null;
+  private reconnectTimer: number | null = null;
   private shouldReconnect = false;
   private lastStateSendTime = 0;
+  private connectPromise: Promise<void> | null = null;
 
   constructor() {
-    // Check saved session in case of page reload or brief network drop
     if (typeof window !== 'undefined') {
       try {
         const saved = sessionStorage.getItem('bonehearth_mp_session');
         if (saved) {
           const parsed = JSON.parse(saved);
-          this.localPlayerId = parsed.playerId;
-          this.currentRoomCode = parsed.roomCode;
+          if (parsed?.playerId && parsed?.roomCode) {
+            this.localPlayerId = parsed.playerId;
+            this.currentRoomCode = parsed.roomCode;
+          }
         }
-      } catch (e) {
-        // ignore
+      } catch {
+        // ignore storage errors
       }
     }
   }
 
   public setCallbacks(callbacks: MultiplayerCallbacks) {
     this.callbacks = callbacks;
+  }
+
+  public tryAutoReconnectIfSaved() {
+    if (this.currentRoomCode && this.localPlayerId && !this.ws) {
+      this.shouldReconnect = true;
+      this.connect().catch(() => {});
+    }
   }
 
   public getLocalPlayerId(): string | null {
@@ -98,7 +150,7 @@ export class MultiplayerClient {
             roomCode: this.currentRoomCode,
           })
         );
-      } catch (e) {
+      } catch {
         // ignore
       }
     }
@@ -108,7 +160,7 @@ export class MultiplayerClient {
     if (typeof window !== 'undefined') {
       try {
         sessionStorage.removeItem('bonehearth_mp_session');
-      } catch (e) {
+      } catch {
         // ignore
       }
     }
@@ -117,12 +169,15 @@ export class MultiplayerClient {
     this.isHost = false;
   }
 
-  public connect(): Promise<void> {
-    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
+  public connect(skipAutoSessionReconnect = false): Promise<void> {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       return Promise.resolve();
     }
+    if (this.connectPromise && this.ws && this.ws.readyState === WebSocket.CONNECTING) {
+      return this.connectPromise;
+    }
 
-    return new Promise((resolve, reject) => {
+    this.connectPromise = new Promise((resolve, reject) => {
       this.status = 'connecting';
       this.callbacks.onConnectionChange?.('connecting');
 
@@ -130,15 +185,16 @@ export class MultiplayerClient {
       const wsUrl = `${protocol}//${window.location.host}/ws`;
 
       try {
-        this.ws = new WebSocket(wsUrl);
+        const socket = new WebSocket(wsUrl);
+        this.ws = socket;
 
-        this.ws.onopen = () => {
+        socket.onopen = () => {
           this.status = 'connected';
           this.reconnectAttempts = 0;
+          this.connectPromise = null;
           this.callbacks.onConnectionChange?.('connected');
 
-          // If we had a stored session, try to reconnect
-          if (this.currentRoomCode && this.localPlayerId) {
+          if (!skipAutoSessionReconnect && this.currentRoomCode && this.localPlayerId) {
             this.send({
               type: 'c:reconnect',
               roomCode: this.currentRoomCode,
@@ -149,11 +205,12 @@ export class MultiplayerClient {
           resolve();
         };
 
-        this.ws.onmessage = (event) => {
+        socket.onmessage = (event) => {
           this.handleMessage(event.data);
         };
 
-        this.ws.onclose = () => {
+        socket.onclose = () => {
+          this.connectPromise = null;
           this.status = 'disconnected';
           this.callbacks.onConnectionChange?.('disconnected');
 
@@ -162,67 +219,57 @@ export class MultiplayerClient {
           }
         };
 
-        this.ws.onerror = (err) => {
-          console.warn('[MultiplayerClient] WebSocket connection error:', err);
+        socket.onerror = (err) => {
+          this.connectPromise = null;
           if (this.status === 'connecting') {
             reject(err);
           }
         };
       } catch (err) {
+        this.connectPromise = null;
         this.status = 'disconnected';
         this.callbacks.onConnectionChange?.('disconnected');
         reject(err);
       }
     });
+
+    return this.connectPromise;
   }
 
   private scheduleReconnect() {
-    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
-    const delay = Math.min(1000 * Math.pow(1.5, this.reconnectAttempts), 8000);
+    if (this.reconnectTimer !== null) {
+      window.clearTimeout(this.reconnectTimer);
+    }
+    const delay = Math.min(1000 * Math.pow(1.45, this.reconnectAttempts), 6000);
     this.reconnectAttempts++;
 
-    this.reconnectTimer = setTimeout(() => {
-      if (this.shouldReconnect) {
-        this.connect().catch(() => {});
+    this.reconnectTimer = window.setTimeout(() => {
+      if (this.shouldReconnect && this.currentRoomCode) {
+        this.connect(false).catch(() => {});
       }
     }, delay);
   }
 
-  private send(data: any) {
+  private send(data: unknown) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(data));
     }
   }
 
-  public async createRoom(playerName: string, heroId: HeroId, loadout: SkillLoadout): Promise<string> {
+  public async createRoom(playerName: string, heroId: HeroId, loadout: SkillLoadout): Promise<void> {
+    this.clearSession();
     this.shouldReconnect = true;
-    await this.connect();
-
-    return new Promise((resolve) => {
-      const onCreated = (event: MessageEvent) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.type === 's:room_created') {
-            this.ws?.removeEventListener('message', onCreated);
-            this.currentRoomCode = data.roomCode;
-            this.localPlayerId = data.playerId;
-            this.isHost = true;
-            this.saveSession();
-            resolve(data.roomCode);
-          }
-        } catch (e) {
-          // ignore
-        }
-      };
-
-      this.ws?.addEventListener('message', onCreated);
+    try {
+      await this.connect(true);
       this.send({
         type: 'c:create_room',
         playerName,
         heroId,
         loadout,
       });
-    });
+    } catch {
+      this.callbacks.onError?.('Unable to connect to multiplayer server.');
+    }
   }
 
   public async joinRoom(
@@ -230,34 +277,11 @@ export class MultiplayerClient {
     playerName: string,
     heroId: HeroId,
     loadout: SkillLoadout
-  ): Promise<{ success: boolean; error?: string }> {
+  ): Promise<void> {
+    this.clearSession();
     this.shouldReconnect = true;
-    await this.connect();
-
-    return new Promise((resolve) => {
-      const onJoined = (event: MessageEvent) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.type === 's:room_joined') {
-            this.ws?.removeEventListener('message', onJoined);
-            this.currentRoomCode = data.roomCode;
-            this.localPlayerId = data.playerId;
-            this.isHost = Boolean(data.isHost);
-            this.saveSession();
-            if (data.roomDetails) {
-              this.callbacks.onLobbyUpdate?.(data.roomDetails);
-            }
-            resolve({ success: true });
-          } else if (data.type === 's:join_error') {
-            this.ws?.removeEventListener('message', onJoined);
-            resolve({ success: false, error: data.error });
-          }
-        } catch (e) {
-          // ignore
-        }
-      };
-
-      this.ws?.addEventListener('message', onJoined);
+    try {
+      await this.connect(true);
       this.send({
         type: 'c:join_room',
         roomCode,
@@ -265,45 +289,29 @@ export class MultiplayerClient {
         heroId,
         loadout,
       });
-    });
+    } catch {
+      this.callbacks.onError?.('Unable to connect to multiplayer server.');
+    }
   }
 
   public async quickJoin(
     playerName: string,
     heroId: HeroId,
     loadout: SkillLoadout
-  ): Promise<{ success: boolean; roomCode?: string; error?: string }> {
+  ): Promise<void> {
+    this.clearSession();
     this.shouldReconnect = true;
-    await this.connect();
-
-    return new Promise((resolve) => {
-      const onJoined = (event: MessageEvent) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.type === 's:room_joined') {
-            this.ws?.removeEventListener('message', onJoined);
-            this.currentRoomCode = data.roomCode;
-            this.localPlayerId = data.playerId;
-            this.isHost = Boolean(data.isHost);
-            this.saveSession();
-            resolve({ success: true, roomCode: data.roomCode });
-          } else if (data.type === 's:join_error') {
-            this.ws?.removeEventListener('message', onJoined);
-            resolve({ success: false, error: data.error });
-          }
-        } catch (e) {
-          // ignore
-        }
-      };
-
-      this.ws?.addEventListener('message', onJoined);
+    try {
+      await this.connect(true);
       this.send({
         type: 'c:quick_join',
         playerName,
         heroId,
         loadout,
       });
-    });
+    } catch {
+      this.callbacks.onError?.('Unable to connect to multiplayer server.');
+    }
   }
 
   public setReady(ready: boolean) {
@@ -320,6 +328,10 @@ export class MultiplayerClient {
 
   public leaveRoom() {
     this.shouldReconnect = false;
+    if (this.reconnectTimer !== null) {
+      window.clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
     this.send({ type: 'c:leave_room' });
     this.clearSession();
     if (this.ws) {
@@ -330,7 +342,7 @@ export class MultiplayerClient {
 
   public sendPlayerState(state: Partial<RemotePlayerSyncState>) {
     const now = performance.now();
-    // Throttle to 25Hz (every 40ms) to ensure smooth 60fps interpolation without flooding network
+    // 25Hz throttled updates for silky 60fps remote interpolation
     if (now - this.lastStateSendTime < 38) return;
     this.lastStateSendTime = now;
 
@@ -340,33 +352,41 @@ export class MultiplayerClient {
     });
   }
 
-  public sendAttack(comboStep: number, facing: number, x: number, y: number, reach: number) {
+  public sendPlayerHealOrShield(healAmount: number, shieldAmount: number) {
+    this.send({
+      type: 'c:player_heal',
+      healAmount,
+      shieldAmount,
+    });
+  }
+
+  public sendAttack(payload: ClientAttackMessage) {
     this.send({
       type: 'c:player_attack',
-      comboStep,
-      facing,
-      x,
-      y,
-      reach,
+      ...payload,
     });
   }
 
   public sendSkill(
-    skillId: string,
+    skillId: ActiveSkillId,
+    rank: number,
     isManual: boolean,
     angle: number,
     distanceRatio: number,
     x: number,
-    y: number
+    y: number,
+    isTransformed = false
   ) {
     this.send({
       type: 'c:player_skill',
       skillId,
+      rank,
       isManual,
       angle,
       distanceRatio,
       x,
       y,
+      isTransformed,
     });
   }
 
@@ -374,7 +394,9 @@ export class MultiplayerClient {
     enemyId: number,
     damage: number,
     isCrit: boolean,
-    sparkColor: string
+    sparkColor: string,
+    slowDuration = 0,
+    staggerDuration = 0
   ) {
     this.send({
       type: 'c:enemy_damage',
@@ -382,13 +404,23 @@ export class MultiplayerClient {
       damage,
       isCrit,
       sparkColor,
+      slowDuration,
+      staggerDuration,
     });
   }
 
   public sendLootPickup(lootId: number) {
+    if (!lootId) return;
     this.send({
       type: 'c:loot_pickup',
       lootId,
+    });
+  }
+
+  public sendOpenChest(propId: string) {
+    this.send({
+      type: 'c:open_chest',
+      propId,
     });
   }
 
@@ -416,92 +448,212 @@ export class MultiplayerClient {
       const data = JSON.parse(raw);
 
       switch (data.type) {
-        case 's:lobby_update':
-          this.callbacks.onLobbyUpdate?.(data.roomDetails);
+        case 's:room_created':
+        case 's:room_joined': {
+          this.currentRoomCode = data.roomCode;
+          this.localPlayerId = data.playerId;
+          this.isHost = Boolean(data.isHost);
+          this.saveSession();
+          if (data.roomDetails) {
+            this.callbacks.onLobbyUpdate?.(data.roomDetails);
+          }
           break;
+        }
 
-        case 's:game_start':
-          this.callbacks.onGameStart?.(
-            data.floor,
-            data.dungeonMap,
-            data.enemies,
-            data.players
-          );
+        case 's:join_error':
+        case 's:start_error':
+        case 's:error': {
+          this.callbacks.onError?.(data.error || data.message || 'Multiplayer error occurred.');
           break;
+        }
 
-        case 's:game_tick':
-          this.callbacks.onGameTick?.(data.players, data.enemies);
+        case 's:lobby_update': {
+          if (data.roomDetails) {
+            this.isHost = data.roomDetails.hostId === this.localPlayerId;
+            this.callbacks.onLobbyUpdate?.(data.roomDetails);
+          }
           break;
+        }
 
-        case 's:player_attack':
+        case 's:host_migrated': {
+          this.isHost = data.newHostId === this.localPlayerId;
+          this.callbacks.onHostMigrated?.(data.newHostId, data.newHostName || 'Host');
+          break;
+        }
+
+        case 's:game_start': {
+          this.callbacks.onGameStart?.({
+            floor: data.floor,
+            map: data.dungeonMap,
+            enemies: data.enemies,
+            players: data.players || [],
+            roomDetails: data.roomDetails,
+          });
+          break;
+        }
+
+        case 's:game_tick': {
+          this.callbacks.onGameTick?.({
+            players: data.players || {},
+            enemies: data.enemies || [],
+          });
+          break;
+        }
+
+        case 's:player_attack': {
           this.callbacks.onPlayerAttack?.(data.playerId, data);
           break;
+        }
 
-        case 's:player_skill':
+        case 's:player_skill': {
           this.callbacks.onPlayerSkill?.(data.playerId, data);
           break;
+        }
 
-        case 's:enemy_damaged':
-          this.callbacks.onEnemyDamaged?.(
-            data.enemyId,
-            data.hp,
-            data.damage,
-            data.isCrit,
-            data.sparkColor,
-            data.attackerId
-          );
+        case 's:player_damaged': {
+          this.callbacks.onPlayerDamaged?.({
+            playerId: data.playerId,
+            hp: data.hp,
+            shield: data.shield,
+            damage: data.damage,
+            blocked: Boolean(data.blocked),
+          });
           break;
+        }
 
-        case 's:enemy_died':
-          this.callbacks.onEnemyDied?.(data.enemyId, data.killerId, data.loot);
+        case 's:enemy_attack': {
+          this.callbacks.onEnemyAttack?.(data);
           break;
+        }
 
-        case 's:loot_collected':
-          this.callbacks.onLootCollected?.(
-            data.lootId,
-            data.collectorId,
-            data.kind,
-            data.value
-          );
+        case 's:enemy_damaged': {
+          this.callbacks.onEnemyDamaged?.({
+            enemyId: data.enemyId,
+            hp: data.hp,
+            damage: data.damage,
+            isCrit: Boolean(data.isCrit),
+            sparkColor: data.sparkColor || '#ffffff',
+            attackerId: data.attackerId,
+          });
           break;
+        }
 
-        case 's:player_downed':
-          this.callbacks.onPlayerDowned?.(data.playerId, data.name);
+        case 's:enemy_died': {
+          this.callbacks.onEnemyDied?.({
+            enemyId: data.enemyId,
+            killerId: data.killerId,
+            isBoss: Boolean(data.isBoss),
+            loot: data.loot || [],
+          });
           break;
+        }
 
-        case 's:player_revived':
-          this.callbacks.onPlayerRevived?.(data.targetId, data.reviverId);
+        case 's:loot_collected': {
+          this.callbacks.onLootCollected?.({
+            lootId: data.lootId,
+            collectorId: data.collectorId,
+            kind: data.kind,
+            value: data.value,
+          });
           break;
+        }
 
-        case 's:next_floor':
-          this.callbacks.onNextFloor?.(data.floor, data.dungeonMap, data.enemies);
+        case 's:chest_opened': {
+          this.callbacks.onChestOpened?.({
+            propId: data.propId,
+            openerId: data.openerId,
+          });
           break;
+        }
 
-        case 's:game_over':
-          this.callbacks.onGameOver?.(data.reason, data.floorReached);
+        case 's:player_downed': {
+          this.callbacks.onPlayerDowned?.({
+            playerId: data.playerId,
+            name: data.name || 'Ally',
+          });
           break;
+        }
 
-        case 's:host_migrated':
-          if (data.newHostId === this.localPlayerId) {
-            this.isHost = true;
+        case 's:player_revived': {
+          this.callbacks.onPlayerRevived?.({
+            targetId: data.targetId,
+            reviverId: data.reviverId,
+            hp: data.hp || 100,
+          });
+          break;
+        }
+
+        case 's:player_disconnected': {
+          this.callbacks.onPlayerDisconnected?.({
+            playerId: data.playerId,
+            name: data.name || 'Ally',
+          });
+          break;
+        }
+
+        case 's:player_reconnected': {
+          this.callbacks.onPlayerReconnected?.({
+            playerId: data.playerId,
+            name: data.name || 'Ally',
+          });
+          break;
+        }
+
+        case 's:player_left': {
+          this.callbacks.onPlayerLeft?.({
+            playerId: data.playerId,
+            name: data.name || 'Ally',
+          });
+          break;
+        }
+
+        case 's:floor_cleared': {
+          this.callbacks.onFloorCleared?.({
+            floor: data.floor,
+            portalProp: data.portalProp,
+          });
+          break;
+        }
+
+        case 's:portal_waiting': {
+          this.callbacks.onPortalWaiting?.({
+            readyCount: data.readyCount,
+            requiredCount: data.requiredCount,
+          });
+          break;
+        }
+
+        case 's:next_floor': {
+          this.callbacks.onNextFloor?.({
+            floor: data.floor,
+            map: data.dungeonMap,
+            enemies: data.enemies || [],
+            players: data.players || [],
+          });
+          break;
+        }
+
+        case 's:sync_full_state': {
+          if (data.roomDetails) {
+            this.isHost = data.roomDetails.hostId === this.localPlayerId;
           }
+          this.callbacks.onFullStateSync?.(data);
           break;
+        }
 
-        case 's:start_error':
-        case 's:error':
-          this.callbacks.onError?.(data.error || data.message || 'Error occurred');
+        case 's:game_over': {
+          this.callbacks.onGameOver?.({
+            reason: data.reason || 'All heroes have fallen.',
+            floorReached: data.floorReached || 1,
+          });
           break;
+        }
 
-        case 's:sync_full_state':
-          if (data.dungeonMap && data.enemies) {
-            this.callbacks.onGameStart?.(
-              data.floor,
-              data.dungeonMap,
-              data.enemies,
-              data.players
-            );
-          }
+        case 's:reconnect_failed': {
+          this.shouldReconnect = false;
+          this.clearSession();
           break;
+        }
       }
     } catch (err) {
       console.error('[MultiplayerClient] Error parsing message:', err);

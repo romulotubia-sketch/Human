@@ -18,6 +18,7 @@ import {
   LifeSiphonBeam,
   MinimapEnemyDot,
   MinimapMarker,
+  MinimapTeammateDot,
   OrbitingSpirit,
   Particle,
   PickupOrb,
@@ -36,7 +37,15 @@ import {
 import { allocEntityId, buildGuildHouse, buildProceduralDungeon } from './dungeonGenerator';
 import { PlayerRenderState, RemotePlayerRenderState, renderGameWorld } from './renderer';
 import { multiplayerClient } from './multiplayerClient';
-import { RemotePlayerSyncState, SyncEnemyState, SyncLootItem } from '../types/multiplayer';
+import {
+  ClientAttackMessage,
+  ClientSkillMessage,
+  FullGameSyncPayload,
+  RemotePlayerSyncState,
+  SyncEnemyAttackEvent,
+  SyncEnemyState,
+  SyncLootItem,
+} from '../types/multiplayer';
 
 const MAX_PARTICLES = 300;
 const MAX_TRAIL_PTS = 96;
@@ -64,6 +73,9 @@ export class GameEngine {
   private lastMultiplayerReviveSend = 0;
   private currentRevivingPlayerName: string | null = null;
   private currentReviveProgress = 0;
+  private localIsDowned = false;
+  private localReviveProgress = 0;
+  private portalWaitingState: { readyCount: number; requiredCount: number } | null = null;
 
   // Object pools for zero-GC 60fps smoothness
   private particles: Particle[] = [];
@@ -744,6 +756,16 @@ export class GameEngine {
   }
 
   public enterGuildHouse() {
+    this.isMultiplayer = false;
+    this.remotePlayers.clear();
+    this.localIsDowned = false;
+    this.localReviveProgress = 0;
+    this.portalWaitingState = null;
+    this.currentRevivingPlayerName = null;
+    this.currentReviveProgress = 0;
+    this.player.isDowned = false;
+    this.player.reviveProgress = 0;
+
     const guild = buildGuildHouse();
     this.map = guild.map;
     this.enemies = guild.enemies;
@@ -767,6 +789,16 @@ export class GameEngine {
   }
 
   public enterDungeon(floor = 1) {
+    this.isMultiplayer = false;
+    this.remotePlayers.clear();
+    this.localIsDowned = false;
+    this.localReviveProgress = 0;
+    this.portalWaitingState = null;
+    this.currentRevivingPlayerName = null;
+    this.currentReviveProgress = 0;
+    this.player.isDowned = false;
+    this.player.reviveProgress = 0;
+
     const dungeon = buildProceduralDungeon(floor);
     this.map = dungeon.map;
     this.enemies = dungeon.enemies;
@@ -788,6 +820,92 @@ export class GameEngine {
     this.emitHudSnapshot();
   }
 
+  public leaveMultiplayerGame() {
+    this.isMultiplayer = false;
+    this.remotePlayers.clear();
+    this.localIsDowned = false;
+    this.localReviveProgress = 0;
+    this.portalWaitingState = null;
+    this.currentRevivingPlayerName = null;
+    this.currentReviveProgress = 0;
+    this.player.isDowned = false;
+    this.player.reviveProgress = 0;
+    this.runOutcome = null;
+  }
+
+  private createRemotePlayerRenderState(
+    id: string,
+    name: string,
+    heroId: HeroId,
+    spawnX: number,
+    spawnY: number
+  ): RemotePlayerRenderState {
+    const baseHp = HERO_PROFILES[heroId]?.baseHp || 240;
+    const glow =
+      heroId === 'human'
+        ? '#fb923c'
+        : heroId === 'ghost'
+          ? '#818cf8'
+          : heroId === 'ghoul'
+            ? '#fb7185'
+            : heroId === 'zombie'
+              ? '#a3e635'
+              : '#67e8f9';
+    return {
+      id,
+      name,
+      heroId,
+      x: spawnX,
+      y: spawnY,
+      vx: 0,
+      vy: 0,
+      facing: Math.PI * 0.5,
+      walkPhase: 0,
+      hp: baseHp,
+      maxHp: baseHp,
+      shield: 0,
+      hitFlash: 0,
+      colossusTimer: 0,
+      boneStormTimer: 0,
+      ribShieldTimer: 0,
+      undyingTimer: 0,
+      stealthTimer: 0,
+      ambushReady: false,
+      bloodFrenzyTimer: 0,
+      frenzyStacks: 0,
+      momentumStacks: 0,
+      phantomMistTimer: 0,
+      possessingTimer: 0,
+      nightmareTimer: 0,
+      restlessStacks: 0,
+      etherealShimmerTimer: 0,
+      pipeThrown: false,
+      kneeStrikeTimer: 0,
+      lastStandTimer: 0,
+      oneManArmyTimer: 0,
+      instinctSurrounded: false,
+      airborneHeight: 0,
+      attackLunge: 0,
+      attackTwist: 0,
+      attackSquash: 0,
+      swordX: spawnX + 24,
+      swordY: spawnY - 10,
+      swordAngle: -0.35,
+      offhandX: spawnX - 24,
+      offhandY: spawnY - 10,
+      offhandAngle: Math.PI + 0.35,
+      swordScale: 1,
+      swordAnim: SwordAnimState.IDLE,
+      swordGlowColor: glow,
+      swordGlowIntensity: 0.4,
+      isScytheForm: false,
+      dashGhostTrail: [],
+      isDowned: false,
+      reviveProgress: 0,
+      disconnected: false,
+    };
+  }
+
   public startMultiplayerGame(
     floor: number,
     dungeonMap: WorldMap,
@@ -795,74 +913,94 @@ export class GameEngine {
     players: Array<{ id: string; name: string; heroId: HeroId; isHost: boolean }>
   ) {
     this.isMultiplayer = true;
-    this.floor = floor;
     this.map = dungeonMap;
+    this.map.floor = floor;
     this.enemies = enemies.map((e) => ({ ...e }));
+    this.runOutcome = null;
+    this.bossSpawnedPortals = false;
+    this.localIsDowned = false;
+    this.localReviveProgress = 0;
+    this.portalWaitingState = null;
+    this.currentRevivingPlayerName = null;
+    this.currentReviveProgress = 0;
+    this.player.isDowned = false;
+    this.player.reviveProgress = 0;
     this.remotePlayers.clear();
-    this.resetObjectPools();
+    this.resetHumanTimers();
+    this.resetGhoulTimers();
+    this.resetGhostTimers();
+    this.clearPools();
 
     const localId = multiplayerClient.getLocalPlayerId();
+    let idx = 0;
     for (const p of players) {
-      if (p.id !== localId) {
-        this.remotePlayers.set(p.id, {
-          id: p.id,
-          name: p.name,
-          heroId: p.heroId,
-          x: dungeonMap.spawnX,
-          y: dungeonMap.spawnY,
-          vx: 0,
-          vy: 0,
-          facing: 0,
-          walkPhase: 0,
-          hp: 120,
-          maxHp: 120,
-          shield: 0,
-          hitFlash: 0,
-          colossusTimer: 0,
-          boneStormTimer: 0,
-          ribShieldTimer: 0,
-          undyingTimer: 0,
-          stealthTimer: 0,
-          ambushReady: false,
-          bloodFrenzyTimer: 0,
-          frenzyStacks: 0,
-          momentumStacks: 0,
-          phantomMistTimer: 0,
-          possessingTimer: 0,
-          nightmareTimer: 0,
-          restlessStacks: 0,
-          etherealShimmerTimer: 0,
-          pipeThrown: false,
-          kneeStrikeTimer: 0,
-          lastStandTimer: 0,
-          oneManArmyTimer: 0,
-          instinctSurrounded: false,
-          airborneHeight: 0,
-          attackLunge: 0,
-          attackTwist: 0,
-          attackSquash: 0,
-          swordX: dungeonMap.spawnX + 20,
-          swordY: dungeonMap.spawnY - 10,
-          swordAngle: 0,
-          offhandX: dungeonMap.spawnX - 20,
-          offhandY: dungeonMap.spawnY - 10,
-          offhandAngle: 0,
-          swordScale: 1,
-          swordAnim: SwordAnimState.IDLE,
-          swordGlowColor: '#fb923c',
-          swordGlowIntensity: 0.5,
-          isScytheForm: false,
-          dashGhostTrail: [],
-          isDowned: false,
-          reviveProgress: 0,
-        });
+      const angle = (idx * Math.PI * 2) / Math.max(1, players.length);
+      const sx = dungeonMap.spawnX + Math.cos(angle) * 28;
+      const sy = dungeonMap.spawnY + Math.sin(angle) * 20;
+      if (p.id === localId) {
+        this.syncHeroBaseStats();
+        this.recalcStats(true);
+        this.player.shield = 0;
+        this.resetPlayerPosition(sx, sy);
+        multiplayerClient.sendPlayerHealOrShield(this.player.maxHp, 0);
+      } else {
+        this.remotePlayers.set(
+          p.id,
+          this.createRemotePlayerRenderState(p.id, p.name, p.heroId, sx, sy)
+        );
+      }
+      idx++;
+    }
+
+    soundEngine.playSkill('rush');
+    this.onPhaseChange(false);
+    this.emitHudSnapshot();
+  }
+
+  public syncFullMultiplayerState(payload: FullGameSyncPayload) {
+    this.isMultiplayer = true;
+    this.map = payload.map;
+    this.map.floor = payload.floor;
+    this.enemies = payload.enemies.map((e) => ({ ...e }));
+    this.runOutcome = null;
+    this.portalWaitingState = null;
+    this.remotePlayers.clear();
+    this.clearPools();
+
+    const localId = multiplayerClient.getLocalPlayerId();
+    for (const [id, st] of Object.entries(payload.players)) {
+      if (id === localId) {
+        this.setHero(st.heroId);
+        this.resetPlayerPosition(st.x, st.y);
+        this.player.hp = st.hp;
+        this.player.maxHp = Math.max(this.player.maxHp, st.maxHp);
+        this.player.shield = st.shield;
+        this.localIsDowned = Boolean(st.isDowned);
+        this.localReviveProgress = st.reviveProgress || 0;
+        this.player.isDowned = this.localIsDowned;
+        this.player.reviveProgress = this.localReviveProgress;
+      } else {
+        const rp = this.createRemotePlayerRenderState(
+          id,
+          st.name || 'Hero',
+          st.heroId || 'human',
+          st.x,
+          st.y
+        );
+        rp.hp = st.hp;
+        rp.maxHp = st.maxHp;
+        rp.shield = st.shield;
+        rp.isDowned = Boolean(st.isDowned);
+        rp.reviveProgress = st.reviveProgress || 0;
+        rp.disconnected = Boolean(st.disconnected);
+        this.remotePlayers.set(id, rp);
       }
     }
 
-    this.recalcStats(true);
-    this.player.shield = 0;
-    this.resetPlayerPosition(dungeonMap.spawnX, dungeonMap.spawnY);
-    soundEngine.playSkill('rush');
+    for (const item of payload.loot || []) {
+      this.spawnPickup(item.x, item.y, item.kind, item.value, item.id, true);
+    }
+
     this.onPhaseChange(false);
     this.emitHudSnapshot();
   }
@@ -874,149 +1012,283 @@ export class GameEngine {
     if (!this.isMultiplayer) return;
 
     const localId = multiplayerClient.getLocalPlayerId();
+    const seenRemoteIds = new Set<string>();
 
     for (const [id, state] of Object.entries(players)) {
       if (id === localId) {
-        if (typeof state.hp === 'number' && state.hp < this.player.hp) {
-          this.player.hp = state.hp;
-          this.player.shield = state.shield;
+        this.localIsDowned = Boolean(state.isDowned);
+        this.localReviveProgress = state.reviveProgress || 0;
+        this.player.isDowned = this.localIsDowned;
+        this.player.reviveProgress = this.localReviveProgress;
+        if (this.localIsDowned) {
+          this.player.hp = 0;
         }
         continue;
       }
 
+      seenRemoteIds.add(id);
       let rp = this.remotePlayers.get(id);
       if (!rp) {
-        rp = {
-          id: state.id,
-          name: state.name || 'Hero',
-          heroId: state.heroId || 'human',
-          x: state.x,
-          y: state.y,
-          vx: state.vx,
-          vy: state.vy,
-          facing: state.facing,
-          walkPhase: state.walkPhase,
-          hp: state.hp,
-          maxHp: state.maxHp,
-          shield: state.shield,
-          hitFlash: 0,
-          colossusTimer: state.colossusTimer,
-          boneStormTimer: state.boneStormTimer,
-          ribShieldTimer: 0,
-          undyingTimer: state.undyingTimer,
-          stealthTimer: 0,
-          ambushReady: false,
-          bloodFrenzyTimer: state.bloodFrenzyTimer,
-          frenzyStacks: 0,
-          momentumStacks: 0,
-          phantomMistTimer: 0,
-          possessingTimer: 0,
-          nightmareTimer: state.nightmareTimer,
-          restlessStacks: 0,
-          etherealShimmerTimer: 0,
-          pipeThrown: false,
-          kneeStrikeTimer: 0,
-          lastStandTimer: state.lastStandTimer,
-          oneManArmyTimer: state.oneManArmyTimer,
-          instinctSurrounded: false,
-          airborneHeight: 0,
-          attackLunge: 0,
-          attackTwist: 0,
-          attackSquash: 0,
-          swordX: state.swordX,
-          swordY: state.swordY,
-          swordAngle: state.swordAngle,
-          offhandX: state.offhandX,
-          offhandY: state.offhandY,
-          offhandAngle: state.offhandAngle,
-          swordScale: state.swordScale,
-          swordAnim: (state.swordAnim as any) || SwordAnimState.IDLE,
-          swordGlowColor: state.swordGlowColor || '#fb923c',
-          swordGlowIntensity: state.swordGlowIntensity || 0.5,
-          isScytheForm: false,
-          dashGhostTrail: [],
-          isDowned: Boolean(state.isDowned),
-          reviveProgress: state.reviveProgress || 0,
-        };
+        rp = this.createRemotePlayerRenderState(
+          state.id,
+          state.name || 'Hero',
+          state.heroId || 'human',
+          state.x,
+          state.y
+        );
         this.remotePlayers.set(id, rp);
-      } else {
-        rp.x += (state.x - rp.x) * 0.45;
-        rp.y += (state.y - rp.y) * 0.45;
-        rp.vx = state.vx;
-        rp.vy = state.vy;
-        rp.facing = state.facing;
-        rp.walkPhase = state.walkPhase;
-        rp.hp = state.hp;
-        rp.maxHp = state.maxHp;
-        rp.shield = state.shield;
-        rp.isDowned = Boolean(state.isDowned);
-        rp.reviveProgress = state.reviveProgress || 0;
-        rp.swordAnim = (state.swordAnim as any) || rp.swordAnim;
-        rp.swordX += (state.swordX - rp.swordX) * 0.55;
-        rp.swordY += (state.swordY - rp.swordY) * 0.55;
-        rp.swordAngle = state.swordAngle;
-        rp.colossusTimer = state.colossusTimer;
-        rp.boneStormTimer = state.boneStormTimer;
-        rp.bloodFrenzyTimer = state.bloodFrenzyTimer;
-        rp.lastStandTimer = state.lastStandTimer;
-        rp.oneManArmyTimer = state.oneManArmyTimer;
+      }
+
+      const distJump = Math.hypot(state.x - rp.x, state.y - rp.y);
+      const posBlend = distJump > 260 ? 1.0 : 0.45;
+      rp.heroId = state.heroId || rp.heroId;
+      rp.name = state.name || rp.name;
+      rp.x += (state.x - rp.x) * posBlend;
+      rp.y += (state.y - rp.y) * posBlend;
+      rp.vx = state.vx;
+      rp.vy = state.vy;
+      rp.facing = this.blendAngle(rp.facing, state.facing, 0.55);
+      rp.walkPhase = state.walkPhase;
+      rp.hp = state.hp;
+      rp.maxHp = state.maxHp;
+      rp.shield = state.shield;
+      rp.isDowned = Boolean(state.isDowned);
+      rp.reviveProgress = state.reviveProgress || 0;
+      rp.disconnected = Boolean(state.disconnected);
+
+      rp.swordAnim = state.swordAnim || SwordAnimState.IDLE;
+      rp.swordX += (state.swordX - rp.swordX) * 0.55;
+      rp.swordY += (state.swordY - rp.swordY) * 0.55;
+      rp.swordAngle = this.blendAngle(rp.swordAngle, state.swordAngle, 0.6);
+      rp.offhandX += (state.offhandX - rp.offhandX) * 0.55;
+      rp.offhandY += (state.offhandY - rp.offhandY) * 0.55;
+      rp.offhandAngle = this.blendAngle(rp.offhandAngle, state.offhandAngle, 0.6);
+      rp.swordScale = state.swordScale || 1;
+      rp.swordGlowColor = state.swordGlowColor || rp.swordGlowColor;
+      rp.swordGlowIntensity = state.swordGlowIntensity ?? 0.45;
+      rp.isScytheForm = Boolean(state.isScytheForm);
+
+      rp.colossusTimer = state.colossusTimer || 0;
+      rp.boneStormTimer = state.boneStormTimer || 0;
+      rp.ribShieldTimer = state.ribShieldTimer || 0;
+      rp.undyingTimer = state.undyingTimer || 0;
+      rp.stealthTimer = state.stealthTimer || 0;
+      rp.ambushReady = Boolean(state.ambushReady);
+      rp.bloodFrenzyTimer = state.bloodFrenzyTimer || 0;
+      rp.frenzyStacks = state.frenzyStacks || 0;
+      rp.phantomMistTimer = state.phantomMistTimer || 0;
+      rp.possessingTimer = state.possessingTimer || 0;
+      rp.nightmareTimer = state.nightmareTimer || 0;
+      rp.pipeThrown = Boolean(state.pipeThrown);
+      rp.kneeStrikeTimer = state.kneeStrikeTimer || 0;
+      rp.lastStandTimer = state.lastStandTimer || 0;
+      rp.oneManArmyTimer = state.oneManArmyTimer || 0;
+      rp.airborneHeight = state.airborneHeight || 0;
+    }
+
+    for (const existingId of Array.from(this.remotePlayers.keys())) {
+      if (!seenRemoteIds.has(existingId)) {
+        this.remotePlayers.delete(existingId);
       }
     }
 
-    // Sync authoritative enemies
     for (const se of enemies) {
       const e = this.enemies.find((item) => item.id === se.id);
       if (e) {
-        e.x += (se.x - e.x) * 0.45;
-        e.y += (se.y - e.y) * 0.45;
+        const jump = Math.hypot(se.x - e.x, se.y - e.y);
+        const blend = jump > 220 ? 1.0 : 0.48;
+        e.x += (se.x - e.x) * blend;
+        e.y += (se.y - e.y) * blend;
         e.vx = se.vx;
         e.vy = se.vy;
         e.hp = se.hp;
         e.maxHp = se.maxHp;
-        e.facing = se.facing;
+        e.facing = this.blendAngle(e.facing, se.facing, 0.5);
         e.windupTimer = se.windupTimer;
+        e.windupDuration = se.windupDuration;
+        e.windupType = se.windupType;
+        e.windupAngle = se.windupAngle;
+        e.slowTimer = Math.max(e.slowTimer, se.slowTimer);
+        e.staggerTimer = Math.max(e.staggerTimer, se.staggerTimer);
+        e.poisonTimer = Math.max(e.poisonTimer, se.poisonTimer);
+        e.fearTimer = Math.max(e.fearTimer, se.fearTimer);
+        e.possessedTimer = Math.max(e.possessedTimer, se.possessedTimer);
       }
     }
   }
 
-  public handleRemotePlayerAttack(playerId: string, data: any) {
+  public handleRemotePlayerAttack(
+    playerId: string,
+    data: Omit<ClientAttackMessage, 'type'>
+  ) {
     const rp = this.remotePlayers.get(playerId);
-    if (!rp) return;
+    if (!rp || rp.isDowned) return;
 
+    rp.facing = data.facing;
     rp.swordAnim =
       data.comboStep === 1
         ? SwordAnimState.BASIC_1
         : data.comboStep === 2
           ? SwordAnimState.BASIC_2
-          : SwordAnimState.BASIC_3;
+          : data.comboStep === 4
+            ? SwordAnimState.BASIC_4
+            : SwordAnimState.BASIC_3;
+
+    const isTransformed = rp.colossusTimer > 0;
+    const reach = data.reach || (isTransformed ? 146 : 100);
 
     if (rp.heroId === 'human') {
-      soundEngine.playPipeSwing(1.1);
-      this.spawnPipeStrike(
-        data.comboStep === 3 ? 'basic_batter' : 'basic_jab',
-        data.x,
-        data.y - 8,
-        data.facing,
-        data.reach || 100,
-        data.comboStep === 2 ? -1 : 1,
-        0.28,
-        data.comboStep === 3 ? '#f97316' : '#fb923c',
-        '#ffffff'
-      );
+      if (rp.pipeThrown) {
+        soundEngine.playPipeSwing(1.28);
+        this.spawnPipeStrike(
+          'knee_burst',
+          data.x + Math.cos(data.facing) * 10,
+          data.y - 6 + Math.sin(data.facing) * 10,
+          data.facing,
+          82,
+          1,
+          0.18,
+          '#fb923c',
+          '#ffffff'
+        );
+        return;
+      }
+      if (data.comboStep === 3) {
+        soundEngine.playPipeClang(1.04, false);
+        this.spawnPipeStrike(
+          'basic_batter',
+          data.x,
+          data.y - 8,
+          data.facing,
+          reach * 1.06,
+          1,
+          0.26,
+          '#f97316',
+          '#f8fafc'
+        );
+      } else {
+        soundEngine.playPipeSwing(1.1);
+        this.spawnPipeStrike(
+          'basic_jab',
+          data.x,
+          data.y - 8,
+          data.facing,
+          reach * 0.94,
+          data.comboStep === 2 ? -1 : 1,
+          0.22,
+          '#fb923c',
+          '#e2e8f0'
+        );
+      }
+    } else if (rp.heroId === 'ghost') {
+      const originX = rp.swordX || data.x + Math.cos(data.facing - 0.8) * 26;
+      const originY = rp.swordY || data.y - 14;
+      const nearest = this.findNearestEnemyFrom(data.x, data.y, 350);
+      const targetId = nearest ? nearest.id : -1;
+
+      if (data.comboStep === 1 || data.comboStep === 2) {
+        const bank = data.comboStep === 1 ? -0.38 : 0.38;
+        const launchAng = data.facing + bank;
+        soundEngine.playGhostWisp(1.1);
+        this.spawnProjectile({
+          fromPlayer: true,
+          visualOnly: true,
+          kind: 'ghost_wisp',
+          x: originX,
+          y: originY,
+          vx: Math.cos(launchAng) * 440,
+          vy: Math.sin(launchAng) * 440,
+          angle: launchAng,
+          radius: 13,
+          damage: 0,
+          isCrit: false,
+          pierce: false,
+          maxLife: 1.15,
+          color: data.comboStep === 1 ? '#2dd4bf' : '#818cf8',
+          targetEnemyId: targetId,
+        });
+      } else {
+        soundEngine.playGhostWisp(0.88);
+        this.spawnProjectile({
+          fromPlayer: true,
+          visualOnly: true,
+          kind: 'ghost_soul_orb',
+          x: originX,
+          y: originY,
+          vx: Math.cos(data.facing) * 395,
+          vy: Math.sin(data.facing) * 395,
+          angle: data.facing,
+          radius: 18,
+          damage: 0,
+          isCrit: false,
+          pierce: false,
+          maxLife: 1.25,
+          color: '#c084fc',
+          targetEnemyId: targetId,
+        });
+        for (const flank of [-0.52, 0.52]) {
+          const wAng = data.facing + flank;
+          this.spawnProjectile({
+            fromPlayer: true,
+            visualOnly: true,
+            kind: 'ghost_wisp',
+            x: originX,
+            y: originY,
+            vx: Math.cos(wAng) * 455,
+            vy: Math.sin(wAng) * 455,
+            angle: wAng,
+            radius: 11,
+            damage: 0,
+            isCrit: false,
+            pierce: false,
+            maxLife: 1.15,
+            color: '#2dd4bf',
+            targetEnemyId: targetId,
+          });
+        }
+      }
     } else if (rp.heroId === 'ghoul') {
       soundEngine.playSlash(1.2);
-      this.spawnSlashWave(
-        data.comboStep === 3 ? 'twin_rend' : 'feral_slash',
-        data.x,
-        data.y - 8,
-        data.facing,
-        data.reach || 100,
-        Math.PI * 0.9,
-        data.comboStep === 2 ? -1 : 1,
-        0.26,
-        '#fff1f2',
-        '#f43f5e'
-      );
+      if (data.isAmbush) {
+        this.spawnSlashWave(
+          'shadow_ambush',
+          data.x + Math.cos(data.facing) * 16,
+          data.y - 8 + Math.sin(data.facing) * 16,
+          data.facing,
+          (reach + 24) * 0.9,
+          Math.PI * 1.15,
+          1,
+          0.26,
+          '#fff1f2',
+          '#e11d48'
+        );
+      } else if (data.comboStep === 4) {
+        this.spawnSlashWave(
+          'feral_whirl',
+          data.x,
+          data.y - 8,
+          data.facing,
+          reach * 0.92,
+          Math.PI * 1.9,
+          1,
+          0.26,
+          '#fff1f2',
+          '#e11d48'
+        );
+      } else {
+        this.spawnSlashWave(
+          data.comboStep === 3 ? 'twin_rend' : 'feral_slash',
+          data.x,
+          data.y - 8,
+          data.facing,
+          reach * 0.86,
+          data.comboStep === 3 ? Math.PI * 1.08 : Math.PI * 0.86,
+          data.comboStep === 2 ? -1 : 1,
+          0.24,
+          '#fff1f2',
+          isTransformed ? '#f43f5e' : '#fb7185'
+        );
+      }
     } else if (rp.heroId === 'zombie') {
       soundEngine.playSlash(0.95);
       this.spawnSlashWave(
@@ -1024,121 +1296,752 @@ export class GameEngine {
         data.x,
         data.y - 8,
         data.facing,
-        data.reach || 100,
-        Math.PI * 0.9,
+        reach * 0.88,
+        data.comboStep === 3 ? Math.PI * 1.06 : Math.PI * 0.86,
         data.comboStep === 2 ? -1 : 1,
-        0.26,
+        0.24,
         '#ecfccb',
-        '#a3e635'
+        isTransformed ? '#c084fc' : '#a3e635'
       );
     } else {
-      soundEngine.playSlash(1.05);
+      soundEngine.playSlash(1.04);
       this.spawnSlashWave(
         'blade_arc',
         data.x,
         data.y - 8,
         data.facing,
-        data.reach || 100,
-        Math.PI * 0.95,
+        reach * 0.9,
+        data.comboStep === 3 ? Math.PI * 1.15 : Math.PI * 0.88,
         data.comboStep === 2 ? -1 : 1,
-        0.26,
+        0.24,
         '#f8fafc',
-        '#67e8f9'
+        isTransformed ? '#fbbf24' : '#67e8f9'
       );
     }
   }
 
-  public handleRemotePlayerSkill(playerId: string, data: any) {
+  public handleRemotePlayerSkill(
+    playerId: string,
+    data: Omit<ClientSkillMessage, 'type'>
+  ) {
     const rp = this.remotePlayers.get(playerId);
     if (!rp) return;
 
-    soundEngine.playSkill(data.skillId as any);
+    const skillId = data.skillId;
+    const def = HERO_SKILLS[skillId];
+    if (!def) return;
 
-    this.spawnSoftMotes(data.x, data.y, data.angle, 80, '#fde047', 6);
-    this.spawnSlashWave(
-      'blade_arc',
-      data.x,
-      data.y,
-      data.angle,
-      120,
-      Math.PI * 1.1,
-      1,
-      0.32,
-      '#ffffff',
-      '#fb923c'
-    );
+    const ang = data.angle;
+    const dist = (data.distanceRatio || 0.65) * def.range;
+    const tx = data.x + Math.cos(ang) * dist;
+    const ty = data.y + Math.sin(ang) * dist;
+    rp.facing = ang;
+
+    // Authentic hero-specific VFX for all 5 heroes' active & ultimate skills
+    switch (skillId) {
+      // --- SKELETON ---
+      case 'bone_slash':
+        soundEngine.playSlash(1.22);
+        this.spawnSlashWave('blade_arc', data.x, data.y - 8, ang, def.range * 0.88, def.radiusOrAngle, 1, 0.24, '#ffffff', def.glowColor);
+        this.spawnArcBurst(data.x, data.y, ang, def.range * 0.75, def.glowColor, 14);
+        break;
+      case 'bone_spear':
+        soundEngine.playSkill('spear');
+        this.spawnProjectile({
+          fromPlayer: true,
+          visualOnly: true,
+          kind: 'bone_spear',
+          x: data.x + Math.cos(ang) * 24,
+          y: data.y - 8 + Math.sin(ang) * 24,
+          vx: Math.cos(ang) * 680,
+          vy: Math.sin(ang) * 680,
+          angle: ang,
+          radius: 18,
+          damage: 0,
+          isCrit: false,
+          pierce: true,
+          maxLife: def.range / 680 + 0.08,
+          color: def.glowColor,
+        });
+        break;
+      case 'ribcage_shield':
+        soundEngine.playSkill('shield');
+        this.spawnRingEffect(data.x, data.y, def.range, '#fde68a');
+        break;
+      case 'skeletal_rush':
+        soundEngine.playSkill('rush');
+        this.spawnSoftMotes(data.x, data.y, ang, 46, '#67e8f9', 8);
+        break;
+      case 'bone_storm':
+        soundEngine.playSkill('storm');
+        rp.boneStormTimer = 4.5;
+        this.spawnRingEffect(data.x, data.y, def.range, '#67e8f9');
+        break;
+      case 'bone_colossus':
+        soundEngine.playSkill('ultimate');
+        rp.colossusTimer = 8.5;
+        this.spawnGroundEffect('enemy_slam_crack', data.x, data.y, 0, 0, 0, def.range * 0.85, 1.5, '#fde047', '#f59e0b');
+        this.spawnRingEffect(data.x, data.y, def.range, '#fbbf24');
+        break;
+      case 'army_of_bones':
+        soundEngine.playSkill('ultimate');
+        this.spawnGroundEffect('grave_portal', tx, ty, 0, 0, 0, def.radiusOrAngle * 0.85, 2.2, '#4ade80', '#86efac');
+        this.spawnRingEffect(tx, ty, def.radiusOrAngle, '#4ade80');
+        break;
+      case 'reapers_judgment':
+        soundEngine.playSkill('ultimate');
+        this.spawnSlashWave('boss_cleave', data.x, data.y - 10, ang, def.range * 0.92, def.radiusOrAngle, 1, 0.32, '#f8fafc', '#c084fc');
+        this.spawnProjectile({
+          fromPlayer: true,
+          visualOnly: true,
+          kind: 'dark_wave',
+          x: data.x + Math.cos(ang) * 32,
+          y: data.y - 8 + Math.sin(ang) * 32,
+          vx: Math.cos(ang) * 460,
+          vy: Math.sin(ang) * 460,
+          angle: ang,
+          radius: 42,
+          damage: 0,
+          isCrit: false,
+          pierce: true,
+          maxLife: 0.72,
+          color: '#c084fc',
+        });
+        break;
+
+      // --- ZOMBIE ---
+      case 'rotting_claw':
+        soundEngine.playSlash(0.95);
+        this.spawnSlashWave('triple_claw', data.x, data.y - 8, ang, def.range * 0.88, def.radiusOrAngle, 1, 0.24, '#ecfccb', '#84cc16');
+        this.spawnSlashWave('cross_claw', data.x, data.y - 8, ang, def.range * 0.94, def.radiusOrAngle, -1, 0.32, '#ecfccb', '#c084fc');
+        break;
+      case 'plague_burst':
+        soundEngine.playSkill('storm');
+        this.spawnToxicCloud(data.x, data.y, def.range, 4.2, 0);
+        this.spawnGroundEffect('contagion_ring', data.x, data.y, 0, 0, 0, def.range * 1.08, 0.75, '#a3e635', '#a855f7');
+        this.spawnRingEffect(data.x, data.y, def.range, '#a3e635');
+        break;
+      case 'flesh_ripper':
+        soundEngine.playSkill('rush');
+        this.spawnSlashWave('cross_claw', data.x + Math.cos(ang) * 28, data.y - 8 + Math.sin(ang) * 28, ang, 74, 1.4, 1, 0.25, '#ecfccb', '#fb7185');
+        this.spawnGroundEffect('flesh_tear_track', data.x, data.y + 8, tx, ty + 8, ang, 85, 1.1, '#a3e635', '#fb7185');
+        break;
+      case 'undying_flesh':
+        soundEngine.playSkill('shield');
+        rp.undyingTimer = 5.5;
+        this.spawnGroundEffect('contagion_ring', data.x, data.y, 0, 0, 0, 96, 0.65, '#4ade80', '#a3e635');
+        this.spawnRingEffect(data.x, data.y, 98, '#22c55e');
+        break;
+      case 'grave_call':
+        soundEngine.playSkill('spear');
+        this.spawnGroundEffect('grave_portal', tx, ty, 0, 0, 0, def.radiusOrAngle * 0.92, 2.4, '#a855f7', '#a3e635');
+        this.spawnRingEffect(tx, ty, def.radiusOrAngle, '#a855f7');
+        break;
+      case 'abomination_form':
+        soundEngine.playSkill('ultimate');
+        rp.colossusTimer = 9.0;
+        this.spawnGroundEffect('plague_crater', data.x, data.y, 0, 0, 0.2, def.range, 1.7, '#a3e635', '#c084fc');
+        this.spawnRingEffect(data.x, data.y, def.range, '#a3e635');
+        break;
+      case 'kingdom_of_the_dead':
+        soundEngine.playSkill('ultimate');
+        this.spawnGroundEffect('grave_portal', tx, ty, 0, 0, 0, def.radiusOrAngle, 2.8, '#84cc16', '#c084fc');
+        this.spawnRingEffect(tx, ty, def.radiusOrAngle, '#84cc16');
+        break;
+      case 'deaths_embrace':
+        soundEngine.playSkill('ultimate');
+        this.spawnGroundEffect('plague_crater', data.x, data.y, 0, 0, 0, def.range, 2.0, '#a855f7', '#a3e635');
+        this.spawnRingEffect(data.x, data.y, def.range, '#a855f7');
+        this.spawnToxicCloud(data.x, data.y, def.range * 0.85, 3.6, 0);
+        break;
+
+      // --- GHOUL ---
+      case 'rending_claws':
+        soundEngine.playSlash(1.22);
+        this.spawnSlashWave('feral_slash', data.x, data.y - 8, ang, def.range * 0.9, def.radiusOrAngle, 1, 0.22, '#fff1f2', '#fb7185');
+        this.spawnSlashWave('twin_rend', data.x, data.y - 8, ang, def.range, def.radiusOrAngle * 1.1, -1, 0.3, '#fff1f2', '#e11d48');
+        break;
+      case 'feral_pounce':
+        soundEngine.playSkill('rush');
+        this.spawnGroundEffect('pounce_impact', tx, ty + 6, 0, 0, ang, 72, 0.65, '#fb7185', '#fda4af');
+        this.spawnSlashWave('twin_rend', tx, ty - 8, ang, 78, Math.PI * 1.15, 1, 0.24, '#fff1f2', '#f43f5e');
+        break;
+      case 'shadow_stalker':
+        soundEngine.playSkill('rush');
+        this.spawnSoftMotes(data.x, data.y - 10, ang, 36, '#fda4af', 10);
+        break;
+      case 'blood_frenzy':
+        soundEngine.playSkill('storm');
+        rp.bloodFrenzyTimer = 5.0;
+        this.spawnRingEffect(data.x, data.y, 92, '#f43f5e');
+        break;
+      case 'predators_leap':
+        soundEngine.playSkill('rush');
+        this.spawnGroundEffect('pounce_impact', tx, ty + 6, 0, 0, ang, def.radiusOrAngle, 0.85, '#f43f5e', '#fde047');
+        this.spawnSlashWave('feral_whirl', tx, ty - 8, ang, def.radiusOrAngle * 1.05, Math.PI * 1.9, 1, 0.28, '#fff1f2', '#e11d48');
+        break;
+      case 'apex_predator':
+        soundEngine.playSkill('ultimate');
+        rp.colossusTimer = 9.0;
+        this.spawnGroundEffect('pounce_impact', data.x, data.y + 6, 0, 0, 0, def.range, 1.1, '#e11d48', '#fda4af');
+        this.spawnRingEffect(data.x, data.y, def.range, '#f43f5e');
+        break;
+      case 'carnage_unleashed':
+      case 'king_of_the_hunt':
+        soundEngine.playSkill('ultimate');
+        this.spawnSlashWave('feral_whirl', data.x, data.y - 8, ang, 128, Math.PI * 1.9, 1, 0.3, '#fff1f2', '#e11d48');
+        this.spawnRingEffect(data.x, data.y, 130, '#fb7185');
+        break;
+
+      // --- GHOST ---
+      case 'spectral_bolt':
+        soundEngine.playGhostWisp(0.95);
+        this.spawnProjectile({
+          fromPlayer: true,
+          visualOnly: true,
+          kind: 'spectral_bolt',
+          x: data.x + Math.cos(ang) * 24,
+          y: data.y - 12 + Math.sin(ang) * 24,
+          vx: Math.cos(ang) * 620,
+          vy: Math.sin(ang) * 620,
+          angle: ang,
+          radius: 22,
+          damage: 0,
+          isCrit: false,
+          pierce: true,
+          maxLife: def.range / 620 + 0.1,
+          color: '#2dd4bf',
+        });
+        break;
+      case 'phantom_dash':
+        soundEngine.playGhostWisp(1.22);
+        this.spawnGroundEffect('mist_node', data.x, data.y, 0, 0, ang, 54, 1.4, '#2dd4bf', '#818cf8');
+        this.spawnGroundEffect('mist_node', tx, ty, 0, 0, ang, 58, 1.4, '#818cf8', '#2dd4bf');
+        break;
+      case 'soul_drain':
+        soundEngine.playGhostWisp(0.86);
+        this.spawnGroundEffect('astral_nova', data.x, data.y, 0, 0, 0, def.range * 0.72, 0.55, '#2dd4bf', '#818cf8');
+        break;
+      case 'wailing_scream':
+        soundEngine.playSkill('storm');
+        this.spawnGroundEffect('wailing_wave', data.x, data.y - 6, 0, 0, 0, def.range, 0.52, '#5eead4', '#818cf8');
+        break;
+      case 'haunted_possession':
+        soundEngine.playGhostWisp(1.1);
+        this.spawnGroundEffect('possession_burst', tx, ty, 0, 0, 0, 68, 0.5, '#c084fc', '#2dd4bf');
+        break;
+      case 'eternal_nightmare':
+        soundEngine.playSkill('ultimate');
+        rp.nightmareTimer = 8.0;
+        this.spawnGroundEffect('wailing_wave', data.x, data.y, 0, 0, 0, def.range, 0.65, '#818cf8', '#c084fc');
+        break;
+      case 'spirit_legion':
+        soundEngine.playSkill('ultimate');
+        this.spawnGroundEffect('astral_nova', data.x, data.y, 0, 0, 0, 120, 0.55, '#2dd4bf', '#818cf8');
+        break;
+      case 'deaths_passage':
+        soundEngine.playSkill('ultimate');
+        this.spawnSpectralRift(tx, ty, def.radiusOrAngle, 1.55, 2.25, 0, 0);
+        break;
+
+      // --- HUMAN ---
+      case 'pipe_swing':
+        soundEngine.playPipeClang(0.96, false);
+        this.spawnPipeStrike('wide_swing', data.x, data.y - 8, ang, def.range, 1, 0.25, '#fb923c', '#f8fafc');
+        break;
+      case 'headcracker':
+        soundEngine.playPipeClang(0.85, true);
+        this.spawnPipeStrike('overhead_slam', tx, ty - 6, ang, def.radiusOrAngle * 1.15, 1, 0.28, '#f97316', '#fde047');
+        this.spawnGroundEffect('headcracker_dent', tx, ty + 4, 0, 0, ang, def.radiusOrAngle * 1.18, 1.15, '#fb923c', '#fde047');
+        break;
+      case 'scrappers_dash':
+        soundEngine.playPipeSwing(1.15);
+        this.spawnPipeStrike('street_sweep', data.x + Math.cos(ang) * 20, data.y - 8 + Math.sin(ang) * 20, ang, 74, 1, 0.22, '#fb923c', '#e2e8f0');
+        this.spawnGroundEffect('scrapper_skid_track', data.x, data.y + 8, tx, ty + 8, ang, 96, 1.1, '#fb923c', '#e2e8f0');
+        break;
+      case 'improvised_throw':
+        soundEngine.playPipeSwing(1.26);
+        this.spawnProjectile({
+          fromPlayer: true,
+          visualOnly: true,
+          kind: 'thrown_pipe',
+          x: data.x + Math.cos(ang) * 22,
+          y: data.y - 10 + Math.sin(ang) * 22,
+          vx: Math.cos(ang) * 660,
+          vy: Math.sin(ang) * 660,
+          angle: ang,
+          radius: 26,
+          damage: 0,
+          isCrit: false,
+          pierce: true,
+          maxLife: 0.9,
+          color: '#fb923c',
+          returning: false,
+          spinAngle: ang,
+        });
+        break;
+      case 'street_fighter':
+        soundEngine.playPipeClang(0.95, true);
+        this.spawnGroundEffect('brawler_stance_ring', data.x, data.y + 4, 0, 0, ang, def.range * 0.76, 0.52, '#f59e0b', '#f8fafc');
+        this.spawnPipeStrike('street_sweep', data.x, data.y - 8, ang, def.range, 1, 0.28, '#f59e0b', '#ffffff');
+        break;
+      case 'last_stand':
+        soundEngine.playSkill('ultimate');
+        soundEngine.playPipeClang(0.84, true);
+        rp.lastStandTimer = 4.5;
+        this.spawnGroundEffect('brawler_stance_ring', data.x, data.y + 4, 0, 0, 0, 125, 0.65, '#f97316', '#fde047');
+        this.spawnPipeStrike('last_stand_cleave', data.x, data.y - 8, ang, 190, 1, 0.28, '#f97316', '#fde047');
+        break;
+      case 'scrapstorm':
+        soundEngine.playSkill('ultimate');
+        soundEngine.playPipeClang(0.8, true);
+        this.spawnGroundEffect('headcracker_dent', data.x, data.y + 4, 0, 0, ang, 135, 0.95, '#94a3b8', '#fb923c');
+        this.spawnPipeStrike('street_sweep', data.x, data.y - 8, ang, 142, 1, 0.28, '#fb923c', '#cbd5e1');
+        break;
+      case 'one_man_army':
+        soundEngine.playSkill('ultimate');
+        rp.oneManArmyTimer = 1.65;
+        this.spawnGroundEffect('brawler_stance_ring', data.x, data.y + 4, 0, 0, 0, 118, 0.55, '#fb923c', '#ffffff');
+        this.spawnPipeStrike('street_sweep', data.x, data.y - 8, ang, 165, 1, 0.28, '#fb923c', '#ffffff');
+        break;
+    }
   }
 
-  public handleRemoteEnemyDamaged(
-    enemyId: number,
+  public handleRemotePlayerDamaged(
+    playerId: string,
     hp: number,
+    shield: number,
     damage: number,
-    isCrit: boolean,
-    sparkColor: string
+    isDowned: boolean
   ) {
-    const enemy = this.enemies.find((e) => e.id === enemyId);
-    if (enemy) {
-      enemy.hp = hp;
-      enemy.hitFlash = 0.12;
-      this.spawnFloatingText(enemy.x, enemy.y - 20, `${Math.round(damage)}`, sparkColor || '#ffffff', isCrit);
-      this.spawnBurstParticles(enemy.x, enemy.y, sparkColor || '#ffffff', isCrit ? 8 : 4);
+    const localId = multiplayerClient.getLocalPlayerId();
+    if (playerId === localId) {
+      this.player.hp = hp;
+      this.player.shield = shield;
+      if (shield <= 0) {
+        this.player.ribShieldTimer = 0;
+      }
+      if (damage > 0) {
+        this.player.hitFlash = 0.14;
+        this.triggerShake(0.12, 4);
+        soundEngine.playHit(false);
+        this.spawnFloatingText(this.player.x, this.player.y - 32, `-${damage}`, '#fb7185', false);
+      } else {
+        this.spawnFloatingText(this.player.x, this.player.y - 32, 'BLOCKED', '#fde68a', false);
+      }
+      if (isDowned) {
+        this.localIsDowned = true;
+        this.player.isDowned = true;
+        this.aimState.active = false;
+        this.basicAttackHeld = false;
+      }
+      this.emitHudSnapshot();
+      return;
     }
-  }
 
-  public handleRemoteEnemyDied(enemyId: number, killerId: string, loot: SyncLootItem[]) {
-    const idx = this.enemies.findIndex((e) => e.id === enemyId);
-    if (idx !== -1) {
-      const e = this.enemies[idx];
-      e.hp = 0;
-      soundEngine.playEnemyDeath();
-      this.spawnBurstParticles(e.x, e.y, '#f87171', 12, true);
-    }
-
-    if (loot) {
-      for (const item of loot) {
-        this.spawnPickupOrb(
-          item.x,
-          item.y,
-          item.kind === 'heal' ? 'meat' : item.kind === 'shard' ? 'shard' : 'xp',
-          item.value
-        );
+    const rp = this.remotePlayers.get(playerId);
+    if (rp) {
+      rp.hp = hp;
+      rp.shield = shield;
+      rp.hitFlash = 0.14;
+      rp.isDowned = isDowned;
+      if (damage > 0) {
+        this.spawnFloatingText(rp.x, rp.y - 32, `-${damage}`, '#fb7185', false);
       }
     }
   }
 
-  public handleRemoteLootCollected(lootId: number, collectorId: string, kind: string, value: number) {
-    soundEngine.playPickup(kind === 'heal' ? 'meat' : kind === 'shard' ? 'shard' : 'xp');
+  public handleRemoteEnemyAttack(evt: SyncEnemyAttackEvent) {
+    const e = this.enemies.find((item) => item.id === evt.enemyId);
+    if (e) {
+      e.x = evt.x;
+      e.y = evt.y;
+      e.facing = evt.angle;
+      e.windupTimer = 0;
+      e.weaponSwing = 1.65;
+      e.attackAnimDuration = evt.attackType === 'slam' || evt.attackType === 'nova' ? 0.35 : 0.25;
+      e.attackAnimTimer = e.attackAnimDuration;
+    }
+
+    if (evt.attackType === 'slash') {
+      soundEngine.playSlash(1.28);
+      this.spawnSlashWave(
+        'enemy_slash',
+        evt.x,
+        evt.y - 8,
+        evt.angle,
+        evt.radius + 44,
+        1.45,
+        1,
+        0.22,
+        '#ffe4e6',
+        '#fb7185'
+      );
+      this.spawnArcBurst(evt.x, evt.y, evt.angle, evt.radius + 36, '#fb7185', 8);
+    } else if (evt.attackType === 'slam') {
+      const slamRad = evt.isBoss ? 135 : 78;
+      this.triggerShake(evt.isBoss ? 0.22 : 0.12, evt.isBoss ? 6 : 3.5);
+      const hitX = evt.x + (evt.isBoss ? 0 : Math.cos(evt.angle) * 18);
+      const hitY = evt.y + (evt.isBoss ? 0 : Math.sin(evt.angle) * 14);
+      this.spawnGroundEffect(
+        'enemy_slam_crack',
+        hitX,
+        hitY,
+        0,
+        0,
+        evt.angle,
+        slamRad * 0.92,
+        1.35,
+        evt.isBoss ? '#fb7185' : '#f97316',
+        '#fde047'
+      );
+      if (evt.isBoss) {
+        this.spawnSlashWave(
+          'boss_cleave',
+          evt.x,
+          evt.y - 10,
+          evt.angle,
+          slamRad * 0.9,
+          Math.PI * 1.4,
+          1,
+          0.28,
+          '#fef2f2',
+          '#f43f5e'
+        );
+      }
+      this.spawnRingEffect(evt.x, evt.y, slamRad, evt.isBoss ? '#f43f5e' : '#f97316');
+      this.spawnBurstParticles(hitX, hitY, evt.isBoss ? '#fb7185' : '#fdba74', 14, true);
+    } else if (evt.attackType === 'nova') {
+      this.triggerShake(0.18, 4.8);
+      this.spawnSlashWave(
+        'boss_cleave',
+        evt.x,
+        evt.y - 10,
+        evt.angle,
+        86,
+        Math.PI * 1.95,
+        1,
+        0.3,
+        '#fef2f2',
+        '#fb7185'
+      );
+      for (let k = 0; k < 8; k++) {
+        const sa = evt.angle + (k * Math.PI * 2) / 8;
+        this.spawnProjectile({
+          fromPlayer: false,
+          visualOnly: true,
+          kind: 'boss_shard',
+          x: evt.x + Math.cos(sa) * 24,
+          y: evt.y + Math.sin(sa) * 24,
+          vx: Math.cos(sa) * 265,
+          vy: Math.sin(sa) * 265,
+          angle: sa,
+          radius: 10,
+          damage: 0,
+          isCrit: false,
+          pierce: false,
+          maxLife: 1.9,
+          color: '#fb7185',
+        });
+      }
+    } else if (evt.attackType === 'shoot') {
+      const bowX = evt.x + Math.cos(evt.angle) * 22;
+      const bowY = evt.y - 6 + Math.sin(evt.angle) * 22;
+      this.spawnBurstParticles(bowX, bowY, '#bef264', 6, true);
+      this.spawnProjectile({
+        fromPlayer: false,
+        visualOnly: true,
+        kind: 'enemy_arrow',
+        x: bowX,
+        y: bowY,
+        vx: Math.cos(evt.angle) * 320,
+        vy: Math.sin(evt.angle) * 320,
+        angle: evt.angle,
+        radius: 8,
+        damage: 0,
+        isCrit: false,
+        pierce: false,
+        maxLife: 1.6,
+        color: '#bef264',
+      });
+    } else if (evt.attackType === 'dash') {
+      const endX = evt.endX ?? evt.x;
+      const endY = evt.endY ?? evt.y;
+      if (e) {
+        e.x = endX;
+        e.y = endY;
+      }
+      this.spawnGroundEffect(
+        'flesh_tear_track',
+        evt.x,
+        evt.y + 10,
+        endX,
+        endY + 10,
+        evt.angle,
+        120,
+        0.9,
+        '#fb7185',
+        '#fde68a'
+      );
+      this.spawnSlashWave(
+        'boss_cleave',
+        endX,
+        endY - 10,
+        evt.angle,
+        76,
+        1.5,
+        1,
+        0.26,
+        '#fef2f2',
+        '#f43f5e'
+      );
+    }
+  }
+
+  public handleRemoteEnemyDamaged(data: {
+    enemyId: number;
+    hp: number;
+    damage: number;
+    isCrit: boolean;
+    sparkColor: string;
+    attackerId: string;
+  }) {
+    const enemy = this.enemies.find((e) => e.id === data.enemyId);
+    if (!enemy) return;
+    enemy.hp = data.hp;
+
+    if (data.attackerId !== multiplayerClient.getLocalPlayerId()) {
+      enemy.hitFlash = 0.11;
+      this.spawnFloatingText(
+        enemy.x + (Math.random() - 0.5) * 16,
+        enemy.y - enemy.radius - 14,
+        data.isCrit ? `${Math.round(data.damage)}!` : `${Math.round(data.damage)}`,
+        data.isCrit ? '#fde047' : data.sparkColor || '#f8fafc',
+        data.isCrit
+      );
+      this.spawnBurstParticles(
+        enemy.x,
+        enemy.y - 8,
+        data.sparkColor || '#ffffff',
+        data.isCrit ? 8 : 4,
+        true
+      );
+    }
+  }
+
+  public handleRemoteEnemyDied(data: {
+    enemyId: number;
+    killerId: string;
+    loot: SyncLootItem[];
+  }) {
+    const e = this.enemies.find((item) => item.id === data.enemyId);
+    if (e) {
+      e.hp = 0;
+      soundEngine.playHit(true);
+      this.spawnBurstParticles(e.x, e.y, '#f5f0e6', 14, false);
+      this.spawnBurstParticles(e.x, e.y - 6, '#fb7185', 8, true);
+
+      if (data.killerId === multiplayerClient.getLocalPlayerId()) {
+        this.triggerLocalKillPassives(e);
+      }
+    }
+
+    if (data.loot) {
+      for (const item of data.loot) {
+        this.spawnPickup(item.x, item.y, item.kind, item.value, item.id, true);
+      }
+    }
+  }
+
+  public handleRemoteLootCollected(
+    lootId: number,
+    collectorId: string,
+    kind: 'xp' | 'heal' | 'shard',
+    value: number
+  ) {
+    for (const orb of this.pickups) {
+      if (orb.active && orb.id === lootId) {
+        orb.active = false;
+        break;
+      }
+    }
+
+    soundEngine.playPickup();
+    const isLocalCollector = collectorId === multiplayerClient.getLocalPlayerId();
+
+    // Shared cooperative XP & Bone Shards for all squad members; heal orb restores collector
+    if (kind === 'xp') {
+      this.gainXp(value);
+    } else if (kind === 'shard') {
+      this.boneShards += value;
+    } else if (kind === 'heal' && isLocalCollector) {
+      this.healPlayer(value, true);
+    }
+    this.emitHudSnapshot();
+  }
+
+  public handleRemoteChestOpened(propId: string, _openerId: string, openerName: string) {
+    const prop = this.map.props.find((p) => p.id === propId);
+    const cx = prop ? prop.x + prop.w / 2 : this.player.x;
+    const cy = prop ? prop.y + prop.h / 2 : this.player.y;
+    if (prop) {
+      prop.opened = true;
+    }
+
+    this.skillPoints += 1;
+    this.boneShards += 25;
+    if (!this.localIsDowned) {
+      this.healPlayer(Math.round(this.player.maxHp * 0.4), false);
+    }
+    soundEngine.playSkill('shield');
+    this.spawnBurstParticles(cx, cy, '#fde047', 22, true);
+    this.spawnFloatingText(
+      this.player.x,
+      this.player.y - 36,
+      `${openerName} Chest: +1 SP!`,
+      '#fde047',
+      true
+    );
+    this.emitHudSnapshot();
   }
 
   public handleRemotePlayerDowned(playerId: string, name: string) {
+    if (playerId === multiplayerClient.getLocalPlayerId()) {
+      this.localIsDowned = true;
+      this.localReviveProgress = 0;
+      this.player.isDowned = true;
+      this.player.reviveProgress = 0;
+      this.player.hp = 0;
+      this.aimState.active = false;
+      this.basicAttackHeld = false;
+      this.spawnFloatingText(this.player.x, this.player.y - 38, 'DOWNED! WAIT FOR ALLY', '#ef4444', true);
+      this.spawnBurstParticles(this.player.x, this.player.y, '#f43f5e', 16, true);
+      this.emitHudSnapshot();
+      return;
+    }
+
     const rp = this.remotePlayers.get(playerId);
     if (rp) {
       rp.isDowned = true;
       rp.hp = 0;
+      rp.reviveProgress = 0;
       this.spawnFloatingText(rp.x, rp.y - 35, `${name} DOWNED!`, '#ef4444', true);
       this.spawnBurstParticles(rp.x, rp.y, '#f43f5e', 14, true);
     }
   }
 
-  public handleRemotePlayerRevived(targetId: string, reviverId: string) {
+  public handleRemotePlayerRevived(targetId: string, _reviverId: string, hp: number) {
+    soundEngine.playSkill('shield');
+    if (targetId === multiplayerClient.getLocalPlayerId()) {
+      this.localIsDowned = false;
+      this.localReviveProgress = 0;
+      this.player.isDowned = false;
+      this.player.reviveProgress = 0;
+      this.player.hp = Math.max(1, Math.min(this.player.maxHp, hp || Math.round(this.player.maxHp * 0.45)));
+      this.spawnFloatingText(this.player.x, this.player.y - 40, 'REVIVED!', '#4ade80', true);
+      this.spawnBurstParticles(this.player.x, this.player.y, '#4ade80', 18, true);
+      this.emitHudSnapshot();
+      return;
+    }
+
     const rp = this.remotePlayers.get(targetId);
     if (rp) {
       rp.isDowned = false;
-      rp.hp = Math.round(rp.maxHp * 0.45);
+      rp.hp = hp || Math.round(rp.maxHp * 0.45);
       rp.reviveProgress = 0;
-      soundEngine.playSkill('shield');
+      this.currentRevivingPlayerName = null;
+      this.currentReviveProgress = 0;
       this.spawnFloatingText(rp.x, rp.y - 35, `${rp.name} REVIVED!`, '#22c55e', true);
       this.spawnBurstParticles(rp.x, rp.y, '#4ade80', 16, true);
     }
   }
 
+  public handleRemotePlayerDisconnected(playerId: string) {
+    const rp = this.remotePlayers.get(playerId);
+    if (rp) {
+      rp.disconnected = true;
+    }
+  }
+
+  public handleRemotePlayerReconnected(playerId: string) {
+    const rp = this.remotePlayers.get(playerId);
+    if (rp) {
+      rp.disconnected = false;
+    }
+  }
+
+  public handleRemotePlayerLeft(playerId: string) {
+    this.remotePlayers.delete(playerId);
+  }
+
+  public handleRemoteFloorCleared(floor: number) {
+    if (this.bossSpawnedPortals) return;
+    this.bossSpawnedPortals = true;
+    this.runOutcome = 'victory';
+    this.skillPoints += 2;
+    this.boneShards += 60;
+    soundEngine.playSkill('ultimate');
+
+    const bossRoom = this.map.rooms.find((r) => r.kind === 'boss');
+    if (bossRoom) {
+      bossRoom.cleared = true;
+      const portalId = `portal_next_${floor}`;
+      if (!this.map.props.some((p) => p.id === portalId)) {
+        this.map.props.push({
+          id: portalId,
+          kind: 'portal_next',
+          x: bossRoom.x + bossRoom.w * 0.5 - 27,
+          y: bossRoom.y + bossRoom.h * 0.5 - 27,
+          w: 54,
+          h: 54,
+          solid: false,
+          label: `Crypt Floor ${floor + 1}`,
+        });
+      }
+    }
+    this.emitHudSnapshot();
+  }
+
+  public handleRemotePortalWaiting(readyCount: number, requiredCount: number) {
+    this.portalWaitingState = { readyCount, requiredCount };
+    this.emitHudSnapshot();
+  }
+
   public handleRemoteNextFloor(floor: number, dungeonMap: WorldMap, enemies: EnemyEntity[]) {
-    this.floor = floor;
     this.map = dungeonMap;
+    this.map.floor = floor;
     this.enemies = enemies.map((e) => ({ ...e }));
+    this.runOutcome = null;
+    this.bossSpawnedPortals = false;
+    this.portalWaitingState = null;
+    this.localIsDowned = false;
+    this.localReviveProgress = 0;
+    this.player.isDowned = false;
+    this.player.reviveProgress = 0;
+    this.currentRevivingPlayerName = null;
+    this.currentReviveProgress = 0;
+
+    this.healPlayer(Math.round(this.player.maxHp * 0.45), false);
     this.resetPlayerPosition(dungeonMap.spawnX, dungeonMap.spawnY);
-    this.spawnFloatingText(this.player.x, this.player.y - 45, `FLOOR ${floor}`, '#fbbf24', true);
+    multiplayerClient.sendPlayerHealOrShield(this.player.hp, 0);
+
+    for (const rp of this.remotePlayers.values()) {
+      rp.x = dungeonMap.spawnX;
+      rp.y = dungeonMap.spawnY;
+      rp.isDowned = false;
+      rp.reviveProgress = 0;
+    }
+
+    this.spawnFloatingText(this.player.x, this.player.y - 45, `CRYPT FLOOR ${floor}`, '#fbbf24', true);
     soundEngine.playSkill('rush');
+    this.onPhaseChange(false);
+    this.emitHudSnapshot();
+  }
+
+  public handleMultiplayerGameOver() {
+    this.runOutcome = 'defeat';
+    this.aimState.active = false;
+    this.basicAttackHeld = false;
     this.emitHudSnapshot();
   }
 
@@ -1159,6 +2062,10 @@ export class GameEngine {
   }
 
   public setBasicAttackHeld(held: boolean) {
+    if (this.localIsDowned) {
+      this.basicAttackHeld = false;
+      return;
+    }
     this.basicAttackHeld = held;
     if (held && this.basicCooldown <= 0) {
       this.triggerBasicAttack();
@@ -1174,7 +2081,7 @@ export class GameEngine {
     distanceRatio: number,
     willCancel: boolean
   ) {
-    if (!active) {
+    if (!active || this.localIsDowned) {
       this.aimState.active = false;
       this.aimState.skillId = null;
       return;
@@ -1205,10 +2112,11 @@ export class GameEngine {
     distanceRatio: number
   ) {
     this.aimState.active = false;
-    if (this.runOutcome === 'defeat') return;
+    if (this.runOutcome === 'defeat' || this.localIsDowned) return;
     if (this.player.possessingTimer > 0 && skillId !== 'haunted_possession') return;
     if (this.cooldowns[skillId] > 0) return;
 
+    const prevShield = this.player.shield;
     const def = HERO_SKILLS[skillId];
     const rank = Math.max(1, this.skillRanks[skillId] || 1);
     const mult = def.baseMultiplier + (rank - 1) * def.rankMultiplier;
@@ -2700,6 +3608,10 @@ export class GameEngine {
       this.omaLastEnemyId = -1;
     }
 
+    if (this.isMultiplayer && this.player.shield > prevShield) {
+      multiplayerClient.sendPlayerHealOrShield(0, this.player.shield - prevShield);
+    }
+
     this.emitHudSnapshot();
   }
 
@@ -3066,10 +3978,13 @@ export class GameEngine {
   }
 
   private healPlayer(amount: number, showText = true) {
-    if (amount <= 0 || this.runOutcome === 'defeat') return;
+    if (amount <= 0 || this.runOutcome === 'defeat' || this.localIsDowned) return;
     const prev = this.player.hp;
     this.player.hp = Math.min(this.player.maxHp, this.player.hp + amount);
     const actual = Math.round(this.player.hp - prev);
+    if (this.isMultiplayer && actual > 0) {
+      multiplayerClient.sendPlayerHealOrShield(actual, 0);
+    }
     if (showText && (actual > 0 || amount >= 10)) {
       this.spawnFloatingText(
         this.player.x + (Math.random() - 0.5) * 14,
@@ -3130,7 +4045,7 @@ export class GameEngine {
   }
 
   public triggerBasicAttack() {
-    if (this.runOutcome === 'defeat') return;
+    if (this.runOutcome === 'defeat' || this.localIsDowned) return;
     if (
       this.basicCooldown > 0 ||
       this.shadowStepTimer > 0 ||
@@ -3142,12 +4057,14 @@ export class GameEngine {
     }
 
     if (this.isMultiplayer) {
+      const nextStep = (this.comboStep % (this.heroId === 'ghoul' ? 4 : 3)) + 1;
       multiplayerClient.sendAttack(
-        (this.comboStep % 3) + 1,
+        nextStep,
         this.player.facing,
         this.player.x,
         this.player.y,
-        this.heroId === 'ghost' ? 350 : 105
+        this.heroId === 'ghost' ? 350 : this.player.colossusTimer > 0 ? 146 : 104,
+        this.heroId === 'ghoul' && this.player.ambushReady
       );
     }
 
@@ -3673,6 +4590,7 @@ export class GameEngine {
   }
 
   public interactNearbyProp(): boolean {
+    if (this.localIsDowned) return false;
     for (const prop of this.map.props) {
       const cx = prop.x + prop.w / 2;
       const cy = prop.y + prop.h / 2;
@@ -3684,6 +4602,10 @@ export class GameEngine {
         return true;
       }
       if (prop.kind === 'chest' && !prop.opened) {
+        if (this.isMultiplayer) {
+          multiplayerClient.sendOpenChest(prop.id);
+          return true;
+        }
         prop.opened = true;
         this.skillPoints += 1;
         this.boneShards += 25;
@@ -3745,10 +4667,10 @@ export class GameEngine {
       multiplayerClient.sendPlayerState({
         x: this.player.x,
         y: this.player.y,
-        vx: this.joyX * this.moveSpeed,
-        vy: this.joyY * this.moveSpeed,
+        vx: this.localIsDowned ? 0 : this.joyX * this.moveSpeed,
+        vy: this.localIsDowned ? 0 : this.joyY * this.moveSpeed,
         facing: this.player.facing,
-        walkPhase: this.player.walkPhase,
+        walkPhase: this.localIsDowned ? 0 : this.player.walkPhase,
         hp: this.player.hp,
         maxHp: this.player.maxHp,
         shield: this.player.shield,
@@ -3762,44 +4684,57 @@ export class GameEngine {
         swordScale: this.player.swordScale,
         swordGlowColor: this.player.swordGlowColor,
         swordGlowIntensity: this.player.swordGlowIntensity,
+        isScytheForm: this.player.isScytheForm,
         colossusTimer: this.player.colossusTimer,
         boneStormTimer: this.player.boneStormTimer,
+        ribShieldTimer: this.player.ribShieldTimer,
+        undyingTimer: this.player.undyingTimer,
+        stealthTimer: this.player.stealthTimer,
+        ambushReady: this.player.ambushReady,
         bloodFrenzyTimer: this.player.bloodFrenzyTimer,
+        frenzyStacks: this.player.frenzyStacks,
+        phantomMistTimer: this.player.phantomMistTimer,
+        possessingTimer: this.player.possessingTimer,
         nightmareTimer: this.player.nightmareTimer,
+        pipeThrown: this.player.pipeThrown,
+        kneeStrikeTimer: this.player.kneeStrikeTimer,
         lastStandTimer: this.player.lastStandTimer,
         oneManArmyTimer: this.player.oneManArmyTimer,
-        isDowned: this.player.hp <= 0,
+        airborneHeight: this.player.airborneHeight,
+        isDowned: this.localIsDowned,
       });
 
       let nearDowned = false;
-      for (const rp of this.remotePlayers.values()) {
-        if (rp.isDowned) {
-          const dist = Math.hypot(rp.x - this.player.x, rp.y - this.player.y);
-          if (dist <= 75) {
-            nearDowned = true;
-            this.currentRevivingPlayerName = rp.name;
-            this.currentReviveProgress = rp.reviveProgress;
-            if (this.elapsedTime - this.lastMultiplayerReviveSend >= 0.25) {
-              this.lastMultiplayerReviveSend = this.elapsedTime;
-              multiplayerClient.sendStartRevive(rp.id);
+      if (!this.localIsDowned) {
+        for (const rp of this.remotePlayers.values()) {
+          if (rp.isDowned && !rp.disconnected) {
+            const dist = Math.hypot(rp.x - this.player.x, rp.y - this.player.y);
+            if (dist <= 82) {
+              nearDowned = true;
+              this.currentRevivingPlayerName = rp.name;
+              this.currentReviveProgress = rp.reviveProgress;
+              if (this.elapsedTime - this.lastMultiplayerReviveSend >= 0.25) {
+                this.lastMultiplayerReviveSend = this.elapsedTime;
+                multiplayerClient.sendStartRevive(rp.id);
+              }
+              if (Math.random() < 0.3) {
+                this.spawnParticle({
+                  x: rp.x + (Math.random() - 0.5) * 28,
+                  y: rp.y + (Math.random() - 0.5) * 28,
+                  vx: (Math.random() - 0.5) * 20,
+                  vy: -35 - Math.random() * 25,
+                  size: 3.5,
+                  endSize: 0,
+                  maxAge: 0.5,
+                  color: '#22c55e',
+                  glow: true,
+                  shape: 'spark',
+                  rotation: 0,
+                  vRot: 0,
+                });
+              }
+              break;
             }
-            if (Math.random() < 0.3) {
-              this.spawnParticle({
-                x: rp.x + (Math.random() - 0.5) * 28,
-                y: rp.y + (Math.random() - 0.5) * 28,
-                vx: (Math.random() - 0.5) * 20,
-                vy: -35 - Math.random() * 25,
-                size: 3.5,
-                endSize: 0,
-                maxAge: 0.5,
-                color: '#22c55e',
-                glow: true,
-                shape: 'spark',
-                rotation: 0,
-                vRot: 0,
-              });
-            }
-            break;
           }
         }
       }
@@ -3863,33 +4798,35 @@ export class GameEngine {
       rift.age += dt;
 
       if (!rift.detonated && rift.age < rift.pullDuration) {
-        // Gravitational spectral vortex pulling nearby enemies inward!
-        const pullRad = rift.radius * 1.32;
-        for (const e of this.enemies) {
-          if (e.hp <= 0 || e.kind === EnemyKind.TRAINING_DUMMY) continue;
-          const dx = rift.x - e.x;
-          const dy = rift.y - e.y;
-          const dist = Math.hypot(dx, dy);
-          if (dist > 14 && dist <= pullRad + e.radius) {
-            const bossFactor = e.kind === EnemyKind.BOSS_WARDEN ? 0.36 : 1.0;
-            const pullStep = rift.pullStrength * bossFactor * dt;
-            this.tryMoveEntity(
-              e.x,
-              e.y,
-              (dx / dist) * pullStep,
-              (dy / dist) * pullStep,
-              e.radius * 0.72,
-              (nx, ny) => {
-                e.x = nx;
-                e.y = ny;
-              }
-            );
-            e.slowTimer = Math.max(e.slowTimer, 0.5);
+        if (rift.pullStrength > 0) {
+          // Gravitational spectral vortex pulling nearby enemies inward!
+          const pullRad = rift.radius * 1.32;
+          for (const e of this.enemies) {
+            if (e.hp <= 0 || e.kind === EnemyKind.TRAINING_DUMMY) continue;
+            const dx = rift.x - e.x;
+            const dy = rift.y - e.y;
+            const dist = Math.hypot(dx, dy);
+            if (dist > 14 && dist <= pullRad + e.radius) {
+              const bossFactor = e.kind === EnemyKind.BOSS_WARDEN ? 0.36 : 1.0;
+              const pullStep = rift.pullStrength * bossFactor * dt;
+              this.tryMoveEntity(
+                e.x,
+                e.y,
+                (dx / dist) * pullStep,
+                (dy / dist) * pullStep,
+                e.radius * 0.72,
+                (nx, ny) => {
+                  e.x = nx;
+                  e.y = ny;
+                }
+              );
+              e.slowTimer = Math.max(e.slowTimer, 0.5);
+            }
           }
         }
 
         // Periodic abyssal vortex tick damage every 0.45s
-        if (Math.floor(rift.age / 0.45) > Math.floor(prevAge / 0.45)) {
+        if (rift.explosionDamage > 0 && Math.floor(rift.age / 0.45) > Math.floor(prevAge / 0.45)) {
           const tickDmg = Math.max(4, Math.round(rift.explosionDamage * 0.14));
           for (const e of this.enemies) {
             if (e.hp <= 0) continue;
@@ -3929,12 +4866,14 @@ export class GameEngine {
         );
         this.spawnSoftMotes(rift.x, rift.y, 0, rift.radius * 0.85, '#5eead4', 22);
 
-        for (const e of this.enemies) {
-          if (e.hp <= 0) continue;
-          if (Math.hypot(e.x - rift.x, e.y - rift.y) <= rift.radius * 1.18 + e.radius) {
-            const isCrit = Math.random() < 0.28;
-            const dmg = isCrit ? Math.round(rift.explosionDamage * 1.5) : rift.explosionDamage;
-            this.damageEnemy(e, dmg, isCrit, '#5eead4');
+        if (rift.explosionDamage > 0) {
+          for (const e of this.enemies) {
+            if (e.hp <= 0) continue;
+            if (Math.hypot(e.x - rift.x, e.y - rift.y) <= rift.radius * 1.18 + e.radius) {
+              const isCrit = Math.random() < 0.28;
+              const dmg = isCrit ? Math.round(rift.explosionDamage * 1.5) : rift.explosionDamage;
+              this.damageEnemy(e, dmg, isCrit, '#5eead4');
+            }
           }
         }
       }
@@ -4228,12 +5167,14 @@ export class GameEngine {
       c.tickTimer -= dt;
       if (c.tickTimer <= 0) {
         c.tickTimer = 0.45;
-        const tickDmg = Math.max(2, Math.round(c.dps * 0.45));
-        for (const e of this.enemies) {
-          if (e.hp <= 0) continue;
-          if (Math.hypot(e.x - c.x, e.y - c.y) <= c.radius + e.radius) {
-            e.slowTimer = Math.max(e.slowTimer, 1.2);
-            this.damageEnemy(e, tickDmg, false, '#a3e635');
+        if (c.dps > 0) {
+          const tickDmg = Math.max(2, Math.round(c.dps * 0.45));
+          for (const e of this.enemies) {
+            if (e.hp <= 0) continue;
+            if (Math.hypot(e.x - c.x, e.y - c.y) <= c.radius + e.radius) {
+              e.slowTimer = Math.max(e.slowTimer, 1.2);
+              this.damageEnemy(e, tickDmg, false, '#a3e635');
+            }
           }
         }
       }
@@ -4253,6 +5194,13 @@ export class GameEngine {
       if (this.cooldowns[key] > 0) {
         this.cooldowns[key] = Math.max(0, this.cooldowns[key] - dt);
       }
+    }
+
+    if (this.localIsDowned) {
+      this.player.walkPhase = 0;
+      this.player.colossusTimer = 0;
+      this.player.boneStormTimer = 0;
+      return;
     }
 
     // Strike 2 & Strike 3 of Zombie's rapid 3-hit Rotting Claw combo!
@@ -6564,6 +7512,17 @@ export class GameEngine {
         bossAlive = true;
       }
 
+      if (this.isMultiplayer) {
+        // Server authoritatively steps enemy movement, targeting, windups, and attacks
+        const moveSpd = Math.hypot(e.vx, e.vy);
+        if (moveSpd > 6) {
+          e.walkPhase += dt * 9.5;
+        } else {
+          e.walkPhase = 0;
+        }
+        continue;
+      }
+
       // Haunted Possession AI: Possessed enemy aggressively chases & strikes its own nearby allies!
       if (e.possessedTimer > 0) {
         e.windupTimer = 0;
@@ -6947,7 +7906,7 @@ export class GameEngine {
       }
     }
 
-    if (!this.map.isGuild && !bossAlive && !this.bossSpawnedPortals) {
+    if (!this.isMultiplayer && !this.map.isGuild && !bossAlive && !this.bossSpawnedPortals) {
       this.bossSpawnedPortals = true;
       this.runOutcome = 'victory';
       this.skillPoints += 2;
@@ -7032,13 +7991,20 @@ export class GameEngine {
           const dx = this.player.x - p.x;
           const dy = this.player.y - 10 - p.y;
           const dist = Math.hypot(dx, dy);
-          if (dist <= 30) {
+          if (dist <= 30 || p.visualOnly) {
+            if (p.visualOnly && p.life < 0.75) {
+              p.x += p.vx * dt;
+              p.y += p.vy * dt;
+              continue;
+            }
             p.active = false;
-            this.player.pipeThrown = false;
-            this.player.swordX = this.player.x + Math.cos(this.player.facing - 0.8) * 26;
-            this.player.swordY = this.player.y - 10 + Math.sin(this.player.facing - 0.8) * 16;
-            soundEngine.playPickup();
-            this.spawnBurstParticles(this.player.swordX, this.player.swordY, '#e2e8f0', 5, true);
+            if (!p.visualOnly) {
+              this.player.pipeThrown = false;
+              this.player.swordX = this.player.x + Math.cos(this.player.facing - 0.8) * 26;
+              this.player.swordY = this.player.y - 10 + Math.sin(this.player.facing - 0.8) * 16;
+              soundEngine.playPickup();
+              this.spawnBurstParticles(this.player.swordX, this.player.swordY, '#e2e8f0', 5, true);
+            }
             continue;
           }
           const ang = Math.atan2(dy, dx);
@@ -7050,13 +8016,15 @@ export class GameEngine {
         p.x += p.vx * dt;
         p.y += p.vy * dt;
 
-        for (const e of this.enemies) {
-          if (e.hp <= 0 || p.hitIds.has(e.id)) continue;
-          if (Math.hypot(e.x - p.x, e.y - 8 - p.y) <= e.radius + p.radius) {
-            p.hitIds.add(e.id);
-            soundEngine.playPipeClang(p.returning ? 1.28 : 1.08, false);
-            const hitDmg = p.returning ? Math.max(4, Math.round(p.damage * 0.72)) : p.damage;
-            this.damageEnemy(e, hitDmg, p.isCrit, '#fb923c');
+        if (!p.visualOnly) {
+          for (const e of this.enemies) {
+            if (e.hp <= 0 || p.hitIds.has(e.id)) continue;
+            if (Math.hypot(e.x - p.x, e.y - 8 - p.y) <= e.radius + p.radius) {
+              p.hitIds.add(e.id);
+              soundEngine.playPipeClang(p.returning ? 1.28 : 1.08, false);
+              const hitDmg = p.returning ? Math.max(4, Math.round(p.damage * 0.72)) : p.damage;
+              this.damageEnemy(e, hitDmg, p.isCrit, '#fb923c');
+            }
           }
         }
         continue;
@@ -7146,10 +8114,10 @@ export class GameEngine {
           if (e.hp <= 0 || p.hitIds.has(e.id)) continue;
           if (Math.hypot(e.x - p.x, e.y - 8 - p.y) <= e.radius + p.radius) {
             p.hitIds.add(e.id);
-            if (p.kind === 'bone_spear') {
+            if (!p.visualOnly && p.kind === 'bone_spear') {
               e.armorCrackTimer = 4.5;
             } else if (p.kind === 'spectral_bolt') {
-              e.slowTimer = Math.max(e.slowTimer, 1.4);
+              if (!p.visualOnly) e.slowTimer = Math.max(e.slowTimer, 1.4);
               this.spawnSoftMotes(e.x, e.y, p.angle, 16, '#5eead4', 4);
             } else if (p.kind === 'ghost_soul_orb') {
               // 3rd-hit Astral Soul Orb triggers a resonant spiritual nova on impact!
@@ -7165,19 +8133,25 @@ export class GameEngine {
                 '#c084fc',
                 '#2dd4bf'
               );
-              for (const other of this.enemies) {
-                if (other.id === e.id || other.hp <= 0) continue;
-                if (Math.hypot(other.x - p.x, other.y - p.y) <= 74 + other.radius) {
-                  this.damageEnemy(
-                    other,
-                    Math.max(4, Math.round(p.damage * 0.55)),
-                    false,
-                    '#c084fc'
-                  );
+              if (!p.visualOnly) {
+                for (const other of this.enemies) {
+                  if (other.id === e.id || other.hp <= 0) continue;
+                  if (Math.hypot(other.x - p.x, other.y - p.y) <= 74 + other.radius) {
+                    this.damageEnemy(
+                      other,
+                      Math.max(4, Math.round(p.damage * 0.55)),
+                      false,
+                      '#c084fc'
+                    );
+                  }
                 }
               }
             }
-            this.damageEnemy(e, p.damage, p.isCrit, p.color);
+            if (!p.visualOnly) {
+              this.damageEnemy(e, p.damage, p.isCrit, p.color);
+            } else {
+              this.spawnBurstParticles(p.x, p.y, p.color, 4, true);
+            }
             if (!p.pierce) {
               p.active = false;
               break;
@@ -7187,16 +8161,22 @@ export class GameEngine {
       } else {
         if (
           this.player.possessingTimer <= 0 &&
+          !this.localIsDowned &&
           Math.hypot(this.player.x - p.x, this.player.y - p.y) <= 16 + p.radius
         ) {
           p.active = false;
-          this.damagePlayer(p.damage);
+          if (!this.isMultiplayer && !p.visualOnly) {
+            this.damagePlayer(p.damage);
+          } else {
+            this.spawnBurstParticles(p.x, p.y, p.color, 5, true);
+          }
         }
       }
     }
   }
 
   private updatePickups(dt: number) {
+    if (this.localIsDowned) return;
     for (const orb of this.pickups) {
       if (!orb.active) continue;
       orb.age += dt;
@@ -7215,10 +8195,11 @@ export class GameEngine {
       }
       if (d < 22) {
         orb.active = false;
-        soundEngine.playPickup();
-        if (this.isMultiplayer) {
-          multiplayerClient.sendLootPickup(orb.id || 0);
+        if (this.isMultiplayer && orb.id !== undefined) {
+          multiplayerClient.sendLootPickup(orb.id);
+          continue;
         }
+        soundEngine.playPickup();
         if (orb.kind === 'xp') {
           this.gainXp(orb.value);
         } else if (orb.kind === 'heal') {
@@ -7413,9 +8394,11 @@ export class GameEngine {
   }
 
   private damageEnemyFromPoisonTick(e: EnemyEntity, dmg: number) {
-    e.hp = Math.max(0, e.hp - dmg);
     if (this.isMultiplayer) {
-      multiplayerClient.sendEnemyDamage(e.id, dmg, false, '#a3e635');
+      e.hp = Math.max(1, e.hp - dmg);
+      multiplayerClient.sendEnemyDamage(e.id, dmg, false, '#a3e635', e.slowTimer, e.staggerTimer);
+    } else {
+      e.hp = Math.max(0, e.hp - dmg);
     }
     this.spawnFloatingText(
       e.x + (Math.random() - 0.5) * 14,
@@ -7424,7 +8407,7 @@ export class GameEngine {
       '#a3e635',
       false
     );
-    if (e.hp <= 0 && e.kind !== EnemyKind.TRAINING_DUMMY) {
+    if (!this.isMultiplayer && e.hp <= 0 && e.kind !== EnemyKind.TRAINING_DUMMY) {
       this.handleEnemyDefeated(e);
     }
   }
@@ -7463,12 +8446,22 @@ export class GameEngine {
     }
 
     const finalDmg = adjustedDmg;
-    e.hp = Math.max(0, e.hp - finalDmg);
     e.hitFlash = 0.11;
     soundEngine.playHit(isCrit);
 
     if (this.isMultiplayer) {
-      multiplayerClient.sendEnemyDamage(e.id, finalDmg, isCrit, sparkColor);
+      // Keep local HP >= 1 until server confirms s:enemy_died so death & loot never fire twice
+      e.hp = Math.max(1, e.hp - finalDmg);
+      multiplayerClient.sendEnemyDamage(
+        e.id,
+        finalDmg,
+        isCrit,
+        sparkColor,
+        e.slowTimer,
+        e.staggerTimer
+      );
+    } else {
+      e.hp = Math.max(0, e.hp - finalDmg);
     }
 
     if (this.heroId === 'zombie') {
@@ -7518,7 +8511,7 @@ export class GameEngine {
       }
     }
 
-    if (e.hp <= 0 && e.kind !== EnemyKind.TRAINING_DUMMY) {
+    if (!this.isMultiplayer && e.hp <= 0 && e.kind !== EnemyKind.TRAINING_DUMMY) {
       this.handleEnemyDefeated(e);
     }
   }
@@ -7533,9 +8526,7 @@ export class GameEngine {
     this.healPlayer(healAmt, true);
   }
 
-  private handleEnemyDefeated(e: EnemyEntity) {
-    this.spawnBurstParticles(e.x, e.y, '#f5f0e6', 16, false);
-
+  private triggerLocalKillPassives(e: EnemyEntity) {
     // Zombie Passives on kill: Carrion Hunger vitality feast + Infectious Touch contagion spread!
     if (this.heroId === 'zombie') {
       this.triggerCarrionHunger(e.x, e.y, 1.0);
@@ -7551,13 +8542,11 @@ export class GameEngine {
         }
       }
     } else if (this.heroId === 'ghoul') {
-      // Ghoul Feral Pounce Reset: If pounced target is defeated, immediately reset Feral Pounce cooldown!
       if (e.pounceMarkTimer > 0) {
         this.cooldowns.feral_pounce = 0;
         this.spawnRingEffect(this.player.x, this.player.y, 65, '#fda4af');
         this.spawnFloatingText(this.player.x, this.player.y - 44, 'POUNCE RESET!', '#fda4af', true);
       }
-      // Ghoul King of the Hunt: Each defeated enemy causes Ghoul to immediately pursue another target!
       if (e.preyMarkTimer > 0 || this.huntStrikesLeft > 0) {
         this.huntStrikesLeft = Math.min(12, this.huntStrikesLeft + 1);
         this.huntChainTimer = Math.min(this.huntChainTimer > 0 ? this.huntChainTimer : 0.08, 0.08);
@@ -7567,9 +8556,13 @@ export class GameEngine {
           }
         }
       }
-      // Slight predator blood-thrill sustain on takedown
       this.healPlayer(Math.max(6, Math.round(this.player.maxHp * 0.045)), false);
     }
+  }
+
+  private handleEnemyDefeated(e: EnemyEntity) {
+    this.spawnBurstParticles(e.x, e.y, '#f5f0e6', 16, false);
+    this.triggerLocalKillPassives(e);
 
     const isBoss = e.kind === EnemyKind.BOSS_WARDEN;
     const orbCount = isBoss ? 10 : e.kind === EnemyKind.BRUTE ? 4 : 2;
@@ -7583,6 +8576,7 @@ export class GameEngine {
   }
 
   private damagePlayer(rawDmg: number) {
+    if (this.isMultiplayer) return;
     if (
       this.runOutcome !== null ||
       this.dashTimer > 0 ||
@@ -7972,6 +8966,7 @@ export class GameEngine {
       if (!pr.active) {
         pr.active = true;
         pr.fromPlayer = cfg.fromPlayer;
+        pr.visualOnly = Boolean(cfg.visualOnly);
         pr.kind = cfg.kind;
         pr.x = cfg.x;
         pr.y = cfg.y;
@@ -7994,12 +8989,20 @@ export class GameEngine {
     }
   }
 
-  private spawnPickup(x: number, y: number, kind: 'xp' | 'heal' | 'shard', value: number) {
+  private spawnPickup(
+    x: number,
+    y: number,
+    kind: 'xp' | 'heal' | 'shard',
+    value: number,
+    id?: number,
+    exactPosition = false
+  ) {
     for (const orb of this.pickups) {
       if (!orb.active) {
         const a = Math.random() * Math.PI * 2;
-        const spd = 60 + Math.random() * 90;
+        const spd = exactPosition ? 18 : 60 + Math.random() * 90;
         orb.active = true;
+        orb.id = id;
         orb.kind = kind;
         orb.x = x;
         orb.y = y;
@@ -8090,6 +9093,21 @@ export class GameEngine {
         }
       }
 
+      const teammates: MinimapTeammateDot[] = [];
+      if (this.isMultiplayer) {
+        for (const rp of this.remotePlayers.values()) {
+          if (rp.disconnected) continue;
+          teammates.push({
+            id: rp.id,
+            name: rp.name,
+            heroId: rp.heroId,
+            x: rp.x,
+            y: rp.y,
+            isDowned: rp.isDowned,
+          });
+        }
+      }
+
       minimap = {
         width: this.map.width,
         height: this.map.height,
@@ -8100,6 +9118,7 @@ export class GameEngine {
         rooms: this.map.rooms,
         enemies: enemyDots,
         markers,
+        teammates,
       };
     }
 
@@ -8117,10 +9136,13 @@ export class GameEngine {
       enemiesRemaining,
       cooldowns: { ...this.cooldowns },
       maxCooldowns,
-      nearInteraction,
+      nearInteraction: this.localIsDowned ? null : nearInteraction,
       bossInfo,
       runOutcome: this.runOutcome,
       minimap,
+      isDowned: this.localIsDowned,
+      reviveProgress: this.localReviveProgress,
+      portalWaiting: this.portalWaitingState,
     });
   }
 }

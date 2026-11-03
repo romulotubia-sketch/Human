@@ -73,6 +73,8 @@ export interface PlayerRenderState {
   swordGlowIntensity: number;
   isScytheForm: boolean;
   dashGhostTrail: Array<{ x: number; y: number; alpha: number }>;
+  isDowned?: boolean;
+  reviveProgress?: number;
 }
 
 export interface RemotePlayerRenderState extends PlayerRenderState {
@@ -80,6 +82,7 @@ export interface RemotePlayerRenderState extends PlayerRenderState {
   name: string;
   isDowned: boolean;
   reviveProgress: number;
+  disconnected?: boolean;
 }
 
 type DepthRenderable =
@@ -186,8 +189,16 @@ export function renderGameWorld(
     }
   }
 
-  if (player.boneStormTimer > 0) {
+  if (player.boneStormTimer > 0 && !player.isDowned) {
     drawBoneStormVortex(ctx, player, time);
+  }
+  if (remotePlayers && remotePlayers.length > 0) {
+    for (let i = 0; i < remotePlayers.length; i++) {
+      const rp = remotePlayers[i];
+      if (rp.boneStormTimer > 0 && !rp.isDowned) {
+        drawBoneStormVortex(ctx, rp, time);
+      }
+    }
   }
 
   // 8. Depth-sorted Solid Props + Characters (reusing scratchDepthList)
@@ -283,13 +294,20 @@ export function renderGameWorld(
   drawScrapDebris(ctx, scrapDebris, time);
 
   // 11. Independent Floating Hero Weapon (Metal Pipe, Bone Sword, Rotting Claws, Feral Claws, or Astral Soul Lantern!)
-  if (player.possessingTimer <= 0) {
+  if (player.possessingTimer <= 0 && !player.isDowned) {
     drawFloatingHeroWeapon(ctx, player, time);
   }
   if (remotePlayers && remotePlayers.length > 0) {
     for (let i = 0; i < remotePlayers.length; i++) {
       const rp = remotePlayers[i];
-      if (!rp.isDowned && rp.x >= cullLeft && rp.x <= cullRight && rp.y >= cullTop && rp.y <= cullBottom) {
+      if (
+        !rp.isDowned &&
+        rp.possessingTimer <= 0 &&
+        rp.x >= cullLeft &&
+        rp.x <= cullRight &&
+        rp.y >= cullTop &&
+        rp.y <= cullBottom
+      ) {
         drawFloatingHeroWeapon(ctx, rp, time);
       }
     }
@@ -3047,6 +3065,25 @@ function drawChibiGhostBody(
 }
 
 function drawHeroAndEffects(ctx: CanvasRenderingContext2D, player: PlayerRenderState, time: number) {
+  if (player.isDowned) {
+    drawRevivalCircle(ctx, player.x, player.y, player.reviveProgress || 0, time);
+    ctx.save();
+    ctx.globalAlpha = 0.52 + Math.sin(time * 5) * 0.14;
+    if (player.heroId === 'human') {
+      drawChibiHumanBody(ctx, player.x, player.y + 6, player.facing, 0, 0.88, false, false, 0, 0, 0, 0, 0);
+    } else if (player.heroId === 'ghost') {
+      drawChibiGhostBody(ctx, player.x, player.y + 6, player.facing, 0, 0.88, false, false, 0, 0, 0, 0, 0);
+    } else if (player.heroId === 'ghoul') {
+      drawChibiGhoulBody(ctx, player.x, player.y + 6, player.facing, 0, 0.88, false, false, 0, 0, 0, 0, 0);
+    } else if (player.heroId === 'zombie') {
+      drawChibiZombieBody(ctx, player.x, player.y + 6, player.facing, 0, 0.88, false, false, 0, 0, 0, 0);
+    } else {
+      drawChibiSkeletonBody(ctx, player.x, player.y + 6, player.facing, 0, 0.88, '#67e8f9', false, '#9a3412', null, 0, 0, 0, 0);
+    }
+    ctx.restore();
+    return;
+  }
+
   const isTransformed = player.colossusTimer > 0;
   const heroScale = isTransformed ? (player.heroId === 'ghoul' ? 1.6 : 1.72) : 1.0;
 
@@ -3438,7 +3475,7 @@ function drawRevivalCircle(
     ctx.lineWidth = 4.5;
     ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.ellipse(0, 0, 52, 24, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress);
+    ctx.ellipse(0, 0, 52, 24, 0, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress);
     ctx.stroke();
 
     // Healing spark particles
@@ -3472,32 +3509,38 @@ function drawPlayerNameBadge(
   heroId: HeroId,
   hp: number,
   maxHp: number,
+  shield: number,
   x: number,
   y: number,
-  isDowned: boolean
+  isDowned: boolean,
+  disconnected = false
 ) {
   ctx.save();
-  ctx.translate(x, y - 42);
+  ctx.translate(x, y - 44);
 
-  // Badge pill
-  const badgeW = 76;
+  // Badge plate
+  const badgeW = 80;
   const badgeH = 16;
-  ctx.fillStyle = isDowned ? 'rgba(69, 10, 10, 0.85)' : 'rgba(15, 23, 42, 0.78)';
+  ctx.fillStyle = isDowned
+    ? 'rgba(69, 10, 10, 0.88)'
+    : disconnected
+      ? 'rgba(30, 41, 59, 0.8)'
+      : 'rgba(15, 23, 42, 0.8)';
   ctx.beginPath();
   ctx.roundRect(-badgeW / 2, -badgeH / 2, badgeW, badgeH, 6);
   ctx.fill();
 
   ctx.strokeStyle = isDowned
-    ? 'rgba(239, 68, 68, 0.6)'
+    ? 'rgba(239, 68, 68, 0.65)'
     : heroId === 'human'
-      ? 'rgba(251, 146, 60, 0.5)'
+      ? 'rgba(251, 146, 60, 0.55)'
       : heroId === 'ghost'
-        ? 'rgba(129, 140, 248, 0.5)'
+        ? 'rgba(129, 140, 248, 0.55)'
         : heroId === 'ghoul'
-          ? 'rgba(251, 113, 133, 0.5)'
+          ? 'rgba(251, 113, 133, 0.55)'
           : heroId === 'zombie'
-            ? 'rgba(163, 230, 53, 0.5)'
-            : 'rgba(103, 232, 249, 0.5)';
+            ? 'rgba(163, 230, 53, 0.55)'
+            : 'rgba(103, 232, 249, 0.55)';
   ctx.lineWidth = 1;
   ctx.stroke();
 
@@ -3505,18 +3548,25 @@ function drawPlayerNameBadge(
   ctx.font = 'bold 9px system-ui, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = isDowned ? '#fca5a5' : '#f8fafc';
-  ctx.fillText(name.slice(0, 10), 0, 0);
+  ctx.fillStyle = isDowned ? '#fca5a5' : disconnected ? '#cbd5e1' : '#f8fafc';
+  const label = disconnected ? `${name.slice(0, 7)}…` : name.slice(0, 11);
+  ctx.fillText(label, 0, 0);
 
-  // Mini health bar under badge if alive
+  // Mini health + shield bar under badge if alive
   if (!isDowned) {
-    const barW = 44;
+    const barW = 48;
     const hpRatio = Math.max(0, Math.min(1, hp / Math.max(1, maxHp)));
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
-    ctx.fillRect(-barW / 2, 10, barW, 3);
+    const shieldRatio = Math.max(0, Math.min(1, shield / Math.max(1, maxHp)));
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(-barW / 2, 10, barW, 3.5);
 
     ctx.fillStyle = hpRatio > 0.35 ? '#22c55e' : '#ef4444';
-    ctx.fillRect(-barW / 2, 10, barW * hpRatio, 3);
+    ctx.fillRect(-barW / 2, 10, barW * hpRatio, 3.5);
+
+    if (shieldRatio > 0) {
+      ctx.fillStyle = 'rgba(253, 224, 71, 0.85)';
+      ctx.fillRect(-barW / 2, 10, barW * shieldRatio, 3.5);
+    }
   }
 
   ctx.restore();
@@ -3528,109 +3578,33 @@ function drawRemotePlayerAndEffects(
   time: number
 ) {
   if (p.isDowned) {
-    drawRevivalCircle(ctx, p.x, p.y, p.reviveProgress, time);
-    ctx.save();
-    ctx.globalAlpha = 0.5 + Math.sin(time * 5) * 0.15;
-    if (p.heroId === 'human') {
-      drawChibiHumanBody(ctx, p.x, p.y + 6, p.facing, 0, 0.88, false, false, 0, 0, 0, 0, 0);
-    } else if (p.heroId === 'ghost') {
-      drawChibiGhostBody(ctx, p.x, p.y + 6, p.facing, 0, 0.88, false, false, 0, 0, time);
-    } else if (p.heroId === 'ghoul') {
-      drawChibiGhoulBody(ctx, p.x, p.y + 6, p.facing, 0, 0.88, false, false, 0, 0, 0, 0, 0);
-    } else if (p.heroId === 'zombie') {
-      drawChibiZombieBody(ctx, p.x, p.y + 6, p.facing, 0, 0.88, false, false, 0, 0, 0, 0);
-    } else {
-      drawChibiSkeletonBody(ctx, p.x, p.y + 6, p.facing, 0, 0.88, '#67e8f9', false, '#9a3412', null, 0, 0, 0, 0);
-    }
-    ctx.restore();
-    drawPlayerNameBadge(ctx, p.name, p.heroId, p.hp, p.maxHp, p.x, p.y, true);
+    drawHeroAndEffects(ctx, p, time);
+    drawPlayerNameBadge(ctx, p.name, p.heroId, p.hp, p.maxHp, p.shield, p.x, p.y, true, p.disconnected);
     return;
   }
 
-  const isTransformed = p.colossusTimer > 0;
-  const heroScale = isTransformed ? (p.heroId === 'ghoul' ? 1.6 : 1.72) : 1.0;
-
-  if (p.heroId === 'human') {
-    drawChibiHumanBody(
-      ctx,
-      p.x,
-      p.y,
-      p.facing,
-      p.walkPhase,
-      heroScale,
-      false,
-      p.lastStandTimer > 0 || p.oneManArmyTimer > 0,
-      0,
-      0,
-      0,
-      0,
-      0
-    );
-  } else if (p.heroId === 'ghost') {
-    drawChibiGhostBody(
-      ctx,
-      p.x,
-      p.y,
-      p.facing,
-      p.walkPhase,
-      heroScale,
-      false,
-      p.nightmareTimer > 0,
-      0,
-      0,
-      time
-    );
-  } else if (p.heroId === 'ghoul') {
-    drawChibiGhoulBody(
-      ctx,
-      p.x,
-      p.y,
-      p.facing,
-      p.walkPhase,
-      heroScale,
-      false,
-      isTransformed,
-      0,
-      p.bloodFrenzyTimer > 0 ? 1 : 0,
-      0,
-      0,
-      0
-    );
-  } else if (p.heroId === 'zombie') {
-    drawChibiZombieBody(
-      ctx,
-      p.x,
-      p.y,
-      p.facing,
-      p.walkPhase,
-      heroScale,
-      false,
-      isTransformed,
-      0,
-      0,
-      0,
-      0
-    );
-  } else {
-    drawChibiSkeletonBody(
-      ctx,
-      p.x,
-      p.y,
-      p.facing,
-      p.walkPhase,
-      heroScale,
-      isTransformed ? '#fde047' : '#67e8f9',
-      isTransformed,
-      '#9a3412',
-      isTransformed ? '#fbbf24' : null,
-      0,
-      0,
-      0,
-      0
-    );
+  ctx.save();
+  if (p.disconnected) {
+    ctx.globalAlpha = 0.55;
   }
+  if (p.possessingTimer <= 0) {
+    drawHeroAndEffects(ctx, p, time);
+  }
+  ctx.restore();
 
-  drawPlayerNameBadge(ctx, p.name, p.heroId, p.hp, p.maxHp, p.x, p.y, false);
+  const badgeOffsetY = p.colossusTimer > 0 ? p.y - 18 : p.y - (p.airborneHeight || 0);
+  drawPlayerNameBadge(
+    ctx,
+    p.name,
+    p.heroId,
+    p.hp,
+    p.maxHp,
+    p.shield,
+    p.x,
+    badgeOffsetY,
+    false,
+    p.disconnected
+  );
 }
 
 function renderSingleSwordRibbonPass(ctx: CanvasRenderingContext2D, pts: SwordTrailPoint[]) {

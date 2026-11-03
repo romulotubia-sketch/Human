@@ -534,6 +534,7 @@ export interface Projectile {
   targetEnemyId?: number;
   returning?: boolean;
   spinAngle?: number;
+  visualOnly?: boolean;
 }
 
 export interface PickupOrb {
@@ -613,6 +614,15 @@ export interface MinimapMarker {
   kind: 'chest' | 'portal_next' | 'portal_guild';
 }
 
+export interface MinimapTeammateDot {
+  id: string;
+  name: string;
+  heroId: HeroId;
+  x: number;
+  y: number;
+  isDowned: boolean;
+}
+
 export interface MinimapSnapshot {
   width: number;
   height: number;
@@ -623,6 +633,7 @@ export interface MinimapSnapshot {
   rooms: DungeonRoom[];
   enemies: MinimapEnemyDot[];
   markers: MinimapMarker[];
+  teammates?: MinimapTeammateDot[];
 }
 
 export interface HudSnapshot {
@@ -643,4 +654,7 @@ export interface HudSnapshot {
   bossInfo: { name: string; hp: number; maxHp: number } | null;
   runOutcome: 'victory' | 'defeat' | null;
   minimap: MinimapSnapshot | null;
+  isDowned?: boolean;
+  reviveProgress?: number;
+  portalWaiting?: { readyCount: number; requiredCount: number } | null;
 }

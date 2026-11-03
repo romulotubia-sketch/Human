@@ -1,4 +1,4 @@
-import { HeroId, NormalSkillId, SkillLoadout, UltimateSkillId, WorldMap } from './game';
+import { ActiveSkillId, EnemyKind, HeroId, SkillLoadout, SwordAnimState, WorldMap } from './game';
 
 export interface LobbyPlayer {
   id: string;
@@ -24,6 +24,7 @@ export interface RemotePlayerSyncState {
   id: string;
   name: string;
   heroId: HeroId;
+  level: number;
   x: number;
   y: number;
   vx: number;
@@ -33,7 +34,7 @@ export interface RemotePlayerSyncState {
   hp: number;
   maxHp: number;
   shield: number;
-  swordAnim: number;
+  swordAnim: SwordAnimState;
   swordX: number;
   swordY: number;
   swordAngle: number;
@@ -43,20 +44,29 @@ export interface RemotePlayerSyncState {
   swordScale: number;
   swordGlowColor: string;
   swordGlowIntensity: number;
+  isScytheForm: boolean;
   colossusTimer: number;
   boneStormTimer: number;
+  ribShieldTimer: number;
   undyingTimer: number;
+  stealthTimer: number;
+  ambushReady: boolean;
   bloodFrenzyTimer: number;
+  phantomMistTimer: number;
+  possessingTimer: number;
   nightmareTimer: number;
+  pipeThrown: boolean;
   lastStandTimer: number;
   oneManArmyTimer: number;
+  airborneHeight: number;
   isDowned: boolean;
-  reviveProgress: number; // 0 to 1
+  reviveProgress: number;
+  connected?: boolean;
 }
 
 export interface SyncEnemyState {
   id: number;
-  kind: string;
+  kind: EnemyKind;
   x: number;
   y: number;
   vx: number;
@@ -64,11 +74,23 @@ export interface SyncEnemyState {
   hp: number;
   maxHp: number;
   facing: number;
-  isAttacking: boolean;
+  walkPhase: number;
   windupTimer: number;
-  telegraphProgress: number;
-  targetPlayerId?: string;
-  isDead?: boolean;
+  windupDuration: number;
+  windupType: 'slash' | 'shoot' | 'slam' | 'nova' | 'dash';
+  windupAngle: number;
+}
+
+export interface SyncEnemyAttackEvent {
+  enemyId: number;
+  kind: EnemyKind;
+  attackType: 'slash' | 'shoot' | 'slam' | 'nova' | 'dash';
+  x: number;
+  y: number;
+  endX?: number;
+  endY?: number;
+  angle: number;
+  damage: number;
 }
 
 export interface SyncLootItem {
@@ -86,13 +108,30 @@ export interface ClientAttackMessage {
   x: number;
   y: number;
   reach: number;
+  isAmbush?: boolean;
+  isTransformed?: boolean;
+  pipeThrown?: boolean;
 }
 
 export interface ClientSkillMessage {
-  skillId: string;
+  skillId: ActiveSkillId;
+  rank: number;
   isManual: boolean;
   angle: number;
   distanceRatio: number;
   x: number;
   y: number;
+  isTransformed?: boolean;
+}
+
+export interface FullGameSyncPayload {
+  roomCode: string;
+  floor: number;
+  status: 'lobby' | 'playing' | 'game_over';
+  roomDetails: RoomDetails;
+  dungeonMap: WorldMap | null;
+  enemies: Array<any>;
+  loot: SyncLootItem[];
+  players: RemotePlayerSyncState[];
+  floorCleared: boolean;
 }

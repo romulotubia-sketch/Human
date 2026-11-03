@@ -63,6 +63,9 @@ function createInitialHud(heroId: HeroId = 'human'): HudSnapshot {
     bossInfo: null,
     runOutcome: null,
     minimap: null,
+    isDowned: false,
+    reviveProgress: 0,
+    portalWaiting: null,
   };
 }
 
@@ -138,15 +141,14 @@ export default function App() {
       onLobbyUpdate: (room) => {
         setRoomDetails(room);
         setIsMultiplayerLoading(false);
-        if (room.status === 'in_game' && phase !== GamePhase.DUNGEON) {
-          // Handled in onGameStart
-        } else if (room.status === 'lobby') {
+        if (room.status === 'lobby') {
           setPhase(GamePhase.MULTIPLAYER_LOBBY);
         }
       },
       onGameStart: ({ floor, map, enemies, players }) => {
         setIsMultiplayer(true);
         setIsMultiplayerLoading(false);
+        setVictoryDismissed(false);
         engineRef.current?.startMultiplayerGame(floor, map, enemies, players);
         setPhase(GamePhase.DUNGEON);
       },
@@ -158,6 +160,18 @@ export default function App() {
       },
       onPlayerSkill: ({ playerId, ...data }) => {
         engineRef.current?.handleRemotePlayerSkill(playerId, data);
+      },
+      onPlayerDamaged: (data) => {
+        engineRef.current?.handleRemotePlayerDamaged(
+          data.playerId,
+          data.hp,
+          data.shield,
+          data.damage,
+          data.isDowned
+        );
+      },
+      onEnemyAttack: (evt) => {
+        engineRef.current?.handleRemoteEnemyAttack(evt);
       },
       onEnemyDamaged: (data) => {
         engineRef.current?.handleRemoteEnemyDamaged(data);
@@ -173,17 +187,65 @@ export default function App() {
           data.value
         );
       },
+      onChestOpened: (data) => {
+        engineRef.current?.handleRemoteChestOpened(
+          data.propId,
+          data.openerId,
+          data.openerName
+        );
+      },
       onPlayerDowned: ({ playerId, name }) => {
         engineRef.current?.handleRemotePlayerDowned(playerId, name);
       },
-      onPlayerRevived: ({ targetId, reviverId }) => {
-        engineRef.current?.handleRemotePlayerRevived(targetId, reviverId);
+      onPlayerRevived: ({ targetId, reviverId, hp }) => {
+        engineRef.current?.handleRemotePlayerRevived(targetId, reviverId, hp);
+      },
+      onPlayerDisconnected: ({ playerId }) => {
+        engineRef.current?.handleRemotePlayerDisconnected(playerId);
+      },
+      onPlayerReconnected: ({ playerId }) => {
+        engineRef.current?.handleRemotePlayerReconnected(playerId);
+      },
+      onPlayerLeft: ({ playerId }) => {
+        engineRef.current?.handleRemotePlayerLeft(playerId);
+      },
+      onFloorCleared: ({ floor }) => {
+        setVictoryDismissed(false);
+        engineRef.current?.handleRemoteFloorCleared(floor);
+      },
+      onPortalWaiting: ({ readyCount, requiredCount }) => {
+        engineRef.current?.handleRemotePortalWaiting(readyCount, requiredCount);
       },
       onNextFloor: ({ floor, map, enemies }) => {
+        setVictoryDismissed(false);
         engineRef.current?.handleRemoteNextFloor(floor, map, enemies);
       },
+      onFullStateSync: (state) => {
+        setIsMultiplayer(true);
+        setIsMultiplayerLoading(false);
+        const localId = multiplayerClient.getLocalPlayerId();
+        if (localId && state.players[localId]) {
+          setHeroId(state.players[localId].heroId);
+        }
+        engineRef.current?.syncFullMultiplayerState(state);
+        setPhase(GamePhase.DUNGEON);
+      },
+      onHostMigrated: ({ newHostId }) => {
+        setRoomDetails((prev) =>
+          prev
+            ? {
+                ...prev,
+                hostId: newHostId,
+                players: prev.players.map((p) => ({
+                  ...p,
+                  isHost: p.id === newHostId,
+                })),
+              }
+            : prev
+        );
+      },
       onGameOver: () => {
-        // Run outcome handled by engine
+        engineRef.current?.handleMultiplayerGameOver();
       },
       onError: (err) => {
         setMultiplayerError(err);
@@ -191,7 +253,11 @@ export default function App() {
         window.setTimeout(() => setMultiplayerError(null), 4000);
       },
     });
-  }, [phase]);
+  }, []);
+
+  useEffect(() => {
+    multiplayerClient.tryAutoReconnectIfSaved();
+  }, []);
 
   const activeLoadout = loadoutsByHero[heroId];
 
@@ -333,19 +399,19 @@ export default function App() {
   const handleCreateRoom = () => {
     setIsMultiplayerLoading(true);
     setMultiplayerError(null);
-    multiplayerClient.createRoom(playerName, heroId);
+    multiplayerClient.createRoom(playerName, heroId, activeLoadout);
   };
 
   const handleJoinRoom = (code: string) => {
     setIsMultiplayerLoading(true);
     setMultiplayerError(null);
-    multiplayerClient.joinRoom(code, playerName, heroId);
+    multiplayerClient.joinRoom(code, playerName, heroId, activeLoadout);
   };
 
   const handleQuickJoin = () => {
     setIsMultiplayerLoading(true);
     setMultiplayerError(null);
-    multiplayerClient.quickJoin(playerName, heroId);
+    multiplayerClient.quickJoin(playerName, heroId, activeLoadout);
   };
 
   const handleStartMultiplayerGame = () => {
@@ -354,6 +420,7 @@ export default function App() {
 
   const handleLeaveMultiplayerRoom = () => {
     multiplayerClient.leaveRoom();
+    engineRef.current?.leaveMultiplayerGame();
     setRoomDetails(null);
     setIsMultiplayer(false);
     setPhase(GamePhase.MULTIPLAYER_MENU);
@@ -552,9 +619,33 @@ export default function App() {
           localLoadout={activeLoadout}
           onSelectHero={(h) => {
             handleSelectHero(h);
-            multiplayerClient.changeHero(h);
+            multiplayerClient.setHero(h, loadoutsByHero[h]);
           }}
-          onToggleReady={() => multiplayerClient.toggleReady()}
+          onSelectNormalSkill={(skId) => {
+            const cur = loadoutsByHero[heroId];
+            if (cur[0] === skId || cur[1] === skId) return;
+            const next: SkillLoadout = [cur[1], skId, cur[2]];
+            setLoadoutsByHero((prev) => ({ ...prev, [heroId]: next }));
+            multiplayerClient.setHero(heroId, next);
+          }}
+          onSwapNormalSlots={() => {
+            const cur = loadoutsByHero[heroId];
+            const next: SkillLoadout = [cur[1], cur[0], cur[2]];
+            setLoadoutsByHero((prev) => ({ ...prev, [heroId]: next }));
+            multiplayerClient.setHero(heroId, next);
+          }}
+          onSelectUltimateSkill={(ultId) => {
+            const cur = loadoutsByHero[heroId];
+            const next: SkillLoadout = [cur[0], cur[1], ultId];
+            setLoadoutsByHero((prev) => ({ ...prev, [heroId]: next }));
+            multiplayerClient.setHero(heroId, next);
+          }}
+          onToggleReady={() => {
+            const me = roomDetails.players.find(
+              (p) => p.id === multiplayerClient.getLocalPlayerId()
+            );
+            multiplayerClient.setReady(!(me?.ready ?? false));
+          }}
           onStartGame={handleStartMultiplayerGame}
           onLeaveRoom={handleLeaveMultiplayerRoom}
           errorMessage={multiplayerError}
@@ -587,9 +678,11 @@ export default function App() {
             <MultiplayerHudOverlay
               teammates={engineRef.current?.getRemotePlayersList() || []}
               connectionStatus={connectionStatus}
-              floorCleared={hud.bossInfo?.hp === 0}
+              localIsDowned={Boolean(hud.isDowned)}
+              localReviveProgress={hud.reviveProgress || 0}
               revivingTargetName={engineRef.current?.getReviveStatus().targetName || null}
               revivingProgress={engineRef.current?.getReviveStatus().progress || 0}
+              portalWaiting={hud.portalWaiting || null}
             />
           )}
 
@@ -782,28 +875,39 @@ export default function App() {
                 Crypt Boss Vanquished!
               </h3>
               <p className="mt-1 text-xs text-stone-300">
-                Earned +2 Skill Points and +60 Bone Shards. Step into a portal or choose below:
+                Earned +2 Skill Points and +60 Bone Shards.{' '}
+                {isMultiplayer
+                  ? 'Gather your squad at the Boss Portal or vote to descend:'
+                  : 'Step into a portal or choose below:'}
               </p>
               <div className="mt-3 flex flex-wrap justify-center gap-2">
                 <button
                   type="button"
                   onClick={() => {
                     setVictoryDismissed(true);
-                    engineRef.current?.enterDungeon(hud.floor + 1);
+                    if (isMultiplayer) {
+                      multiplayerClient.sendEnterPortal();
+                    } else {
+                      engineRef.current?.enterDungeon(hud.floor + 1);
+                    }
                   }}
                   className="min-h-[42px] whitespace-nowrap rounded-xl bg-cyan-400 px-4 py-2 text-xs font-bold text-stone-950"
                 >
-                  Next Crypt Floor
+                  {isMultiplayer ? 'Ready for Next Floor' : 'Next Crypt Floor'}
                 </button>
                 <button
                   type="button"
                   onClick={() => {
                     setVictoryDismissed(true);
-                    engineRef.current?.enterGuildHouse();
+                    if (isMultiplayer) {
+                      handleLeaveMultiplayerRoom();
+                    } else {
+                      engineRef.current?.enterGuildHouse();
+                    }
                   }}
                   className="min-h-[42px] whitespace-nowrap rounded-xl border border-amber-300/60 bg-amber-950/70 px-4 py-2 text-xs font-semibold text-amber-100"
                 >
-                  Return to Guild
+                  {isMultiplayer ? 'Leave Co-Op Run' : 'Return to Guild'}
                 </button>
                 <button
                   type="button"
