@@ -1,9 +1,12 @@
-import { Maximize2, Minimize2, Settings, Sparkles, Users } from 'lucide-react';
+import { Maximize2, Minimize2, Settings, Sparkles, Swords, Users } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { soundEngine } from './audio/soundEngine';
 import { HeroSelectScreen } from './components/HeroSelectScreen';
 import { Minimap } from './components/Minimap';
 import { MobaControls } from './components/MobaControls';
+import { MultiplayerHudOverlay } from './components/MultiplayerHudOverlay';
+import { MultiplayerLobbyScreen } from './components/MultiplayerLobbyScreen';
+import { MultiplayerMenuModal } from './components/MultiplayerMenuModal';
 import { SettingsModal } from './components/SettingsModal';
 import { SkillTreeModal } from './components/SkillTreeModal';
 import {
@@ -13,6 +16,7 @@ import {
   HERO_SKILLS,
 } from './data/heroSkills';
 import { GameEngine } from './game/engine';
+import { ConnectionStatus, multiplayerClient } from './game/multiplayerClient';
 import {
   ActiveSkillId,
   GamePhase,
@@ -24,6 +28,7 @@ import {
   SkillLoadout,
   UltimateSkillId,
 } from './types/game';
+import { RoomDetails } from './types/multiplayer';
 import {
   exitAppFullscreenSync,
   getActiveFullscreenElement,
@@ -95,6 +100,19 @@ export default function App() {
     typeof window !== 'undefined' ? window.innerHeight > window.innerWidth : false
   );
 
+  const [playerName, setPlayerName] = useState<string>(() => {
+    try {
+      return localStorage.getItem('bonehearth_player_name') || 'Brawler';
+    } catch {
+      return 'Brawler';
+    }
+  });
+  const [roomDetails, setRoomDetails] = useState<RoomDetails | null>(null);
+  const [isMultiplayer, setIsMultiplayer] = useState<boolean>(false);
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
+  const [multiplayerError, setMultiplayerError] = useState<string | null>(null);
+  const [isMultiplayerLoading, setIsMultiplayerLoading] = useState<boolean>(false);
+
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const engineRef = useRef<GameEngine | null>(null);
 
@@ -111,6 +129,69 @@ export default function App() {
       }
     );
   }
+
+  useEffect(() => {
+    multiplayerClient.setCallbacks({
+      onConnectionChange: (status) => {
+        setConnectionStatus(status);
+      },
+      onLobbyUpdate: (room) => {
+        setRoomDetails(room);
+        setIsMultiplayerLoading(false);
+        if (room.status === 'in_game' && phase !== GamePhase.DUNGEON) {
+          // Handled in onGameStart
+        } else if (room.status === 'lobby') {
+          setPhase(GamePhase.MULTIPLAYER_LOBBY);
+        }
+      },
+      onGameStart: ({ floor, map, enemies, players }) => {
+        setIsMultiplayer(true);
+        setIsMultiplayerLoading(false);
+        engineRef.current?.startMultiplayerGame(floor, map, enemies, players);
+        setPhase(GamePhase.DUNGEON);
+      },
+      onGameTick: ({ players, enemies }) => {
+        engineRef.current?.updateMultiplayerTick(players, enemies);
+      },
+      onPlayerAttack: ({ playerId, ...data }) => {
+        engineRef.current?.handleRemotePlayerAttack(playerId, data);
+      },
+      onPlayerSkill: ({ playerId, ...data }) => {
+        engineRef.current?.handleRemotePlayerSkill(playerId, data);
+      },
+      onEnemyDamaged: (data) => {
+        engineRef.current?.handleRemoteEnemyDamaged(data);
+      },
+      onEnemyDied: (data) => {
+        engineRef.current?.handleRemoteEnemyDied(data);
+      },
+      onLootCollected: (data) => {
+        engineRef.current?.handleRemoteLootCollected(
+          data.lootId,
+          data.collectorId,
+          data.kind,
+          data.value
+        );
+      },
+      onPlayerDowned: ({ playerId, name }) => {
+        engineRef.current?.handleRemotePlayerDowned(playerId, name);
+      },
+      onPlayerRevived: ({ targetId, reviverId }) => {
+        engineRef.current?.handleRemotePlayerRevived(targetId, reviverId);
+      },
+      onNextFloor: ({ floor, map, enemies }) => {
+        engineRef.current?.handleRemoteNextFloor(floor, map, enemies);
+      },
+      onGameOver: () => {
+        // Run outcome handled by engine
+      },
+      onError: (err) => {
+        setMultiplayerError(err);
+        setIsMultiplayerLoading(false);
+        window.setTimeout(() => setMultiplayerError(null), 4000);
+      },
+    });
+  }, [phase]);
 
   const activeLoadout = loadoutsByHero[heroId];
 
@@ -229,6 +310,7 @@ export default function App() {
   }, [phase, showSkillTree, showSettings, settings.landscapeLock]);
 
   const handleEnterGameFromTitle = () => {
+    setIsMultiplayer(false);
     requestAppFullscreenSync().then((ok) => {
       if (!ok && !getActiveFullscreenElement()) {
         setFullscreenBlockedNote(true);
@@ -237,6 +319,44 @@ export default function App() {
     soundEngine.unlock();
     soundEngine.playSkill('shield');
     setPhase(GamePhase.HERO_SELECT);
+  };
+
+  const handlePlayerNameChange = (name: string) => {
+    setPlayerName(name);
+    try {
+      localStorage.setItem('bonehearth_player_name', name);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleCreateRoom = () => {
+    setIsMultiplayerLoading(true);
+    setMultiplayerError(null);
+    multiplayerClient.createRoom(playerName, heroId);
+  };
+
+  const handleJoinRoom = (code: string) => {
+    setIsMultiplayerLoading(true);
+    setMultiplayerError(null);
+    multiplayerClient.joinRoom(code, playerName, heroId);
+  };
+
+  const handleQuickJoin = () => {
+    setIsMultiplayerLoading(true);
+    setMultiplayerError(null);
+    multiplayerClient.quickJoin(playerName, heroId);
+  };
+
+  const handleStartMultiplayerGame = () => {
+    multiplayerClient.startGame();
+  };
+
+  const handleLeaveMultiplayerRoom = () => {
+    multiplayerClient.leaveRoom();
+    setRoomDetails(null);
+    setIsMultiplayer(false);
+    setPhase(GamePhase.MULTIPLAYER_MENU);
   };
 
   const handleSelectHero = (nextHero: HeroId) => {
@@ -364,10 +484,24 @@ export default function App() {
               <button
                 type="button"
                 onClick={handleEnterGameFromTitle}
-                className="min-h-[46px] whitespace-nowrap rounded-xl bg-amber-400 px-8 py-2.5 text-base font-bold text-stone-950 shadow-xl transition-transform duration-150 hover:bg-amber-300 active:scale-95"
+                className="min-h-[46px] whitespace-nowrap rounded-xl bg-amber-400 px-7 py-2.5 text-base font-bold text-stone-950 shadow-xl transition-transform duration-150 hover:bg-amber-300 active:scale-95"
               >
-                Enter Game
+                Enter Game (Solo)
               </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  soundEngine.unlock();
+                  soundEngine.playUiTap();
+                  setPhase(GamePhase.MULTIPLAYER_MENU);
+                }}
+                className="flex min-h-[46px] items-center gap-2 whitespace-nowrap rounded-xl border border-amber-400/80 bg-amber-500/20 px-6 py-2.5 text-base font-bold text-amber-200 shadow-xl backdrop-blur-md transition-transform duration-150 hover:bg-amber-500/30 active:scale-95"
+              >
+                <Swords className="h-5 w-5 text-amber-300" />
+                <span>Co-Op Multiplayer</span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => {
@@ -384,12 +518,47 @@ export default function App() {
             <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-xs text-stone-400">
               <span>Human · Skeleton · Zombie · Ghoul · Ghost</span>
               <span aria-hidden="true">·</span>
-              <span>Randomized Crypts &amp; Minimap</span>
+              <span>Online 2-4 Players Co-Op</span>
               <span aria-hidden="true">·</span>
-              <span>Auto-Tap or Drag Aim</span>
+              <span>Procedural Crypts &amp; Realtime Sync</span>
             </div>
           </div>
         </div>
+      )}
+
+      {/* === PHASE 1.5: MULTIPLAYER MENU (CREATE / JOIN / BROWSE) === */}
+      {phase === GamePhase.MULTIPLAYER_MENU && (
+        <MultiplayerMenuModal
+          playerName={playerName}
+          heroId={heroId}
+          loadout={activeLoadout}
+          onPlayerNameChange={handlePlayerNameChange}
+          onCreateRoom={handleCreateRoom}
+          onJoinRoom={handleJoinRoom}
+          onQuickJoin={handleQuickJoin}
+          onBack={() => setPhase(GamePhase.TITLE)}
+          errorMessage={multiplayerError}
+          isLoading={isMultiplayerLoading}
+        />
+      )}
+
+      {/* === PHASE 1.6: MULTIPLAYER LOBBY SCREEN === */}
+      {phase === GamePhase.MULTIPLAYER_LOBBY && roomDetails && (
+        <MultiplayerLobbyScreen
+          roomDetails={roomDetails}
+          localPlayerId={multiplayerClient.getLocalPlayerId()}
+          isHost={roomDetails.hostId === multiplayerClient.getLocalPlayerId()}
+          localHeroId={heroId}
+          localLoadout={activeLoadout}
+          onSelectHero={(h) => {
+            handleSelectHero(h);
+            multiplayerClient.changeHero(h);
+          }}
+          onToggleReady={() => multiplayerClient.toggleReady()}
+          onStartGame={handleStartMultiplayerGame}
+          onLeaveRoom={handleLeaveMultiplayerRoom}
+          errorMessage={multiplayerError}
+        />
       )}
 
       {/* === PHASE 2: COMPACT SINGLE-SCREEN HERO & SKILL SELECTION === */}
@@ -412,6 +581,17 @@ export default function App() {
       {(phase === GamePhase.GUILD_HOUSE || phase === GamePhase.DUNGEON) && (
         <>
           <canvas ref={canvasRef} className="block h-full w-full" />
+
+          {/* Multiplayer Teammates HUD Overlay */}
+          {isMultiplayer && (
+            <MultiplayerHudOverlay
+              teammates={engineRef.current?.getRemotePlayersList() || []}
+              connectionStatus={connectionStatus}
+              floorCleared={hud.bossInfo?.hp === 0}
+              revivingTargetName={engineRef.current?.getReviveStatus().targetName || null}
+              revivingProgress={engineRef.current?.getReviveStatus().progress || 0}
+            />
+          )}
 
           {/* Top Mobile HUD */}
           <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-3 px-3 pt-2.5 sm:px-5 sm:pt-3">
@@ -649,17 +829,29 @@ export default function App() {
                 <div className="mt-4 flex w-full flex-col gap-2.5 sm:flex-row">
                   <button
                     type="button"
-                    onClick={() => engineRef.current?.enterGuildHouse()}
+                    onClick={() => {
+                      if (isMultiplayer) {
+                        handleLeaveMultiplayerRoom();
+                      } else {
+                        engineRef.current?.enterGuildHouse();
+                      }
+                    }}
                     className="min-h-[44px] flex-1 whitespace-nowrap rounded-xl bg-amber-400 px-4 py-2 text-sm font-bold text-stone-950"
                   >
-                    Return to Guild House
+                    {isMultiplayer ? 'Leave to Lobby' : 'Return to Guild House'}
                   </button>
                   <button
                     type="button"
-                    onClick={() => engineRef.current?.enterDungeon(1)}
+                    onClick={() => {
+                      if (isMultiplayer) {
+                        handleLeaveMultiplayerRoom();
+                      } else {
+                        engineRef.current?.enterDungeon(1);
+                      }
+                    }}
                     className="min-h-[44px] flex-1 whitespace-nowrap rounded-xl border border-stone-600 bg-stone-900 px-4 py-2 text-sm font-semibold text-stone-200"
                   >
-                    Play Again
+                    {isMultiplayer ? 'Back to Menu' : 'Play Again'}
                   </button>
                 </div>
               </div>
@@ -719,7 +911,13 @@ export default function App() {
           isDungeon={phase === GamePhase.DUNGEON}
           onUpdateSettings={(patch) => setSettings((prev) => ({ ...prev, ...patch }))}
           onToggleFullscreen={handleToggleFullscreen}
-          onReturnToGuild={() => engineRef.current?.enterGuildHouse()}
+          onReturnToGuild={() => {
+            if (isMultiplayer) {
+              handleLeaveMultiplayerRoom();
+            } else {
+              engineRef.current?.enterGuildHouse();
+            }
+          }}
           onClose={() => setShowSettings(false)}
         />
       )}

@@ -34,7 +34,9 @@ import {
   WorldMap,
 } from '../types/game';
 import { allocEntityId, buildGuildHouse, buildProceduralDungeon } from './dungeonGenerator';
-import { PlayerRenderState, renderGameWorld } from './renderer';
+import { PlayerRenderState, RemotePlayerRenderState, renderGameWorld } from './renderer';
+import { multiplayerClient } from './multiplayerClient';
+import { RemotePlayerSyncState, SyncEnemyState, SyncLootItem } from '../types/multiplayer';
 
 const MAX_PARTICLES = 300;
 const MAX_TRAIL_PTS = 96;
@@ -57,6 +59,11 @@ export class GameEngine {
   private map: WorldMap;
   private enemies: EnemyEntity[] = [];
   private minions: AlliedMinion[] = [];
+  public isMultiplayer = false;
+  private remotePlayers: Map<string, RemotePlayerRenderState> = new Map();
+  private lastMultiplayerReviveSend = 0;
+  private currentRevivingPlayerName: string | null = null;
+  private currentReviveProgress = 0;
 
   // Object pools for zero-GC 60fps smoothness
   private particles: Particle[] = [];
@@ -781,6 +788,371 @@ export class GameEngine {
     this.emitHudSnapshot();
   }
 
+  public startMultiplayerGame(
+    floor: number,
+    dungeonMap: WorldMap,
+    enemies: EnemyEntity[],
+    players: Array<{ id: string; name: string; heroId: HeroId; isHost: boolean }>
+  ) {
+    this.isMultiplayer = true;
+    this.floor = floor;
+    this.map = dungeonMap;
+    this.enemies = enemies.map((e) => ({ ...e }));
+    this.remotePlayers.clear();
+    this.resetObjectPools();
+
+    const localId = multiplayerClient.getLocalPlayerId();
+    for (const p of players) {
+      if (p.id !== localId) {
+        this.remotePlayers.set(p.id, {
+          id: p.id,
+          name: p.name,
+          heroId: p.heroId,
+          x: dungeonMap.spawnX,
+          y: dungeonMap.spawnY,
+          vx: 0,
+          vy: 0,
+          facing: 0,
+          walkPhase: 0,
+          hp: 120,
+          maxHp: 120,
+          shield: 0,
+          hitFlash: 0,
+          colossusTimer: 0,
+          boneStormTimer: 0,
+          ribShieldTimer: 0,
+          undyingTimer: 0,
+          stealthTimer: 0,
+          ambushReady: false,
+          bloodFrenzyTimer: 0,
+          frenzyStacks: 0,
+          momentumStacks: 0,
+          phantomMistTimer: 0,
+          possessingTimer: 0,
+          nightmareTimer: 0,
+          restlessStacks: 0,
+          etherealShimmerTimer: 0,
+          pipeThrown: false,
+          kneeStrikeTimer: 0,
+          lastStandTimer: 0,
+          oneManArmyTimer: 0,
+          instinctSurrounded: false,
+          airborneHeight: 0,
+          attackLunge: 0,
+          attackTwist: 0,
+          attackSquash: 0,
+          swordX: dungeonMap.spawnX + 20,
+          swordY: dungeonMap.spawnY - 10,
+          swordAngle: 0,
+          offhandX: dungeonMap.spawnX - 20,
+          offhandY: dungeonMap.spawnY - 10,
+          offhandAngle: 0,
+          swordScale: 1,
+          swordAnim: SwordAnimState.IDLE,
+          swordGlowColor: '#fb923c',
+          swordGlowIntensity: 0.5,
+          isScytheForm: false,
+          dashGhostTrail: [],
+          isDowned: false,
+          reviveProgress: 0,
+        });
+      }
+    }
+
+    this.recalcStats(true);
+    this.player.shield = 0;
+    this.resetPlayerPosition(dungeonMap.spawnX, dungeonMap.spawnY);
+    soundEngine.playSkill('rush');
+    this.onPhaseChange(false);
+    this.emitHudSnapshot();
+  }
+
+  public updateMultiplayerTick(
+    players: Record<string, RemotePlayerSyncState>,
+    enemies: SyncEnemyState[]
+  ) {
+    if (!this.isMultiplayer) return;
+
+    const localId = multiplayerClient.getLocalPlayerId();
+
+    for (const [id, state] of Object.entries(players)) {
+      if (id === localId) {
+        if (typeof state.hp === 'number' && state.hp < this.player.hp) {
+          this.player.hp = state.hp;
+          this.player.shield = state.shield;
+        }
+        continue;
+      }
+
+      let rp = this.remotePlayers.get(id);
+      if (!rp) {
+        rp = {
+          id: state.id,
+          name: state.name || 'Hero',
+          heroId: state.heroId || 'human',
+          x: state.x,
+          y: state.y,
+          vx: state.vx,
+          vy: state.vy,
+          facing: state.facing,
+          walkPhase: state.walkPhase,
+          hp: state.hp,
+          maxHp: state.maxHp,
+          shield: state.shield,
+          hitFlash: 0,
+          colossusTimer: state.colossusTimer,
+          boneStormTimer: state.boneStormTimer,
+          ribShieldTimer: 0,
+          undyingTimer: state.undyingTimer,
+          stealthTimer: 0,
+          ambushReady: false,
+          bloodFrenzyTimer: state.bloodFrenzyTimer,
+          frenzyStacks: 0,
+          momentumStacks: 0,
+          phantomMistTimer: 0,
+          possessingTimer: 0,
+          nightmareTimer: state.nightmareTimer,
+          restlessStacks: 0,
+          etherealShimmerTimer: 0,
+          pipeThrown: false,
+          kneeStrikeTimer: 0,
+          lastStandTimer: state.lastStandTimer,
+          oneManArmyTimer: state.oneManArmyTimer,
+          instinctSurrounded: false,
+          airborneHeight: 0,
+          attackLunge: 0,
+          attackTwist: 0,
+          attackSquash: 0,
+          swordX: state.swordX,
+          swordY: state.swordY,
+          swordAngle: state.swordAngle,
+          offhandX: state.offhandX,
+          offhandY: state.offhandY,
+          offhandAngle: state.offhandAngle,
+          swordScale: state.swordScale,
+          swordAnim: (state.swordAnim as any) || SwordAnimState.IDLE,
+          swordGlowColor: state.swordGlowColor || '#fb923c',
+          swordGlowIntensity: state.swordGlowIntensity || 0.5,
+          isScytheForm: false,
+          dashGhostTrail: [],
+          isDowned: Boolean(state.isDowned),
+          reviveProgress: state.reviveProgress || 0,
+        };
+        this.remotePlayers.set(id, rp);
+      } else {
+        rp.x += (state.x - rp.x) * 0.45;
+        rp.y += (state.y - rp.y) * 0.45;
+        rp.vx = state.vx;
+        rp.vy = state.vy;
+        rp.facing = state.facing;
+        rp.walkPhase = state.walkPhase;
+        rp.hp = state.hp;
+        rp.maxHp = state.maxHp;
+        rp.shield = state.shield;
+        rp.isDowned = Boolean(state.isDowned);
+        rp.reviveProgress = state.reviveProgress || 0;
+        rp.swordAnim = (state.swordAnim as any) || rp.swordAnim;
+        rp.swordX += (state.swordX - rp.swordX) * 0.55;
+        rp.swordY += (state.swordY - rp.swordY) * 0.55;
+        rp.swordAngle = state.swordAngle;
+        rp.colossusTimer = state.colossusTimer;
+        rp.boneStormTimer = state.boneStormTimer;
+        rp.bloodFrenzyTimer = state.bloodFrenzyTimer;
+        rp.lastStandTimer = state.lastStandTimer;
+        rp.oneManArmyTimer = state.oneManArmyTimer;
+      }
+    }
+
+    // Sync authoritative enemies
+    for (const se of enemies) {
+      const e = this.enemies.find((item) => item.id === se.id);
+      if (e) {
+        e.x += (se.x - e.x) * 0.45;
+        e.y += (se.y - e.y) * 0.45;
+        e.vx = se.vx;
+        e.vy = se.vy;
+        e.hp = se.hp;
+        e.maxHp = se.maxHp;
+        e.facing = se.facing;
+        e.windupTimer = se.windupTimer;
+      }
+    }
+  }
+
+  public handleRemotePlayerAttack(playerId: string, data: any) {
+    const rp = this.remotePlayers.get(playerId);
+    if (!rp) return;
+
+    rp.swordAnim =
+      data.comboStep === 1
+        ? SwordAnimState.BASIC_1
+        : data.comboStep === 2
+          ? SwordAnimState.BASIC_2
+          : SwordAnimState.BASIC_3;
+
+    if (rp.heroId === 'human') {
+      soundEngine.playPipeSwing(1.1);
+      this.spawnPipeStrike(
+        data.comboStep === 3 ? 'basic_batter' : 'basic_jab',
+        data.x,
+        data.y - 8,
+        data.facing,
+        data.reach || 100,
+        data.comboStep === 2 ? -1 : 1,
+        0.28,
+        data.comboStep === 3 ? '#f97316' : '#fb923c',
+        '#ffffff'
+      );
+    } else if (rp.heroId === 'ghoul') {
+      soundEngine.playSlash(1.2);
+      this.spawnSlashWave(
+        data.comboStep === 3 ? 'twin_rend' : 'feral_slash',
+        data.x,
+        data.y - 8,
+        data.facing,
+        data.reach || 100,
+        Math.PI * 0.9,
+        data.comboStep === 2 ? -1 : 1,
+        0.26,
+        '#fff1f2',
+        '#f43f5e'
+      );
+    } else if (rp.heroId === 'zombie') {
+      soundEngine.playSlash(0.95);
+      this.spawnSlashWave(
+        data.comboStep === 3 ? 'cross_claw' : 'triple_claw',
+        data.x,
+        data.y - 8,
+        data.facing,
+        data.reach || 100,
+        Math.PI * 0.9,
+        data.comboStep === 2 ? -1 : 1,
+        0.26,
+        '#ecfccb',
+        '#a3e635'
+      );
+    } else {
+      soundEngine.playSlash(1.05);
+      this.spawnSlashWave(
+        'blade_arc',
+        data.x,
+        data.y - 8,
+        data.facing,
+        data.reach || 100,
+        Math.PI * 0.95,
+        data.comboStep === 2 ? -1 : 1,
+        0.26,
+        '#f8fafc',
+        '#67e8f9'
+      );
+    }
+  }
+
+  public handleRemotePlayerSkill(playerId: string, data: any) {
+    const rp = this.remotePlayers.get(playerId);
+    if (!rp) return;
+
+    soundEngine.playSkill(data.skillId as any);
+
+    this.spawnSoftMotes(data.x, data.y, data.angle, 80, '#fde047', 6);
+    this.spawnSlashWave(
+      'blade_arc',
+      data.x,
+      data.y,
+      data.angle,
+      120,
+      Math.PI * 1.1,
+      1,
+      0.32,
+      '#ffffff',
+      '#fb923c'
+    );
+  }
+
+  public handleRemoteEnemyDamaged(
+    enemyId: number,
+    hp: number,
+    damage: number,
+    isCrit: boolean,
+    sparkColor: string
+  ) {
+    const enemy = this.enemies.find((e) => e.id === enemyId);
+    if (enemy) {
+      enemy.hp = hp;
+      enemy.hitFlash = 0.12;
+      this.spawnFloatingText(enemy.x, enemy.y - 20, `${Math.round(damage)}`, sparkColor || '#ffffff', isCrit);
+      this.spawnBurstParticles(enemy.x, enemy.y, sparkColor || '#ffffff', isCrit ? 8 : 4);
+    }
+  }
+
+  public handleRemoteEnemyDied(enemyId: number, killerId: string, loot: SyncLootItem[]) {
+    const idx = this.enemies.findIndex((e) => e.id === enemyId);
+    if (idx !== -1) {
+      const e = this.enemies[idx];
+      e.hp = 0;
+      soundEngine.playEnemyDeath();
+      this.spawnBurstParticles(e.x, e.y, '#f87171', 12, true);
+    }
+
+    if (loot) {
+      for (const item of loot) {
+        this.spawnPickupOrb(
+          item.x,
+          item.y,
+          item.kind === 'heal' ? 'meat' : item.kind === 'shard' ? 'shard' : 'xp',
+          item.value
+        );
+      }
+    }
+  }
+
+  public handleRemoteLootCollected(lootId: number, collectorId: string, kind: string, value: number) {
+    soundEngine.playPickup(kind === 'heal' ? 'meat' : kind === 'shard' ? 'shard' : 'xp');
+  }
+
+  public handleRemotePlayerDowned(playerId: string, name: string) {
+    const rp = this.remotePlayers.get(playerId);
+    if (rp) {
+      rp.isDowned = true;
+      rp.hp = 0;
+      this.spawnFloatingText(rp.x, rp.y - 35, `${name} DOWNED!`, '#ef4444', true);
+      this.spawnBurstParticles(rp.x, rp.y, '#f43f5e', 14, true);
+    }
+  }
+
+  public handleRemotePlayerRevived(targetId: string, reviverId: string) {
+    const rp = this.remotePlayers.get(targetId);
+    if (rp) {
+      rp.isDowned = false;
+      rp.hp = Math.round(rp.maxHp * 0.45);
+      rp.reviveProgress = 0;
+      soundEngine.playSkill('shield');
+      this.spawnFloatingText(rp.x, rp.y - 35, `${rp.name} REVIVED!`, '#22c55e', true);
+      this.spawnBurstParticles(rp.x, rp.y, '#4ade80', 16, true);
+    }
+  }
+
+  public handleRemoteNextFloor(floor: number, dungeonMap: WorldMap, enemies: EnemyEntity[]) {
+    this.floor = floor;
+    this.map = dungeonMap;
+    this.enemies = enemies.map((e) => ({ ...e }));
+    this.resetPlayerPosition(dungeonMap.spawnX, dungeonMap.spawnY);
+    this.spawnFloatingText(this.player.x, this.player.y - 45, `FLOOR ${floor}`, '#fbbf24', true);
+    soundEngine.playSkill('rush');
+    this.emitHudSnapshot();
+  }
+
+  public getRemotePlayersList(): RemotePlayerRenderState[] {
+    return Array.from(this.remotePlayers.values());
+  }
+
+  public getReviveStatus(): { targetName: string | null; progress: number } {
+    return {
+      targetName: this.currentRevivingPlayerName,
+      progress: this.currentReviveProgress,
+    };
+  }
+
   public setJoystick(nx: number, ny: number) {
     this.joyX = nx;
     this.joyY = ny;
@@ -865,6 +1237,10 @@ export class GameEngine {
     this.player.swordGlowColor = def.glowColor;
     this.player.swordGlowIntensity = 1.25;
     this.player.isScytheForm = skillId === 'reapers_judgment';
+
+    if (this.isMultiplayer) {
+      multiplayerClient.sendSkill(skillId, isManual, targetAngle, distanceRatio, this.player.x, this.player.y);
+    }
 
     // =========================================================================
     // SKELETON ACTIVE & ULTIMATE SKILLS
@@ -2765,6 +3141,16 @@ export class GameEngine {
       return;
     }
 
+    if (this.isMultiplayer) {
+      multiplayerClient.sendAttack(
+        (this.comboStep % 3) + 1,
+        this.player.facing,
+        this.player.x,
+        this.player.y,
+        this.heroId === 'ghost' ? 350 : 105
+      );
+    }
+
     // =========================================================================
     // HUMAN – PIPE BRAWLER BASIC ATTACK (100% UNIQUE KINETIC PIPE & BOOT COMBO)
     // =========================================================================
@@ -3181,9 +3567,69 @@ export class GameEngine {
         );
         this.spawnSoftMotes(this.player.x, this.player.y, this.player.facing, reach * 0.76, '#fda4af', 6);
       }
+    } else if (this.heroId === 'skeleton') {
+      const wavePri = '#f8fafc';
+      const waveSec = isTransformed ? '#fbbf24' : '#67e8f9';
+      if (this.comboStep === 1 || this.comboStep === 2) {
+        this.spawnSlashWave(
+          'blade_arc',
+          this.player.x,
+          this.player.y - 8,
+          this.player.facing,
+          reach * (isTransformed ? 0.92 : 0.86),
+          isTransformed ? Math.PI * 1.02 : Math.PI * 0.88,
+          this.comboStep === 1 ? 1 : -1,
+          syncedDur * 1.05,
+          wavePri,
+          waveSec
+        );
+      } else {
+        this.spawnSlashWave(
+          'blade_arc',
+          this.player.x,
+          this.player.y - 8,
+          this.player.facing,
+          reach * (isTransformed ? 1.06 : 0.96),
+          isTransformed ? Math.PI * 1.3 : Math.PI * 1.15,
+          1,
+          syncedDur * 1.1,
+          '#ffffff',
+          isTransformed ? '#f59e0b' : '#38bdf8'
+        );
+        this.spawnSoftMotes(this.player.x, this.player.y, this.player.facing, reach * 0.72, waveSec, 5);
+      }
+    } else if (isZombie) {
+      const clawSec = isTransformed ? '#c084fc' : '#a3e635';
+      const clawPri = '#ecfccb';
+      if (this.comboStep === 1 || this.comboStep === 2) {
+        this.spawnSlashWave(
+          'triple_claw',
+          this.player.x,
+          this.player.y - 8,
+          this.player.facing,
+          reach * (isTransformed ? 0.9 : 0.84),
+          Math.PI * 0.86,
+          this.comboStep === 1 ? 1 : -1,
+          syncedDur * 1.05,
+          clawPri,
+          clawSec
+        );
+      } else {
+        this.spawnSlashWave(
+          'cross_claw',
+          this.player.x,
+          this.player.y - 8,
+          this.player.facing,
+          reach * 0.94,
+          Math.PI * 1.06,
+          1,
+          syncedDur * 1.1,
+          '#f7fee7',
+          isTransformed ? '#e879f9' : '#84cc16'
+        );
+        this.spawnSoftMotes(this.player.x, this.player.y, this.player.facing, reach * 0.74, clawSec, 5);
+      }
     }
-    // Note: Zombie & Skeleton basic attacks intentionally omit crescent SlashWaveEffects
-    // while keeping their floating weapon swing choreography, ribbon trails, and hit particles!
 
     const mult = isGhoul
       ? this.comboStep === 4
@@ -3249,10 +3695,18 @@ export class GameEngine {
         return true;
       }
       if (prop.kind === 'portal_next') {
+        if (this.isMultiplayer) {
+          multiplayerClient.sendEnterPortal();
+          return true;
+        }
         this.enterDungeon(this.map.floor + 1);
         return true;
       }
       if (prop.kind === 'portal_guild') {
+        if (this.isMultiplayer) {
+          multiplayerClient.sendEnterPortal();
+          return true;
+        }
         this.enterGuildHouse();
         return true;
       }
@@ -3284,6 +3738,75 @@ export class GameEngine {
       const nearest = this.findNearestEnemy(Math.max(def.range + 95, 360));
       if (nearest) {
         this.aimState.angle = Math.atan2(nearest.y - this.player.y, nearest.x - this.player.x);
+      }
+    }
+
+    if (this.isMultiplayer) {
+      multiplayerClient.sendPlayerState({
+        x: this.player.x,
+        y: this.player.y,
+        vx: this.joyX * this.moveSpeed,
+        vy: this.joyY * this.moveSpeed,
+        facing: this.player.facing,
+        walkPhase: this.player.walkPhase,
+        hp: this.player.hp,
+        maxHp: this.player.maxHp,
+        shield: this.player.shield,
+        swordAnim: this.player.swordAnim,
+        swordX: this.player.swordX,
+        swordY: this.player.swordY,
+        swordAngle: this.player.swordAngle,
+        offhandX: this.player.offhandX,
+        offhandY: this.player.offhandY,
+        offhandAngle: this.player.offhandAngle,
+        swordScale: this.player.swordScale,
+        swordGlowColor: this.player.swordGlowColor,
+        swordGlowIntensity: this.player.swordGlowIntensity,
+        colossusTimer: this.player.colossusTimer,
+        boneStormTimer: this.player.boneStormTimer,
+        bloodFrenzyTimer: this.player.bloodFrenzyTimer,
+        nightmareTimer: this.player.nightmareTimer,
+        lastStandTimer: this.player.lastStandTimer,
+        oneManArmyTimer: this.player.oneManArmyTimer,
+        isDowned: this.player.hp <= 0,
+      });
+
+      let nearDowned = false;
+      for (const rp of this.remotePlayers.values()) {
+        if (rp.isDowned) {
+          const dist = Math.hypot(rp.x - this.player.x, rp.y - this.player.y);
+          if (dist <= 75) {
+            nearDowned = true;
+            this.currentRevivingPlayerName = rp.name;
+            this.currentReviveProgress = rp.reviveProgress;
+            if (this.elapsedTime - this.lastMultiplayerReviveSend >= 0.25) {
+              this.lastMultiplayerReviveSend = this.elapsedTime;
+              multiplayerClient.sendStartRevive(rp.id);
+            }
+            if (Math.random() < 0.3) {
+              this.spawnParticle({
+                x: rp.x + (Math.random() - 0.5) * 28,
+                y: rp.y + (Math.random() - 0.5) * 28,
+                vx: (Math.random() - 0.5) * 20,
+                vy: -35 - Math.random() * 25,
+                size: 3.5,
+                endSize: 0,
+                maxAge: 0.5,
+                color: '#22c55e',
+                glow: true,
+                shape: 'spark',
+                rotation: 0,
+                vRot: 0,
+              });
+            }
+            break;
+          }
+        }
+      }
+      if (!nearDowned && this.currentRevivingPlayerName !== null) {
+        this.currentRevivingPlayerName = null;
+        this.currentReviveProgress = 0;
+        multiplayerClient.sendCancelRevive();
       }
     }
 
@@ -3321,7 +3844,8 @@ export class GameEngine {
       this.swordTrail,
       this.particles,
       this.floatingTexts,
-      this.aimState
+      this.aimState,
+      this.getRemotePlayersList()
     );
 
     this.hudEmitAccum += clampedDt;
@@ -5657,10 +6181,9 @@ export class GameEngine {
         isSkillTrail = true;
       }
 
-      // Human uses 100% unique blunt PipeStrikeEffects instead of magical sword ribbon trails!
+      // Human emits a smooth metallic amber kinetic trail during weapon swings!
       if (this.heroId === 'human') {
-        isEmittingTrail = false;
-        emitOffhandTrail = false;
+        this.player.swordGlowColor = this.comboStep === 3 ? '#f97316' : '#fb923c';
       }
 
       // High-responsiveness 60fps spring blend eliminates ALL 1-frame snapping between swings & idle!
@@ -5756,9 +6279,17 @@ export class GameEngine {
       this.trailSampleAccum += dt;
       if (this.trailSampleAccum >= 0.012) {
         this.trailSampleAccum = 0;
-        const tipLen = (this.player.isScytheForm ? 50 : isZombie || isGhoul ? 31 : 40) * this.player.swordScale;
+        const tipLen =
+          (this.player.isScytheForm
+            ? 50
+            : isZombie || isGhoul
+              ? 31
+              : this.heroId === 'human'
+                ? 44
+                : 40) * this.player.swordScale;
         const baseLen = 7 * this.player.swordScale;
-        const coreColor = isGhoul ? '#fff1f2' : isZombie ? '#ecfccb' : '#ffffff';
+        const coreColor =
+          isGhoul ? '#fff1f2' : isZombie ? '#ecfccb' : this.heroId === 'human' ? '#fef3c7' : '#ffffff';
 
         if (isEmittingTrail) {
           const cos = Math.cos(this.player.swordAngle);
@@ -6685,6 +7216,9 @@ export class GameEngine {
       if (d < 22) {
         orb.active = false;
         soundEngine.playPickup();
+        if (this.isMultiplayer) {
+          multiplayerClient.sendLootPickup(orb.id || 0);
+        }
         if (orb.kind === 'xp') {
           this.gainXp(orb.value);
         } else if (orb.kind === 'heal') {
@@ -6880,6 +7414,9 @@ export class GameEngine {
 
   private damageEnemyFromPoisonTick(e: EnemyEntity, dmg: number) {
     e.hp = Math.max(0, e.hp - dmg);
+    if (this.isMultiplayer) {
+      multiplayerClient.sendEnemyDamage(e.id, dmg, false, '#a3e635');
+    }
     this.spawnFloatingText(
       e.x + (Math.random() - 0.5) * 14,
       e.y - e.radius - 10,
@@ -6929,6 +7466,10 @@ export class GameEngine {
     e.hp = Math.max(0, e.hp - finalDmg);
     e.hitFlash = 0.11;
     soundEngine.playHit(isCrit);
+
+    if (this.isMultiplayer) {
+      multiplayerClient.sendEnemyDamage(e.id, finalDmg, isCrit, sparkColor);
+    }
 
     if (this.heroId === 'zombie') {
       this.applyZombieInfection(e);

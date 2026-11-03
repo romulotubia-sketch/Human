@@ -75,9 +75,17 @@ export interface PlayerRenderState {
   dashGhostTrail: Array<{ x: number; y: number; alpha: number }>;
 }
 
+export interface RemotePlayerRenderState extends PlayerRenderState {
+  id: string;
+  name: string;
+  isDowned: boolean;
+  reviveProgress: number;
+}
+
 type DepthRenderable =
   | { sortY: number; type: 'prop'; prop: WorldProp }
   | { sortY: number; type: 'player' }
+  | { sortY: number; type: 'remote_player'; player: RemotePlayerRenderState }
   | { sortY: number; type: 'enemy'; enemy: EnemyEntity }
   | { sortY: number; type: 'minion'; minion: AlliedMinion };
 
@@ -112,7 +120,8 @@ export function renderGameWorld(
   swordTrail: SwordTrailPoint[],
   particles: Particle[],
   floatingTexts: FloatingText[],
-  aimState: AimState
+  aimState: AimState,
+  remotePlayers: RemotePlayerRenderState[] = []
 ) {
   ctx.fillStyle = map.isGuild ? '#140f0c' : '#0b0e13';
   ctx.fillRect(0, 0, viewW, viewH);
@@ -187,6 +196,14 @@ export function renderGameWorld(
     scratchDepthList.push({ sortY: player.y, type: 'player' });
   }
 
+  if (remotePlayers && remotePlayers.length > 0) {
+    for (let i = 0; i < remotePlayers.length; i++) {
+      const rp = remotePlayers[i];
+      if (rp.x < cullLeft || rp.x > cullRight || rp.y < cullTop || rp.y > cullBottom) continue;
+      scratchDepthList.push({ sortY: rp.y, type: 'remote_player', player: rp });
+    }
+  }
+
   for (let i = 0; i < map.props.length; i++) {
     const prop = map.props[i];
     if (prop.solid) {
@@ -245,6 +262,8 @@ export function renderGameWorld(
       drawProp(ctx, item.prop, time);
     } else if (item.type === 'player') {
       drawHeroAndEffects(ctx, player, time);
+    } else if (item.type === 'remote_player') {
+      drawRemotePlayerAndEffects(ctx, item.player, time);
     } else if (item.type === 'enemy') {
       drawEnemy(ctx, item.enemy, time, player.heroId === 'ghoul');
     } else if (item.type === 'minion') {
@@ -266,6 +285,14 @@ export function renderGameWorld(
   // 11. Independent Floating Hero Weapon (Metal Pipe, Bone Sword, Rotting Claws, Feral Claws, or Astral Soul Lantern!)
   if (player.possessingTimer <= 0) {
     drawFloatingHeroWeapon(ctx, player, time);
+  }
+  if (remotePlayers && remotePlayers.length > 0) {
+    for (let i = 0; i < remotePlayers.length; i++) {
+      const rp = remotePlayers[i];
+      if (!rp.isDowned && rp.x >= cullLeft && rp.x <= cullRight && rp.y >= cullTop && rp.y <= cullBottom) {
+        drawFloatingHeroWeapon(ctx, rp, time);
+      }
+    }
   }
 
   // 12. Projectiles
@@ -3376,6 +3403,236 @@ function drawHeroAndEffects(ctx: CanvasRenderingContext2D, player: PlayerRenderS
   }
 }
 
+function drawRevivalCircle(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  progress: number,
+  time: number
+) {
+  ctx.save();
+  ctx.translate(x, y + 8);
+
+  // Outer glowing pulse ring
+  const pulse = Math.sin(time * 6) * 3;
+  ctx.strokeStyle = 'rgba(251, 146, 60, 0.45)';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 52 + pulse, 24 + pulse * 0.5, 0, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Gentle rotating dashed spirit runes
+  ctx.save();
+  ctx.rotate(time * 0.6);
+  ctx.strokeStyle = 'rgba(253, 186, 116, 0.35)';
+  ctx.lineWidth = 1.6;
+  ctx.setLineDash([8, 8]);
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 44, 20, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+
+  // Revive channel progress arc
+  if (progress > 0) {
+    ctx.strokeStyle = '#4ade80';
+    ctx.lineWidth = 4.5;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 52, 24, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress);
+    ctx.stroke();
+
+    // Healing spark particles
+    for (let s = 0; s < 3; s++) {
+      const sa = time * 8 + (s * Math.PI * 2) / 3;
+      const srX = Math.cos(sa) * 38;
+      const srY = Math.sin(sa) * 18 - 8;
+      ctx.fillStyle = '#86efac';
+      ctx.beginPath();
+      ctx.arc(srX, srY, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // Floating status indicator
+  ctx.font = 'bold 10px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = progress > 0 ? '#4ade80' : '#fb923c';
+  ctx.fillText(
+    progress > 0 ? `REVIVING ${Math.round(progress * 100)}%` : 'DOWNED · HOLD NEAR',
+    0,
+    -34
+  );
+
+  ctx.restore();
+}
+
+function drawPlayerNameBadge(
+  ctx: CanvasRenderingContext2D,
+  name: string,
+  heroId: HeroId,
+  hp: number,
+  maxHp: number,
+  x: number,
+  y: number,
+  isDowned: boolean
+) {
+  ctx.save();
+  ctx.translate(x, y - 42);
+
+  // Badge pill
+  const badgeW = 76;
+  const badgeH = 16;
+  ctx.fillStyle = isDowned ? 'rgba(69, 10, 10, 0.85)' : 'rgba(15, 23, 42, 0.78)';
+  ctx.beginPath();
+  ctx.roundRect(-badgeW / 2, -badgeH / 2, badgeW, badgeH, 6);
+  ctx.fill();
+
+  ctx.strokeStyle = isDowned
+    ? 'rgba(239, 68, 68, 0.6)'
+    : heroId === 'human'
+      ? 'rgba(251, 146, 60, 0.5)'
+      : heroId === 'ghost'
+        ? 'rgba(129, 140, 248, 0.5)'
+        : heroId === 'ghoul'
+          ? 'rgba(251, 113, 133, 0.5)'
+          : heroId === 'zombie'
+            ? 'rgba(163, 230, 53, 0.5)'
+            : 'rgba(103, 232, 249, 0.5)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Name text
+  ctx.font = 'bold 9px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = isDowned ? '#fca5a5' : '#f8fafc';
+  ctx.fillText(name.slice(0, 10), 0, 0);
+
+  // Mini health bar under badge if alive
+  if (!isDowned) {
+    const barW = 44;
+    const hpRatio = Math.max(0, Math.min(1, hp / Math.max(1, maxHp)));
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+    ctx.fillRect(-barW / 2, 10, barW, 3);
+
+    ctx.fillStyle = hpRatio > 0.35 ? '#22c55e' : '#ef4444';
+    ctx.fillRect(-barW / 2, 10, barW * hpRatio, 3);
+  }
+
+  ctx.restore();
+}
+
+function drawRemotePlayerAndEffects(
+  ctx: CanvasRenderingContext2D,
+  p: RemotePlayerRenderState,
+  time: number
+) {
+  if (p.isDowned) {
+    drawRevivalCircle(ctx, p.x, p.y, p.reviveProgress, time);
+    ctx.save();
+    ctx.globalAlpha = 0.5 + Math.sin(time * 5) * 0.15;
+    if (p.heroId === 'human') {
+      drawChibiHumanBody(ctx, p.x, p.y + 6, p.facing, 0, 0.88, false, false, 0, 0, 0, 0, 0);
+    } else if (p.heroId === 'ghost') {
+      drawChibiGhostBody(ctx, p.x, p.y + 6, p.facing, 0, 0.88, false, false, 0, 0, time);
+    } else if (p.heroId === 'ghoul') {
+      drawChibiGhoulBody(ctx, p.x, p.y + 6, p.facing, 0, 0.88, false, false, 0, 0, 0, 0, 0);
+    } else if (p.heroId === 'zombie') {
+      drawChibiZombieBody(ctx, p.x, p.y + 6, p.facing, 0, 0.88, false, false, 0, 0, 0, 0);
+    } else {
+      drawChibiSkeletonBody(ctx, p.x, p.y + 6, p.facing, 0, 0.88, '#67e8f9', false, '#9a3412', null, 0, 0, 0, 0);
+    }
+    ctx.restore();
+    drawPlayerNameBadge(ctx, p.name, p.heroId, p.hp, p.maxHp, p.x, p.y, true);
+    return;
+  }
+
+  const isTransformed = p.colossusTimer > 0;
+  const heroScale = isTransformed ? (p.heroId === 'ghoul' ? 1.6 : 1.72) : 1.0;
+
+  if (p.heroId === 'human') {
+    drawChibiHumanBody(
+      ctx,
+      p.x,
+      p.y,
+      p.facing,
+      p.walkPhase,
+      heroScale,
+      false,
+      p.lastStandTimer > 0 || p.oneManArmyTimer > 0,
+      0,
+      0,
+      0,
+      0,
+      0
+    );
+  } else if (p.heroId === 'ghost') {
+    drawChibiGhostBody(
+      ctx,
+      p.x,
+      p.y,
+      p.facing,
+      p.walkPhase,
+      heroScale,
+      false,
+      p.nightmareTimer > 0,
+      0,
+      0,
+      time
+    );
+  } else if (p.heroId === 'ghoul') {
+    drawChibiGhoulBody(
+      ctx,
+      p.x,
+      p.y,
+      p.facing,
+      p.walkPhase,
+      heroScale,
+      false,
+      isTransformed,
+      0,
+      p.bloodFrenzyTimer > 0 ? 1 : 0,
+      0,
+      0,
+      0
+    );
+  } else if (p.heroId === 'zombie') {
+    drawChibiZombieBody(
+      ctx,
+      p.x,
+      p.y,
+      p.facing,
+      p.walkPhase,
+      heroScale,
+      false,
+      isTransformed,
+      0,
+      0,
+      0,
+      0
+    );
+  } else {
+    drawChibiSkeletonBody(
+      ctx,
+      p.x,
+      p.y,
+      p.facing,
+      p.walkPhase,
+      heroScale,
+      isTransformed ? '#fde047' : '#67e8f9',
+      isTransformed,
+      '#9a3412',
+      isTransformed ? '#fbbf24' : null,
+      0,
+      0,
+      0,
+      0
+    );
+  }
+
+  drawPlayerNameBadge(ctx, p.name, p.heroId, p.hp, p.maxHp, p.x, p.y, false);
+}
+
 function renderSingleSwordRibbonPass(ctx: CanvasRenderingContext2D, pts: SwordTrailPoint[]) {
   if (pts.length < 2) return;
   pts.sort((a, b) => b.age - a.age);
@@ -3986,76 +4243,203 @@ function drawPipeStrikeEffects(ctx: CanvasRenderingContext2D, strikes: PipeStrik
     ctx.lineCap = 'round';
 
     if (s.kind === 'basic_jab') {
-      // Unique Human Basic Hit 1 & 2: Crisp linear steel pipe kinetic motion-streaks + percussive clang burst (NO CRESCENTS!)
-      const reach = s.radius * (0.55 + 0.45 * easeOut);
+      // Human Basic Hit 1 & 2: Ultra-smooth, high-velocity curved steel pipe swing slash arc!
+      // Perfectly aligned with the swinging weapon trajectory (forehand side=1, backhand side=-1)
+      const reach = s.radius * (0.82 + 0.22 * easeOut);
       const side = s.direction;
+      const arcSpan = 2.15; // ~123° wide sweeping arc matching pipe swing span
+      const headAngle = (-0.5 + 1.0 * easeOut) * arcSpan * side;
+      const tailAngle = headAngle - 0.78 * arcSpan * side;
+      const a0 = Math.min(headAngle, tailAngle);
+      const a1 = Math.max(headAngle, tailAngle);
 
-      // Blunt kinetic motion-blur wedge (straight geometric polygon, zero curvature)
-      ctx.globalAlpha = fade * 0.34;
-      ctx.fillStyle = s.secondaryColor;
+      // 1. Soft glowing amber-orange kinetic sweep trail
+      drawSilkyCrescentArc(
+        ctx,
+        reach * 1.02,
+        a0 - 0.04,
+        a1 + 0.04,
+        18 * (0.55 + 0.45 * fade),
+        s.primaryColor,
+        '#ea580c',
+        fade * 0.45
+      );
+
+      // 2. High-speed white/chrome pipe swing cutting crescent
+      drawSilkyCrescentArc(
+        ctx,
+        reach,
+        a0,
+        a1,
+        13 * (0.6 + 0.4 * fade),
+        '#ffffff',
+        s.primaryColor,
+        fade * 0.95
+      );
+
+      // 3. Concentric curved steel speed arcs following the pipe's rotational path
+      const arcWidth = 2.4 * fade;
+      ctx.lineWidth = arcWidth;
+      ctx.strokeStyle = '#ffffff';
+      ctx.globalAlpha = fade * 0.88;
       ctx.beginPath();
-      ctx.moveTo(14, -side * 18);
-      ctx.lineTo(reach, -side * 4);
-      ctx.lineTo(reach + 8, side * 7);
-      ctx.lineTo(18, side * 12);
-      ctx.closePath();
-      ctx.fill();
+      ctx.arc(0, 0, reach * 0.94, a0 + 0.05, a1 - 0.05);
+      ctx.stroke();
 
-      // 3 crisp straight steel speed-streaks showing high-velocity blunt pipe snap
-      for (let k = -1; k <= 1; k++) {
-        ctx.strokeStyle = k === 0 ? '#ffffff' : k === 1 ? s.primaryColor : s.secondaryColor;
-        ctx.lineWidth = (k === 0 ? 3.4 : 2.1) * fade;
-        ctx.globalAlpha = fade * 0.92;
+      ctx.lineWidth = 1.6 * fade;
+      ctx.strokeStyle = s.secondaryColor;
+      ctx.globalAlpha = fade * 0.72;
+      ctx.beginPath();
+      ctx.arc(0, 0, reach * 1.04, a0 + 0.1, a1 - 0.02);
+      ctx.stroke();
+
+      // 4. Centrifugal tangential friction sparks along the sweeping arc
+      const sparkCount = 4;
+      for (let k = 0; k < sparkCount; k++) {
+        const sparkT = k / (sparkCount - 1);
+        const sparkAng = a0 + sparkT * (a1 - a0);
+        const sr = reach * (0.95 + 0.08 * Math.sin(k * 2.1));
+        const sx = Math.cos(sparkAng) * sr;
+        const sy = Math.sin(sparkAng) * sr;
+        const tangA = sparkAng + (Math.PI * 0.5) * side + 0.22 * Math.sin(k * 3.4);
+        const sLen = (7 + 6 * (1 - sparkT)) * fade;
+        ctx.strokeStyle = k === 0 ? '#ffffff' : s.primaryColor;
+        ctx.lineWidth = (k === 0 ? 2.2 : 1.5) * fade;
+        ctx.globalAlpha = fade * (0.6 + 0.4 * (1 - sparkT));
         ctx.beginPath();
-        ctx.moveTo(18 + Math.abs(k) * 6, k * 8 - side * 6 * (1 - easeOut));
-        ctx.lineTo(reach + (k === 0 ? 10 : 0), k * 5 + side * 4 * easeOut);
+        ctx.moveTo(sx, sy);
+        ctx.lineTo(sx + Math.cos(tangA) * sLen, sy + Math.sin(tangA) * sLen);
         ctx.stroke();
       }
 
-      // 6-spike metallic pipe-clang star at the strike point!
-      const cx = reach * 0.92;
-      const cy = side * 3;
-      const starR = (16 + 8 * easeOut) * fade;
-      ctx.fillStyle = s.primaryColor;
+      // 5. Brilliant metallic impact glint at the sweeping pipe head
+      const hx = Math.cos(headAngle) * reach;
+      const hy = Math.sin(headAngle) * reach;
+      const starR = (13 + 7 * easeOut) * fade;
+      ctx.fillStyle = '#ffffff';
       ctx.globalAlpha = fade * 0.95;
       ctx.beginPath();
-      for (let v = 0; v < 12; v++) {
-        const va = (v * Math.PI) / 6 + p * 0.5;
-        const vr = v % 2 === 0 ? starR : starR * 0.24;
-        const vx = cx + Math.cos(va) * vr;
-        const vy = cy + Math.sin(va) * vr;
+      for (let v = 0; v < 8; v++) {
+        const va = (v * Math.PI) / 4 + headAngle;
+        const vr = v % 2 === 0 ? starR : starR * 0.28;
+        const vx = hx + Math.cos(va) * vr;
+        const vy = hy + Math.sin(va) * vr;
         if (v === 0) ctx.moveTo(vx, vy);
         else ctx.lineTo(vx, vy);
       }
       ctx.closePath();
       ctx.fill();
-    } else if (s.kind === 'basic_batter') {
-      // Unique Human Basic Hit 3: Heavy Batter Smash — trapezoidal blunt air-compression cone + twin shock-chevrons!
-      const reach = s.radius * (0.45 + 0.58 * easeOut);
-      ctx.globalAlpha = fade * 0.36;
+
+      // Small high-energy flash disc at pipe head
       ctx.fillStyle = s.primaryColor;
+      ctx.globalAlpha = fade * 0.82;
       ctx.beginPath();
-      ctx.moveTo(16, -12);
-      ctx.lineTo(reach, -34 * (0.6 + 0.4 * easeOut));
-      ctx.lineTo(reach + 14, 0);
-      ctx.lineTo(reach, 34 * (0.6 + 0.4 * easeOut));
-      ctx.lineTo(16, 12);
+      ctx.arc(hx, hy, starR * 0.45, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (s.kind === 'basic_batter') {
+      // Human Basic Hit 3: Massive Roundhouse Cleave!
+      // A crushing, wide-angle 230° heavy industrial crescent sweep with outer shockwave ripples
+      const reach = s.radius * (0.82 + 0.26 * easeOut);
+      const arcSpan = Math.PI * 1.32; // ~237° heavy cleave
+      const headAngle = (-0.5 + 1.0 * easeOut) * arcSpan;
+      const tailAngle = headAngle - 0.92 * arcSpan;
+      const a0 = Math.min(headAngle, tailAngle);
+      const a1 = Math.max(headAngle, tailAngle);
+
+      // 1. Heavy fiery outer blast crescent
+      drawSilkyCrescentArc(
+        ctx,
+        reach * 1.06,
+        a0 - 0.06,
+        a1 + 0.06,
+        24 * (0.6 + 0.4 * fade),
+        s.primaryColor,
+        '#ea580c',
+        fade * 0.55
+      );
+
+      // 2. Main crushing chrome-orange heavy crescent
+      drawSilkyCrescentArc(
+        ctx,
+        reach,
+        a0,
+        a1,
+        18 * (0.65 + 0.35 * fade),
+        '#fff7ed',
+        s.primaryColor,
+        fade * 0.96
+      );
+
+      // 3. Inner high-heat white cutting arc
+      drawSilkyCrescentArc(
+        ctx,
+        reach * 0.88,
+        a0 + 0.08,
+        a1 - 0.08,
+        9 * fade,
+        '#ffffff',
+        '#fdba74',
+        fade * 0.8
+      );
+
+      // 4. Double concentric shockwave ripples curving along the circumference
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 3.2 * fade;
+      ctx.globalAlpha = fade * 0.9;
+      ctx.beginPath();
+      ctx.arc(0, 0, reach * 0.96, a0 + 0.04, a1 - 0.04);
+      ctx.stroke();
+
+      ctx.strokeStyle = s.primaryColor;
+      ctx.lineWidth = 2.0 * fade;
+      ctx.globalAlpha = fade * 0.75;
+      ctx.beginPath();
+      ctx.arc(0, 0, reach * 1.1, a0 + 0.12, a1);
+      ctx.stroke();
+
+      // 5. Heavy centrifugal sparks along the wide roundhouse perimeter
+      const sparkCount = 6;
+      for (let k = 0; k < sparkCount; k++) {
+        const st = k / (sparkCount - 1);
+        const sa = a0 + st * (a1 - a0);
+        const sr = reach * (0.94 + 0.12 * Math.sin(k * 1.9));
+        const sx = Math.cos(sa) * sr;
+        const sy = Math.sin(sa) * sr;
+        const tangA = sa + Math.PI * 0.5 + 0.3 * Math.sin(k * 2.8);
+        const sLen = (9 + 8 * (1 - st)) * fade;
+        ctx.strokeStyle = k % 2 === 0 ? '#ffffff' : s.primaryColor;
+        ctx.lineWidth = (k % 2 === 0 ? 2.6 : 1.8) * fade;
+        ctx.globalAlpha = fade * 0.85;
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.lineTo(sx + Math.cos(tangA) * sLen, sy + Math.sin(tangA) * sLen);
+        ctx.stroke();
+      }
+
+      // 6. Crushing 8-point heavy metallic clang star at focal point
+      const fx = Math.cos(headAngle * 0.7) * reach;
+      const fy = Math.sin(headAngle * 0.7) * reach;
+      const burstR = (18 + 12 * easeOut) * fade;
+      ctx.fillStyle = '#ffffff';
+      ctx.globalAlpha = fade * 0.95;
+      ctx.beginPath();
+      for (let v = 0; v < 16; v++) {
+        const va = (v * Math.PI) / 8 + headAngle;
+        const vr = v % 2 === 0 ? burstR : burstR * 0.24;
+        const vx = fx + Math.cos(va) * vr;
+        const vy = fy + Math.sin(va) * vr;
+        if (v === 0) ctx.moveTo(vx, vy);
+        else ctx.lineTo(vx, vy);
+      }
       ctx.closePath();
       ctx.fill();
 
-      // Forward blunt sonic-compression V-chevrons (straight sharp lines, zero arcs)
-      for (let w = 0; w < 2; w++) {
-        const wx = reach * (0.58 + w * 0.28);
-        const wy = 20 + w * 10;
-        ctx.strokeStyle = w === 0 ? s.primaryColor : '#ffffff';
-        ctx.lineWidth = (w === 0 ? 3.2 : 4.2) * fade;
-        ctx.globalAlpha = fade * 0.94;
-        ctx.beginPath();
-        ctx.moveTo(wx - 12, -wy);
-        ctx.lineTo(wx + 12, 0);
-        ctx.lineTo(wx - 12, wy);
-        ctx.stroke();
-      }
+      // Inner flash disc
+      ctx.fillStyle = '#f97316';
+      ctx.globalAlpha = fade * 0.85;
+      ctx.beginPath();
+      ctx.arc(fx, fy, burstR * 0.42, 0, Math.PI * 2);
+      ctx.fill();
     } else if (s.kind === 'pipe_swing_cone') {
       // Normal 1 (Pipe Swing): Wide horizontal knockback pressure fan + flying wind-chevrons!
       const reach = s.radius * (0.42 + 0.62 * easeOut);

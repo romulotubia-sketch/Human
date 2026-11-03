@@ -458,10 +458,25 @@ export function SkillIcon({ skillId, className = 'w-7 h-7' }: SkillIconProps) {
     case 'basic_pipe':
       return (
         <svg viewBox="0 0 36 36" fill="none" className={className} aria-hidden="true">
-          <path d="M8 28L26 10" stroke="#cbd5e1" strokeWidth="4.2" strokeLinecap="round" />
-          <path d="M8 28L13.5 22.5" stroke="#fb923c" strokeWidth="4.4" strokeLinecap="round" />
-          <path d="M23 7L29 13" stroke="#f8fafc" strokeWidth="3.8" strokeLinecap="round" />
-          <path d="M27 6L29 4M30 10L32 9M23 5L23 3" stroke="#fdba74" strokeWidth="1.9" strokeLinecap="round" />
+          {/* Sweeping dynamic crescent motion arc */}
+          <path
+            d="M7 23C10 13 18 8 28 9"
+            stroke="#fb923c"
+            strokeWidth="3.2"
+            strokeLinecap="round"
+            strokeOpacity="0.8"
+          />
+          <path
+            d="M10 26C13 17 20 12 29 13"
+            stroke="#ffedd5"
+            strokeWidth="2.0"
+            strokeLinecap="round"
+            strokeOpacity="0.9"
+          />
+          <path d="M9 27L25 11" stroke="#cbd5e1" strokeWidth="4.0" strokeLinecap="round" />
+          <path d="M9 27L14 22" stroke="#ea580c" strokeWidth="4.2" strokeLinecap="round" />
+          <path d="M22 8L28 14" stroke="#f8fafc" strokeWidth="3.6" strokeLinecap="round" />
+          <path d="M27 6L29 4M30 10L32 9M24 5L24 3" stroke="#fdba74" strokeWidth="1.9" strokeLinecap="round" />
         </svg>
       );
 

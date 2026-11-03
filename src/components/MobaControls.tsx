@@ -628,18 +628,18 @@ export function MobaControls({
             setAtkPressed(true);
             onBasicAttackHeld(true);
           }}
-          className={`pointer-events-auto absolute bottom-2 right-2 flex h-[86px] w-[86px] items-center justify-center rounded-full border-[3px] border-amber-200/90 bg-gradient-to-br from-stone-800 via-stone-900 to-stone-950 shadow-xl transition-transform duration-100 ${
+          className={`pointer-events-auto absolute bottom-2 right-2 flex h-[86px] w-[86px] items-center justify-center rounded-full border-[3px] shadow-xl will-change-transform transition-all duration-75 ${
             atkPressed
               ? isHuman
-                ? 'scale-92 border-orange-400'
+                ? 'scale-[0.92] border-orange-400 bg-orange-950/60 shadow-[0_0_24px_rgba(249,115,22,0.65)]'
                 : isGhost
-                  ? 'scale-92 border-indigo-400'
+                  ? 'scale-[0.92] border-indigo-400 bg-indigo-950/60 shadow-[0_0_24px_rgba(129,140,248,0.65)]'
                   : isGhoul
-                    ? 'scale-92 border-rose-400'
+                    ? 'scale-[0.92] border-rose-400 bg-rose-950/60 shadow-[0_0_24px_rgba(251,113,133,0.65)]'
                     : isZombie
-                      ? 'scale-92 border-lime-300'
-                      : 'scale-92 border-cyan-300'
-              : 'scale-100'
+                      ? 'scale-[0.92] border-lime-300 bg-lime-950/60 shadow-[0_0_24px_rgba(163,230,53,0.65)]'
+                      : 'scale-[0.92] border-cyan-300 bg-cyan-950/60 shadow-[0_0_24px_rgba(103,232,249,0.65)]'
+              : 'scale-100 border-amber-200/90 bg-gradient-to-br from-stone-800 via-stone-900 to-stone-950 shadow-lg hover:border-amber-300'
           }`}
         >
           <div className="flex h-[70px] w-[70px] items-center justify-center rounded-full border border-stone-600/70 bg-stone-900/80">

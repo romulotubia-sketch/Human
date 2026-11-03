@@ -3,6 +3,8 @@ export type HeroId = 'human' | 'skeleton' | 'zombie' | 'ghoul' | 'ghost';
 export enum GamePhase {
   TITLE = 'TITLE',
   HERO_SELECT = 'HERO_SELECT',
+  MULTIPLAYER_MENU = 'MULTIPLAYER_MENU',
+  MULTIPLAYER_LOBBY = 'MULTIPLAYER_LOBBY',
   GUILD_HOUSE = 'GUILD_HOUSE',
   DUNGEON = 'DUNGEON',
 }
@@ -535,6 +537,7 @@ export interface Projectile {
 }
 
 export interface PickupOrb {
+  id?: number;
   active: boolean;
   kind: 'xp' | 'heal' | 'shard';
   x: number;
