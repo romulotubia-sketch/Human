@@ -1,0 +1,6 @@
+{
+  "name": "Bonehearth: Cozy Crypts",
+  "description": "A cozy 2D top-down roguelike dungeon crawler featuring cute armless chibi heroes with floating weapons, procedural crypts, skill trees, and mobile MOBA touch controls.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

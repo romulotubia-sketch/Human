@@ -1,0 +1,728 @@
+import { Maximize2, Minimize2, Settings, Sparkles, Users } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { soundEngine } from './audio/soundEngine';
+import { HeroSelectScreen } from './components/HeroSelectScreen';
+import { Minimap } from './components/Minimap';
+import { MobaControls } from './components/MobaControls';
+import { SettingsModal } from './components/SettingsModal';
+import { SkillTreeModal } from './components/SkillTreeModal';
+import {
+  ALL_ACTIVE_SKILL_IDS,
+  createInitialSkillRanks,
+  HERO_PROFILES,
+  HERO_SKILLS,
+} from './data/heroSkills';
+import { GameEngine } from './game/engine';
+import {
+  ActiveSkillId,
+  GamePhase,
+  GameSettings,
+  HeroId,
+  HudSnapshot,
+  NormalSkillId,
+  SkillId,
+  SkillLoadout,
+  UltimateSkillId,
+} from './types/game';
+import {
+  exitAppFullscreenSync,
+  getActiveFullscreenElement,
+  requestAppFullscreenSync,
+} from './utils/fullscreen';
+
+const INITIAL_RANKS = createInitialSkillRanks();
+
+function createInitialHud(heroId: HeroId = 'human'): HudSnapshot {
+  const cooldowns = {} as Record<ActiveSkillId, number>;
+  const maxCooldowns = {} as Record<ActiveSkillId, number>;
+  for (const id of ALL_ACTIVE_SKILL_IDS) {
+    cooldowns[id] = 0;
+    maxCooldowns[id] = HERO_SKILLS[id].cooldown;
+  }
+  const baseHp = HERO_PROFILES[heroId].baseHp;
+  return {
+    heroId,
+    hp: baseHp,
+    maxHp: baseHp,
+    shield: 0,
+    level: 1,
+    xp: 0,
+    xpToNext: 100,
+    boneShards: 0,
+    skillPoints: 4,
+    floor: 0,
+    enemiesRemaining: 0,
+    cooldowns,
+    maxCooldowns,
+    nearInteraction: null,
+    bossInfo: null,
+    runOutcome: null,
+    minimap: null,
+  };
+}
+
+export default function App() {
+  const [phase, setPhase] = useState<GamePhase>(GamePhase.TITLE);
+  const [heroId, setHeroId] = useState<HeroId>('human');
+  const [settings, setSettings] = useState<GameSettings>({
+    skillButtonScale: 1.0,
+    joystickScale: 1.0,
+    landscapeLock: true,
+    sfxVolume: 0.65,
+  });
+
+  const [loadoutsByHero, setLoadoutsByHero] = useState<Record<HeroId, SkillLoadout>>({
+    human: [...HERO_PROFILES.human.defaultLoadout],
+    skeleton: [...HERO_PROFILES.skeleton.defaultLoadout],
+    zombie: [...HERO_PROFILES.zombie.defaultLoadout],
+    ghoul: [...HERO_PROFILES.ghoul.defaultLoadout],
+    ghost: [...HERO_PROFILES.ghost.defaultLoadout],
+  });
+
+  const [skillRanks, setSkillRanks] = useState<Record<SkillId, number>>(INITIAL_RANKS);
+  const [hud, setHud] = useState<HudSnapshot>(() => createInitialHud('human'));
+
+  const [showSkillTree, setShowSkillTree] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [victoryDismissed, setVictoryDismissed] = useState(false);
+
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(() =>
+    Boolean(getActiveFullscreenElement())
+  );
+  const [fullscreenBlockedNote, setFullscreenBlockedNote] = useState(false);
+  const [fullscreenToast, setFullscreenToast] = useState<string | null>(null);
+  const [isWindowPortrait, setIsWindowPortrait] = useState<boolean>(() =>
+    typeof window !== 'undefined' ? window.innerHeight > window.innerWidth : false
+  );
+
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const engineRef = useRef<GameEngine | null>(null);
+
+  if (!engineRef.current) {
+    engineRef.current = new GameEngine(
+      'human',
+      INITIAL_RANKS,
+      (snapshot) => {
+        setHud(snapshot);
+      },
+      (isGuild) => {
+        setVictoryDismissed(false);
+        setPhase(isGuild ? GamePhase.GUILD_HOUSE : GamePhase.DUNGEON);
+      }
+    );
+  }
+
+  const activeLoadout = loadoutsByHero[heroId];
+
+  useEffect(() => {
+    const syncFs = () => {
+      const active = Boolean(getActiveFullscreenElement());
+      setIsFullscreen(active);
+      if (active) {
+        setFullscreenBlockedNote(false);
+        setFullscreenToast(null);
+      }
+    };
+    document.addEventListener('fullscreenchange', syncFs);
+    document.addEventListener('webkitfullscreenchange', syncFs);
+    return () => {
+      document.removeEventListener('fullscreenchange', syncFs);
+      document.removeEventListener('webkitfullscreenchange', syncFs);
+    };
+  }, []);
+
+  useEffect(() => {
+    const onResize = () => {
+      setIsWindowPortrait(window.innerHeight > window.innerWidth);
+    };
+    onResize();
+    window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', onResize);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('orientationchange', onResize);
+    };
+  }, []);
+
+  const isForcedCssLandscape = settings.landscapeLock && isWindowPortrait;
+
+  const handleToggleFullscreen = useCallback(() => {
+    soundEngine.unlock();
+    soundEngine.playUiTap();
+    if (getActiveFullscreenElement()) {
+      exitAppFullscreenSync();
+    } else {
+      requestAppFullscreenSync().then((ok) => {
+        if (!ok && !getActiveFullscreenElement()) {
+          setFullscreenBlockedNote(true);
+          setFullscreenToast(
+            'Viewport maximized. Open app in a standalone browser tab if preview restricts OS fullscreen.'
+          );
+          window.setTimeout(() => setFullscreenToast(null), 4200);
+        }
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (phase !== GamePhase.GUILD_HOUSE && phase !== GamePhase.DUNGEON) return;
+    const canvas = canvasRef.current;
+    const engine = engineRef.current;
+    if (!canvas || !engine) return;
+
+    const ctx = canvas.getContext('2d', { alpha: false });
+    if (!ctx) return;
+
+    let animId = 0;
+    let lastTime = performance.now();
+
+    const getGameViewportSize = () => {
+      const rawW = window.innerWidth;
+      const rawH = window.innerHeight;
+      if (settings.landscapeLock && rawH > rawW) {
+        return { w: rawH, h: rawW };
+      }
+      return { w: rawW, h: rawH };
+    };
+
+    const syncCanvasSize = () => {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const { w, h } = getGameViewportSize();
+      if (canvas.width !== Math.floor(w * dpr) || canvas.height !== Math.floor(h * dpr)) {
+        canvas.width = Math.floor(w * dpr);
+        canvas.height = Math.floor(h * dpr);
+      }
+    };
+
+    syncCanvasSize();
+    window.addEventListener('resize', syncCanvasSize);
+
+    const frame = (now: number) => {
+      const dt = (now - lastTime) / 1000;
+      lastTime = now;
+
+      const paused = showSkillTree || showSettings;
+      const { w, h } = getGameViewportSize();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+      if (canvas.width !== Math.floor(w * dpr) || canvas.height !== Math.floor(h * dpr)) {
+        canvas.width = Math.floor(w * dpr);
+        canvas.height = Math.floor(h * dpr);
+      }
+
+      const targetLogicalShortSide = 530;
+      const scaleFactor = Math.min(w, h) / targetLogicalShortSide;
+      const logicalW = w / scaleFactor;
+      const logicalH = h / scaleFactor;
+
+      ctx.setTransform(dpr * scaleFactor, 0, 0, dpr * scaleFactor, 0, 0);
+      engine.stepAndRender(paused ? 0.0001 : dt, ctx, logicalW, logicalH);
+
+      animId = requestAnimationFrame(frame);
+    };
+
+    animId = requestAnimationFrame(frame);
+    return () => {
+      cancelAnimationFrame(animId);
+      window.removeEventListener('resize', syncCanvasSize);
+    };
+  }, [phase, showSkillTree, showSettings, settings.landscapeLock]);
+
+  const handleEnterGameFromTitle = () => {
+    requestAppFullscreenSync().then((ok) => {
+      if (!ok && !getActiveFullscreenElement()) {
+        setFullscreenBlockedNote(true);
+      }
+    });
+    soundEngine.unlock();
+    soundEngine.playSkill('shield');
+    setPhase(GamePhase.HERO_SELECT);
+  };
+
+  const handleSelectHero = (nextHero: HeroId) => {
+    setHeroId(nextHero);
+    engineRef.current?.setHero(nextHero);
+  };
+
+  const handleConfirmHero = () => {
+    const engine = engineRef.current;
+    if (engine) {
+      engine.setHero(heroId);
+      engine.enterGuildHouse();
+    } else {
+      setPhase(GamePhase.GUILD_HOUSE);
+    }
+  };
+
+  const handleUpgradeSkill = (skillId: SkillId) => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    if (engine.upgradeSkill(skillId)) {
+      setSkillRanks(engine.getSkillRanks());
+    }
+  };
+
+  const handleQuickSelectNormal = (skillId: NormalSkillId) => {
+    setLoadoutsByHero((prev) => {
+      const cur = prev[heroId];
+      if (cur[0] === skillId || cur[1] === skillId) return prev;
+      return {
+        ...prev,
+        [heroId]: [cur[1], skillId, cur[2]],
+      };
+    });
+  };
+
+  const handleSwapNormalSlots = () => {
+    setLoadoutsByHero((prev) => {
+      const cur = prev[heroId];
+      return {
+        ...prev,
+        [heroId]: [cur[1], cur[0], cur[2]],
+      };
+    });
+  };
+
+  const handleSetNormalSlot = (slotIdx: 0 | 1, skillId: NormalSkillId) => {
+    setLoadoutsByHero((prev) => {
+      const next: SkillLoadout = [...prev[heroId]];
+      const otherSlot = slotIdx === 0 ? 1 : 0;
+      if (next[otherSlot] === skillId) {
+        next[otherSlot] = next[slotIdx];
+      }
+      next[slotIdx] = skillId;
+      return {
+        ...prev,
+        [heroId]: next,
+      };
+    });
+  };
+
+  const handleSetUltimateSlot = (skillId: UltimateSkillId) => {
+    setLoadoutsByHero((prev) => {
+      const cur = prev[heroId];
+      return {
+        ...prev,
+        [heroId]: [cur[0], cur[1], skillId],
+      };
+    });
+  };
+
+  const hpBarWidth = Math.max(0, Math.min(200, (hud.hp / Math.max(1, hud.maxHp)) * 200));
+  const shieldBarWidth = Math.max(
+    0,
+    Math.min(200, (hud.shield / Math.max(1, hud.maxHp)) * 200)
+  );
+  const xpBarWidth = Math.max(0, Math.min(200, (hud.xp / Math.max(1, hud.xpToNext)) * 200));
+
+  const rootContainerClass = isForcedCssLandscape
+    ? 'fixed top-0 left-0 origin-top-left translate-x-[100dvw] rotate-90 h-[100dvw] w-[100dvh] overflow-hidden bg-[#120e0c] text-[#f5efe6] select-none'
+    : 'fixed inset-0 h-dvh w-screen overflow-hidden bg-[#120e0c] text-[#f5efe6] select-none';
+
+  const heroDisplayName = HERO_PROFILES[heroId].name;
+
+  return (
+    <div className={rootContainerClass}>
+      {fullscreenToast && (
+        <div className="pointer-events-none absolute left-1/2 top-14 z-50 -translate-x-1/2 rounded-xl border border-amber-400/50 bg-stone-950/95 px-4 py-2 text-center text-xs text-amber-100 shadow-xl">
+          {fullscreenToast}
+        </div>
+      )}
+
+      {/* === PHASE 1: COZY TITLE SCREEN === */}
+      {phase === GamePhase.TITLE && (
+        <div className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden bg-gradient-to-b from-[#1e1510] via-[#150f0c] to-[#0d0a08] px-6 py-4">
+          <div className="absolute right-5 top-4 z-20">
+            <button
+              type="button"
+              onClick={handleToggleFullscreen}
+              className="flex min-h-[40px] items-center gap-1.5 whitespace-nowrap rounded-xl border border-stone-700 bg-stone-900/90 px-3.5 py-1.5 text-xs font-medium text-stone-200 transition-colors hover:bg-stone-800"
+            >
+              {isFullscreen ? (
+                <Minimize2 className="h-3.5 w-3.5 text-amber-300" />
+              ) : (
+                <Maximize2 className="h-3.5 w-3.5 text-amber-300" />
+              )}
+              <span>{isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}</span>
+            </button>
+          </div>
+
+          <div className="relative z-10 flex max-w-xl flex-col items-center text-center">
+            <p className="text-xs font-medium tracking-wide text-amber-300/90">
+              Cozy 2D Top-Down Roguelike
+            </p>
+            <h1 className="font-display mt-1 text-3xl font-bold tracking-tight text-amber-50 sm:text-5xl">
+              Bonehearth: Cozy Crypts
+            </h1>
+            <p className="mt-2.5 max-w-md text-xs leading-relaxed text-stone-300 sm:text-sm">
+              Choose the street-fighting Human Pipe Brawler, swift Skeleton, plague-wielding Zombie,
+              savage Ghoul, or ethereal Ghost in the Guild Lobby, customize your 2 Normal + 1
+              Ultimate MOBA loadout, and delve into deeper crypts.
+            </p>
+
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={handleEnterGameFromTitle}
+                className="min-h-[46px] whitespace-nowrap rounded-xl bg-amber-400 px-8 py-2.5 text-base font-bold text-stone-950 shadow-xl transition-transform duration-150 hover:bg-amber-300 active:scale-95"
+              >
+                Enter Game
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  soundEngine.unlock();
+                  soundEngine.playUiTap();
+                  setShowSettings(true);
+                }}
+                className="min-h-[46px] whitespace-nowrap rounded-xl border border-stone-700 bg-stone-900/90 px-5 py-2.5 text-sm font-semibold text-stone-100 transition-colors hover:bg-stone-800"
+              >
+                Settings
+              </button>
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-xs text-stone-400">
+              <span>Human · Skeleton · Zombie · Ghoul · Ghost</span>
+              <span aria-hidden="true">·</span>
+              <span>Randomized Crypts &amp; Minimap</span>
+              <span aria-hidden="true">·</span>
+              <span>Auto-Tap or Drag Aim</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* === PHASE 2: COMPACT SINGLE-SCREEN HERO & SKILL SELECTION === */}
+      {phase === GamePhase.HERO_SELECT && (
+        <HeroSelectScreen
+          heroId={heroId}
+          loadout={activeLoadout}
+          isFullscreen={isFullscreen}
+          onSelectHero={handleSelectHero}
+          onSelectNormalSkill={handleQuickSelectNormal}
+          onSwapNormalSlots={handleSwapNormalSlots}
+          onSelectUltimateSkill={handleSetUltimateSlot}
+          onToggleFullscreen={handleToggleFullscreen}
+          onConfirmHero={handleConfirmHero}
+          onOpenSettings={() => setShowSettings(true)}
+        />
+      )}
+
+      {/* === PHASE 3 & 4: LIVE 60FPS GUILD HOUSE & PROCEDURAL DUNGEON === */}
+      {(phase === GamePhase.GUILD_HOUSE || phase === GamePhase.DUNGEON) && (
+        <>
+          <canvas ref={canvasRef} className="block h-full w-full" />
+
+          {/* Top Mobile HUD */}
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-3 px-3 pt-2.5 sm:px-5 sm:pt-3">
+            <div className="pointer-events-auto flex flex-col gap-1 rounded-2xl border border-stone-700/75 bg-stone-950/80 px-3.5 py-2 backdrop-blur-md">
+              <div className="flex items-center justify-between gap-4 text-xs">
+                <span className="font-semibold text-amber-100">
+                  {heroDisplayName} · Lv.{hud.level}
+                </span>
+                <span className="font-mono-num text-stone-300">
+                  HP {hud.hp}/{hud.maxHp}
+                  {hud.shield > 0 ? ` (+${hud.shield})` : ''}
+                </span>
+              </div>
+
+              <svg
+                viewBox="0 0 200 8"
+                preserveAspectRatio="none"
+                className="h-2 w-44 overflow-hidden rounded-full bg-stone-800 sm:w-52"
+              >
+                <rect
+                  x="0"
+                  y="0"
+                  width={hpBarWidth}
+                  height="8"
+                  fill={
+                    heroId === 'human'
+                      ? '#fb923c'
+                      : heroId === 'ghost'
+                        ? '#818cf8'
+                        : heroId === 'ghoul'
+                          ? '#f43f5e'
+                          : heroId === 'zombie'
+                            ? '#84cc16'
+                            : '#10b981'
+                  }
+                />
+                {hud.shield > 0 && (
+                  <rect
+                    x="0"
+                    y="0"
+                    width={shieldBarWidth}
+                    height="8"
+                    fill="#fde047"
+                    fillOpacity="0.65"
+                  />
+                )}
+              </svg>
+
+              <svg
+                viewBox="0 0 200 3"
+                preserveAspectRatio="none"
+                className="h-1 w-44 overflow-hidden rounded-full bg-stone-900 sm:w-52"
+              >
+                <rect x="0" y="0" width={xpBarWidth} height="3" fill="#38bdf8" />
+              </svg>
+
+              <div className="font-mono-num flex items-center gap-1.5 text-[11px] text-stone-300">
+                <span>
+                  {phase === GamePhase.GUILD_HOUSE
+                    ? 'Guild House'
+                    : `Crypt Floor ${hud.floor}`}
+                </span>
+                {phase === GamePhase.DUNGEON && (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <span>{hud.enemiesRemaining} Foes</span>
+                  </>
+                )}
+                <span aria-hidden="true">·</span>
+                <span className="text-amber-300">{hud.boneShards} Shards</span>
+              </div>
+            </div>
+
+            {hud.bossInfo && (
+              <div className="hidden max-w-xs flex-1 flex-col items-center rounded-2xl border border-rose-500/50 bg-stone-950/85 px-4 py-2 backdrop-blur-md sm:flex">
+                <div className="flex w-full items-center justify-between gap-2 text-xs">
+                  <span className="font-display truncate font-semibold text-rose-200">
+                    {hud.bossInfo.name}
+                  </span>
+                  <span className="font-mono-num text-[11px] text-rose-300">
+                    {hud.bossInfo.hp}/{hud.bossInfo.maxHp}
+                  </span>
+                </div>
+                <svg
+                  viewBox="0 0 240 8"
+                  preserveAspectRatio="none"
+                  className="mt-1 h-2 w-full overflow-hidden rounded-full bg-stone-800"
+                >
+                  <rect
+                    x="0"
+                    y="0"
+                    width={Math.max(
+                      0,
+                      (hud.bossInfo.hp / Math.max(1, hud.bossInfo.maxHp)) * 240
+                    )}
+                    height="8"
+                    fill="#f43f5e"
+                  />
+                </svg>
+              </div>
+            )}
+
+            <div className="pointer-events-auto flex items-start gap-2">
+              {hud.minimap && (
+                <Minimap minimap={hud.minimap} heroId={heroId} floor={hud.floor} />
+              )}
+
+              {phase === GamePhase.GUILD_HOUSE && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    soundEngine.playUiTap();
+                    setPhase(GamePhase.HERO_SELECT);
+                  }}
+                  className="flex min-h-[42px] items-center gap-1.5 whitespace-nowrap rounded-xl border border-stone-700/80 bg-stone-950/85 px-3 py-2 text-xs font-semibold text-stone-200 backdrop-blur-md active:scale-95"
+                >
+                  <Users className="h-4 w-4 text-amber-200" />
+                  <span className="hidden sm:inline">Heroes</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  soundEngine.playUiTap();
+                  setShowSkillTree(true);
+                }}
+                className={`flex min-h-[42px] items-center gap-1.5 whitespace-nowrap rounded-xl border bg-stone-950/85 px-3 py-2 text-xs font-semibold backdrop-blur-md active:scale-95 ${
+                  heroId === 'human'
+                    ? 'border-orange-400/65 text-orange-100'
+                    : heroId === 'ghost'
+                      ? 'border-indigo-400/65 text-indigo-100'
+                      : heroId === 'ghoul'
+                        ? 'border-rose-400/65 text-rose-100'
+                        : heroId === 'zombie'
+                          ? 'border-lime-400/60 text-lime-100'
+                          : 'border-cyan-400/60 text-cyan-100'
+                }`}
+              >
+                <Sparkles
+                  className={`h-4 w-4 ${
+                    heroId === 'human'
+                      ? 'text-orange-300'
+                      : heroId === 'ghost'
+                        ? 'text-indigo-300'
+                        : heroId === 'ghoul'
+                          ? 'text-rose-400'
+                          : heroId === 'zombie'
+                            ? 'text-lime-300'
+                            : 'text-cyan-300'
+                  }`}
+                />
+                <span>
+                  Skills{hud.skillPoints > 0 ? ` (${hud.skillPoints})` : ''}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                aria-label={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
+                onClick={handleToggleFullscreen}
+                className="flex min-h-[42px] min-w-[42px] items-center justify-center rounded-xl border border-stone-700/80 bg-stone-950/85 text-amber-200 backdrop-blur-md active:scale-95"
+              >
+                {isFullscreen ? (
+                  <Minimize2 className="h-4 w-4" />
+                ) : (
+                  <Maximize2 className="h-4 w-4" />
+                )}
+              </button>
+
+              <button
+                type="button"
+                aria-label="Settings"
+                onClick={() => {
+                  soundEngine.playUiTap();
+                  setShowSettings(true);
+                }}
+                className="flex min-h-[42px] min-w-[42px] items-center justify-center rounded-xl border border-stone-700/80 bg-stone-950/85 text-stone-200 backdrop-blur-md active:scale-95"
+              >
+                <Settings className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+
+          {hud.runOutcome === 'victory' && !victoryDismissed && (
+            <div className="pointer-events-auto absolute left-1/2 top-16 z-30 flex w-[90%] max-w-md -translate-x-1/2 flex-col items-center rounded-2xl border border-amber-300/70 bg-stone-950/92 p-4 text-center shadow-2xl backdrop-blur-md">
+              <h3 className="font-display text-lg font-bold text-amber-200">
+                Crypt Boss Vanquished!
+              </h3>
+              <p className="mt-1 text-xs text-stone-300">
+                Earned +2 Skill Points and +60 Bone Shards. Step into a portal or choose below:
+              </p>
+              <div className="mt-3 flex flex-wrap justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVictoryDismissed(true);
+                    engineRef.current?.enterDungeon(hud.floor + 1);
+                  }}
+                  className="min-h-[42px] whitespace-nowrap rounded-xl bg-cyan-400 px-4 py-2 text-xs font-bold text-stone-950"
+                >
+                  Next Crypt Floor
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVictoryDismissed(true);
+                    engineRef.current?.enterGuildHouse();
+                  }}
+                  className="min-h-[42px] whitespace-nowrap rounded-xl border border-amber-300/60 bg-amber-950/70 px-4 py-2 text-xs font-semibold text-amber-100"
+                >
+                  Return to Guild
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVictoryDismissed(true)}
+                  className="min-h-[42px] whitespace-nowrap rounded-xl bg-stone-800 px-3 py-2 text-xs font-medium text-stone-300"
+                >
+                  Explore Room
+                </button>
+              </div>
+            </div>
+          )}
+
+          {hud.runOutcome === 'defeat' && (
+            <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
+              <div className="flex w-full max-w-md flex-col items-center rounded-2xl border border-stone-700 bg-[#181310] p-5 text-center shadow-2xl">
+                <h2 className="font-display text-xl font-bold text-rose-200 sm:text-2xl">
+                  Fallen in the Crypt
+                </h2>
+                <p className="mt-1.5 text-xs leading-relaxed text-stone-300 sm:text-sm">
+                  You reform safely beside the warm Guild Hearth. All earned levels, Shards, and
+                  Skill Points remain yours!
+                </p>
+                <div className="mt-4 flex w-full flex-col gap-2.5 sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={() => engineRef.current?.enterGuildHouse()}
+                    className="min-h-[44px] flex-1 whitespace-nowrap rounded-xl bg-amber-400 px-4 py-2 text-sm font-bold text-stone-950"
+                  >
+                    Return to Guild House
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => engineRef.current?.enterDungeon(1)}
+                    className="min-h-[44px] flex-1 whitespace-nowrap rounded-xl border border-stone-600 bg-stone-900 px-4 py-2 text-sm font-semibold text-stone-200"
+                  >
+                    Play Again
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <MobaControls
+            heroId={heroId}
+            loadout={activeLoadout}
+            skillRanks={skillRanks}
+            cooldowns={hud.cooldowns}
+            maxCooldowns={hud.maxCooldowns}
+            skillButtonScale={settings.skillButtonScale}
+            joystickScale={settings.joystickScale}
+            isForcedCssLandscape={isForcedCssLandscape}
+            nearInteraction={hud.nearInteraction}
+            onJoystickMove={(nx, ny) => engineRef.current?.setJoystick(nx, ny)}
+            onBasicAttackHeld={(held) => engineRef.current?.setBasicAttackHeld(held)}
+            onSkillAim={(active, slotIdx, skillId, isManual, angle, distRatio, willCancel) =>
+              engineRef.current?.updateSkillAim(
+                active,
+                slotIdx,
+                skillId,
+                isManual,
+                angle,
+                distRatio,
+                willCancel
+              )
+            }
+            onSkillCast={(skillId, isManual, angle, distRatio) =>
+              engineRef.current?.castSkill(skillId, isManual, angle, distRatio)
+            }
+            onInteract={() => engineRef.current?.interactNearbyProp()}
+            onOpenSkillTree={() => setShowSkillTree(true)}
+          />
+        </>
+      )}
+
+      {showSkillTree && (
+        <SkillTreeModal
+          heroId={heroId}
+          skillRanks={skillRanks}
+          skillPoints={hud.skillPoints}
+          loadout={activeLoadout}
+          onUpgradeSkill={handleUpgradeSkill}
+          onSetNormalSlot={handleSetNormalSlot}
+          onSetUltimateSlot={handleSetUltimateSlot}
+          onClose={() => setShowSkillTree(false)}
+        />
+      )}
+
+      {showSettings && (
+        <SettingsModal
+          settings={settings}
+          isFullscreen={isFullscreen}
+          fullscreenBlockedNote={fullscreenBlockedNote}
+          isDungeon={phase === GamePhase.DUNGEON}
+          onUpdateSettings={(patch) => setSettings((prev) => ({ ...prev, ...patch }))}
+          onToggleFullscreen={handleToggleFullscreen}
+          onReturnToGuild={() => engineRef.current?.enterGuildHouse()}
+          onClose={() => setShowSettings(false)}
+        />
+      )}
+    </div>
+  );
+}
