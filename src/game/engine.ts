@@ -2395,16 +2395,26 @@ export class GameEngine {
     let targetDist = distanceRatio * def.range;
 
     if (!isManual) {
-      const searchRad = Math.max(def.range + 115, 380);
-      const nearest = this.findNearestEnemy(searchRad);
-      if (nearest) {
-        const dx = nearest.x - this.player.x;
-        const dy = nearest.y - this.player.y;
-        targetAngle = Math.atan2(dy, dx);
-        targetDist = Math.min(def.range, Math.hypot(dx, dy));
+      if (skillId === 'windstep') {
+        const joyDist = Math.hypot(this.joyX, this.joyY);
+        if (joyDist > 0.08) {
+          targetAngle = Math.atan2(this.joyY, this.joyX);
+        } else {
+          targetAngle = this.player.facing;
+        }
+        targetDist = def.range;
       } else {
-        targetAngle = this.player.facing;
-        targetDist = def.range * 0.65;
+        const searchRad = Math.max(def.range + 115, 380);
+        const nearest = this.findNearestEnemy(searchRad);
+        if (nearest) {
+          const dx = nearest.x - this.player.x;
+          const dy = nearest.y - this.player.y;
+          targetAngle = Math.atan2(dy, dx);
+          targetDist = Math.min(def.range, Math.hypot(dx, dy));
+        } else {
+          targetAngle = this.player.facing;
+          targetDist = def.range * 0.65;
+        }
       }
     }
 
@@ -3996,11 +4006,13 @@ export class GameEngine {
       soundEngine.playWingFlap(0.9);
       soundEngine.playSkill('rush');
 
-      const dashDur = 0.2;
+      const dashDur = 0.22;
       const dashSpeed = def.range / dashDur;
       this.windstepDashTimer = dashDur;
       this.windstepDashVx = Math.cos(targetAngle) * dashSpeed;
       this.windstepDashVy = Math.sin(targetAngle) * dashSpeed;
+      this.player.facing = targetAngle;
+      this.dashHitIds.clear();
 
       this.spawnRingEffect(this.player.x, this.player.y, 75, '#38bdf8');
       this.spawnSoftMotes(this.player.x, this.player.y, targetAngle + Math.PI, 65, '#e0f2fe', 8);
@@ -7493,6 +7505,33 @@ export class GameEngine {
           '#e2e8f0'
         );
       }
+    } else if (this.windstepDashTimer > 0) {
+      // Eaglekin Normal 4 (Windstep): Wing propulsion dash gliding rapidly with wind gust slipstream
+      this.windstepDashTimer = Math.max(0, this.windstepDashTimer - dt);
+      const steps = 3;
+      const stepDx = (this.windstepDashVx * dt) / steps;
+      const stepDy = (this.windstepDashVy * dt) / steps;
+      for (let s = 0; s < steps; s++) {
+        this.tryMoveEntity(this.player.x, this.player.y, stepDx, stepDy, 16, (nx, ny) => {
+          this.player.x = nx;
+          this.player.y = ny;
+        });
+      }
+
+      this.ghostSampleAccum += dt;
+      if (this.ghostSampleAccum >= 0.04) {
+        this.ghostSampleAccum = 0;
+        for (const g of this.player.dashGhostTrail) {
+          if (g.alpha <= 0.05) {
+            g.x = this.player.x;
+            g.y = this.player.y;
+            g.alpha = 0.85;
+            break;
+          }
+        }
+        const backAng = Math.atan2(-this.windstepDashVy, -this.windstepDashVx);
+        this.spawnSoftMotes(this.player.x, this.player.y, backAng, 35, '#bae6fd', 3);
+      }
     } else if (this.shadowStepTimer <= 0) {
       const mag = Math.hypot(this.joyX, this.joyY);
       if (mag > 0.06) {
@@ -7589,6 +7628,7 @@ export class GameEngine {
     const isTransformed = this.player.colossusTimer > 0;
     const isZombie = this.heroId === 'zombie';
     const isGhoul = this.heroId === 'ghoul';
+    const isGhost = this.heroId === 'ghost';
     // Eaglekin Sky Marksman has integrated feathered wings attached to its body (no floating weapon)
     if (this.heroId === 'eaglekin') {
       this.breakWeaponTrail();
@@ -9545,6 +9585,7 @@ export class GameEngine {
     if (
       this.runOutcome !== null ||
       this.dashTimer > 0 ||
+      this.windstepDashTimer > 0 ||
       this.scrappersDashTimer > 0 ||
       this.player.oneManArmyTimer > 0 ||
       this.omaBlitzLeft > 0 ||
@@ -9957,7 +9998,7 @@ export class GameEngine {
   private spawnPickup(
     x: number,
     y: number,
-    kind: 'xp' | 'heal' | 'shard',
+    kind: 'xp' | 'heal' | 'shard' | 'boss_essence',
     value: number,
     id?: number,
     exactPosition = false

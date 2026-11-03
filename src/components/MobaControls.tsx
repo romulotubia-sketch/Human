@@ -538,15 +538,17 @@ export function MobaControls({
                     fill={
                       dragVisual.willCancel
                         ? '#f43f5e'
-                        : isHuman
-                          ? '#fb923c'
-                          : isGhost
-                            ? '#818cf8'
-                            : isGhoul
-                              ? '#fb7185'
-                              : isZombie
-                                ? '#a3e635'
-                                : '#67e8f9'
+                        : isEaglekin
+                          ? '#38bdf8'
+                          : isHuman
+                            ? '#fb923c'
+                            : isGhost
+                              ? '#818cf8'
+                              : isGhoul
+                                ? '#fb7185'
+                                : isZombie
+                                  ? '#a3e635'
+                                  : '#67e8f9'
                     }
                   />
                 </svg>
@@ -558,15 +560,17 @@ export function MobaControls({
                     ? 'border-stone-600 bg-stone-900/85'
                     : isUlt
                       ? 'border-amber-300/95 bg-stone-900/95'
-                      : isHuman
-                        ? 'border-orange-400/90 bg-stone-900/95'
-                        : isGhost
-                          ? 'border-indigo-400/90 bg-stone-900/95'
-                          : isGhoul
-                            ? 'border-rose-400/90 bg-stone-900/95'
-                            : isZombie
-                              ? 'border-lime-300/85 bg-stone-900/95'
-                              : 'border-cyan-300/85 bg-stone-900/95'
+                      : isEaglekin
+                        ? 'border-sky-300/90 bg-stone-900/95'
+                        : isHuman
+                          ? 'border-orange-400/90 bg-stone-900/95'
+                          : isGhost
+                            ? 'border-indigo-400/90 bg-stone-900/95'
+                            : isGhoul
+                              ? 'border-rose-400/90 bg-stone-900/95'
+                              : isZombie
+                                ? 'border-lime-300/85 bg-stone-900/95'
+                                : 'border-cyan-300/85 bg-stone-900/95'
                 } ${isDraggingThis ? 'scale-95' : ''}`}
               >
                 <SkillIcon skillId={skillId} className="h-7 w-7" />

@@ -269,6 +269,8 @@ export function renderGameWorld(
       drawChibiZombieBody(ctx, ghost.x, ghost.y, player.facing, 0, gScale, true, player.colossusTimer > 0, 0);
     } else if (player.heroId === 'ghoul') {
       drawChibiGhoulBody(ctx, ghost.x, ghost.y, player.facing, 0, gScale, true, player.colossusTimer > 0, 0, 0);
+    } else if (player.heroId === 'eaglekin') {
+      drawChibiEaglekinBody(ctx, ghost.x, ghost.y, player.facing, 0, gScale, true);
     } else {
       drawChibiSkeletonBody(ctx, ghost.x, ghost.y, player.facing, 0, gScale, '#67e8f9', true);
     }
@@ -357,6 +359,7 @@ export function renderHeroShowcaseCanvas(
   const isZombie = heroId === 'zombie';
   const isGhoul = heroId === 'ghoul';
   const isGhost = heroId === 'ghost';
+  const isEaglekin = heroId === 'eaglekin';
   const grad = ctx.createRadialGradient(w / 2, h * 0.56, 8, w / 2, h * 0.56, w * 0.52);
   grad.addColorStop(
     0,
@@ -368,7 +371,9 @@ export function renderHeroShowcaseCanvas(
           ? 'rgba(244, 63, 94, 0.24)'
           : isZombie
             ? 'rgba(132, 204, 22, 0.2)'
-            : 'rgba(56, 189, 248, 0.18)'
+            : isEaglekin
+              ? 'rgba(56, 189, 248, 0.28)'
+              : 'rgba(56, 189, 248, 0.18)'
   );
   grad.addColorStop(0.58, 'rgba(38, 29, 24, 0.55)');
   grad.addColorStop(1, 'rgba(20, 15, 12, 0)');
@@ -384,7 +389,9 @@ export function renderHeroShowcaseCanvas(
         ? 'rgba(251, 113, 133, 0.42)'
         : isZombie
           ? 'rgba(163, 230, 53, 0.35)'
-          : 'rgba(251, 191, 36, 0.32)';
+          : isEaglekin
+            ? 'rgba(56, 189, 248, 0.45)'
+            : 'rgba(251, 191, 36, 0.32)';
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.ellipse(w / 2, h * 0.78, 54, 17, 0, 0, Math.PI * 2);
@@ -401,87 +408,92 @@ export function renderHeroShowcaseCanvas(
     drawChibiGhoulBody(ctx, hx, hy, 0.2, time * 3.1, 1.72, false, false, 0, 0);
   } else if (isZombie) {
     drawChibiZombieBody(ctx, hx, hy, 0.25, time * 2.2, 1.75, false, false, 0);
+  } else if (isEaglekin) {
+    drawChibiEaglekinBody(ctx, hx, hy, 0.25, time * 2.5, 1.75, false, 0, 0, Math.sin(time * 3) > 0.65 ? 0.35 : 0);
   } else {
     drawChibiSkeletonBody(ctx, hx, hy, 0.25, time * 2.4, 1.75, '#67e8f9', false, '#9a3412', null, 0);
   }
 
   const hover = Math.sin(time * 3.6) * 5;
-  const wx = isGhoul ? hx + 39 : isGhost ? hx + 43 : hx + 46;
+  const wx = isGhoul ? hx + 39 : isGhost ? hx + 43 : isEaglekin ? hx + 32 : hx + 46;
   const wy = (isGhost ? h * 0.51 : h * 0.55) + hover;
   const ox = hx - 39;
   const oy = h * 0.56 - hover * 0.85;
 
-  drawFloatingHeroWeapon(
-    ctx,
-    {
-      heroId,
-      x: hx,
-      y: hy,
-      vx: 0,
-      vy: 0,
-      facing: 0.25,
-      walkPhase: 0,
-      hp: 250,
-      maxHp: 250,
-      shield: 0,
-      hitFlash: 0,
-      colossusTimer: 0,
-      boneStormTimer: 0,
-      ribShieldTimer: 0,
-      undyingTimer: 0,
-      stealthTimer: 0,
-      ambushReady: false,
-      bloodFrenzyTimer: 0,
-      frenzyStacks: 0,
-      momentumStacks: 0,
-      phantomMistTimer: 0,
-      possessingTimer: 0,
-      nightmareTimer: 0,
-      restlessStacks: 0,
-      etherealShimmerTimer: 0,
-      pipeThrown: false,
-      kneeStrikeTimer: 0,
-      lastStandTimer: 0,
-      oneManArmyTimer: 0,
-      instinctSurrounded: false,
-      airborneHeight: 0,
-      attackLunge: 0,
-      attackTwist: 0,
-      attackSquash: 0,
-      swordX: wx,
-      swordY: wy,
-      swordAngle: isGhost
-        ? Math.sin(time * 2.8) * 0.14
-        : isGhoul
-          ? -Math.PI * 0.18 + Math.sin(time * 3.4) * 0.14
-          : -Math.PI * 0.28 + Math.sin(time * 2.4) * 0.1,
-      offhandX: ox,
-      offhandY: oy,
-      offhandAngle: Math.PI + Math.PI * 0.18 - Math.sin(time * 3.4) * 0.14,
-      swordScale: isGhoul ? 1.38 : 1.48,
-      swordAnim: SwordAnimState.IDLE,
-      swordGlowColor: isHuman
-        ? '#fb923c'
-        : isGhost
-          ? '#818cf8'
+  // Eaglekin's wings are its weapon (no floating detached weapon)
+  if (!isEaglekin) {
+    drawFloatingHeroWeapon(
+      ctx,
+      {
+        heroId,
+        x: hx,
+        y: hy,
+        vx: 0,
+        vy: 0,
+        facing: 0.25,
+        walkPhase: 0,
+        hp: 250,
+        maxHp: 250,
+        shield: 0,
+        hitFlash: 0,
+        colossusTimer: 0,
+        boneStormTimer: 0,
+        ribShieldTimer: 0,
+        undyingTimer: 0,
+        stealthTimer: 0,
+        ambushReady: false,
+        bloodFrenzyTimer: 0,
+        frenzyStacks: 0,
+        momentumStacks: 0,
+        phantomMistTimer: 0,
+        possessingTimer: 0,
+        nightmareTimer: 0,
+        restlessStacks: 0,
+        etherealShimmerTimer: 0,
+        pipeThrown: false,
+        kneeStrikeTimer: 0,
+        lastStandTimer: 0,
+        oneManArmyTimer: 0,
+        instinctSurrounded: false,
+        airborneHeight: 0,
+        attackLunge: 0,
+        attackTwist: 0,
+        attackSquash: 0,
+        swordX: wx,
+        swordY: wy,
+        swordAngle: isGhost
+          ? Math.sin(time * 2.8) * 0.14
           : isGhoul
-            ? '#f43f5e'
-            : isZombie
-              ? '#a3e635'
-              : '#67e8f9',
-      swordGlowIntensity: 0.92,
-      isScytheForm: false,
-      dashGhostTrail: [],
-    },
-    time
-  );
+            ? -Math.PI * 0.18 + Math.sin(time * 3.4) * 0.14
+            : -Math.PI * 0.28 + Math.sin(time * 2.4) * 0.1,
+        offhandX: ox,
+        offhandY: oy,
+        offhandAngle: Math.PI + Math.PI * 0.18 - Math.sin(time * 3.4) * 0.14,
+        swordScale: isGhoul ? 1.38 : 1.48,
+        swordAnim: SwordAnimState.IDLE,
+        swordGlowColor: isHuman
+          ? '#fb923c'
+          : isGhost
+            ? '#818cf8'
+            : isGhoul
+              ? '#f43f5e'
+              : isZombie
+                ? '#a3e635'
+                : '#67e8f9',
+        swordGlowIntensity: 0.92,
+        isScytheForm: false,
+        dashGhostTrail: [],
+      },
+      time
+    );
+  }
 
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
   for (let i = 0; i < 5; i++) {
     const phase = (time * 1.45 + i * 0.37) % 1;
-    const px = (isGhoul ? hx : wx + 8) + Math.cos(i * 2.1 + time * 2.0) * (isGhoul ? 36 : 18);
-    const py = wy - 2 - phase * 26;
+    const px = (isGhoul || isEaglekin ? hx : wx + 8) + Math.cos(i * 2.1 + time * 2.0) * (isGhoul ? 36 : isEaglekin ? 24 : 18);
+    const py = (isEaglekin ? hy - 16 : wy - 2) - phase * 26;
     ctx.globalAlpha = Math.sin(phase * Math.PI) * 0.85;
     ctx.fillStyle = isHuman
       ? i % 2 === 0
@@ -499,9 +511,13 @@ export function renderHeroShowcaseCanvas(
             ? i % 2 === 0
               ? '#a3e635'
               : '#c084fc'
-            : i % 2 === 0
-              ? '#67e8f9'
-              : '#ffffff';
+            : isEaglekin
+              ? i % 2 === 0
+                ? '#38bdf8'
+                : '#fde047'
+              : i % 2 === 0
+                ? '#67e8f9'
+                : '#ffffff';
     ctx.beginPath();
     ctx.arc(px, py, 2, 0, Math.PI * 2);
     ctx.fill();
@@ -3207,6 +3223,317 @@ function drawChibiGhostBody(
   ctx.restore();
 }
 
+/**
+ * 60fps Chibi Eaglekin Sky Marksman Body + Integrated Aerodynamic Wings (No detached weapon!)
+ */
+function drawChibiEaglekinBody(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  facing: number,
+  walkPhase: number,
+  scale: number,
+  isAfterimage = false,
+  hitFlash = 0,
+  airborneHeight = 0,
+  wingFlapTimer = 0,
+  attackLunge = 0,
+  attackTwist = 0,
+  attackSquash = 0,
+  celestialBarrageTimer = 0,
+  rainOfFeathersTimer = 0,
+  wrathSkyTimer = 0
+) {
+  ctx.save();
+  ctx.translate(x, y - airborneHeight);
+  ctx.scale(scale, scale);
+
+  const nowSec = performance.now() * 0.001;
+  const isMoving = Math.abs(Math.sin(walkPhase)) > 0.01;
+  const isAirborne = airborneHeight > 2;
+  const bob = isAirborne
+    ? Math.sin(nowSec * 14) * 3.5
+    : isMoving
+      ? Math.sin(walkPhase * 2) * -2.2
+      : Math.sin(nowSec * 3.6) * -1.2;
+
+  const footSwing = isAirborne ? 0 : Math.sin(walkPhase) * 4.6 + attackTwist * 2.8;
+
+  // Ground shadow when not an afterimage
+  if (!isAfterimage) {
+    ctx.save();
+    ctx.translate(0, airborneHeight);
+    const shadowScale = isAirborne ? Math.max(0.4, 1 - airborneHeight / 60) : 1.0;
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.38)';
+    ctx.beginPath();
+    ctx.ellipse(0, 11, 14 * shadowScale, 5 * shadowScale, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Talon colors
+  const talonBase = hitFlash > 0 ? '#ffffff' : '#f59e0b';
+  const talonShade = hitFlash > 0 ? '#ffffff' : '#d97706';
+
+  // Two cute little raptor talons/feet (NO ARMS!)
+  ctx.fillStyle = talonBase;
+  ctx.strokeStyle = '#1c1917';
+  ctx.lineWidth = 1.8;
+
+  // Left Talon
+  ctx.beginPath();
+  ctx.ellipse(-5 + footSwing * 0.35, 9.5 - Math.max(0, footSwing * 0.4), 4.2, 3.2, -0.1, 0, Math.PI * 2);
+  ctx.fill();
+  if (!isAfterimage) ctx.stroke();
+  ctx.fillStyle = talonShade;
+  ctx.beginPath();
+  ctx.moveTo(-7 + footSwing * 0.35, 11);
+  ctx.lineTo(-5 + footSwing * 0.35, 13);
+  ctx.lineTo(-3 + footSwing * 0.35, 11);
+  ctx.fill();
+
+  // Right Talon
+  ctx.fillStyle = talonBase;
+  ctx.beginPath();
+  ctx.ellipse(5 - footSwing * 0.35, 9.5 - Math.max(0, -footSwing * 0.4), 4.2, 3.2, 0.1, 0, Math.PI * 2);
+  ctx.fill();
+  if (!isAfterimage) ctx.stroke();
+  ctx.fillStyle = talonShade;
+  ctx.beginPath();
+  ctx.moveTo(3 - footSwing * 0.35, 11);
+  ctx.lineTo(5 - footSwing * 0.35, 13);
+  ctx.lineTo(7 - footSwing * 0.35, 11);
+  ctx.fill();
+
+  // Upper Body pivot
+  ctx.save();
+  ctx.translate(
+    Math.cos(facing) * attackLunge * 4.5,
+    bob + Math.sin(facing) * attackLunge * 2.2
+  );
+  ctx.rotate(attackTwist * 0.18);
+  if (attackSquash !== 0) {
+    ctx.scale(1 + attackSquash * 0.14, 1 - attackSquash * 0.14);
+  }
+
+  // Feather plumage colors
+  const primaryPlumage = hitFlash > 0 ? '#ffffff' : '#0284c7'; // Sky-blue / cerulean
+  const darkCoverts = hitFlash > 0 ? '#ffffff' : '#0369a1';    // Deeper azure
+  const chestPlumage = hitFlash > 0 ? '#ffffff' : '#f0f9ff';   // Crisp cloud white
+  const beakColor = hitFlash > 0 ? '#ffffff' : '#fbbf24';      // Golden beak
+  const eyeColor = hitFlash > 0 ? '#ffffff' : '#fde047';       // Eagle eye gold
+
+  // --- CELESTIAL BARRAGE SPECTRAL WINGS (4 giant glowing wings behind the character) ---
+  if (celestialBarrageTimer > 0 && !isAfterimage) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const spectralWave = Math.sin(nowSec * 16) * 0.15;
+    for (let sw = 0; sw < 4; sw++) {
+      const side = sw < 2 ? -1 : 1;
+      const tier = sw % 2;
+      const wingAng = side * (0.85 + tier * 0.4 + spectralWave);
+      ctx.save();
+      ctx.translate(side * 8, -10 - tier * 6);
+      ctx.rotate(wingAng);
+      ctx.fillStyle = sw % 2 === 0 ? 'rgba(56, 189, 248, 0.55)' : 'rgba(224, 242, 254, 0.45)';
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.quadraticCurveTo(side * 18, -26, side * 36, -34);
+      ctx.quadraticCurveTo(side * 28, -14, side * 22, -4);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = '#bae6fd';
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+
+  // --- INTEGRATED FEATHERED WINGS (Attached to shoulders/back) ---
+  const isFlapping = wingFlapTimer > 0;
+  const flapCycle = isFlapping ? Math.sin(wingFlapTimer * 30) : 0;
+  const idleFlap = isAirborne
+    ? Math.sin(nowSec * 22) * 0.52
+    : isMoving
+      ? Math.sin(walkPhase * 2) * 0.14
+      : Math.sin(nowSec * 3.6) * 0.08;
+
+  const wingBaseAngle = (isFlapping ? flapCycle * 0.65 : 0) + idleFlap;
+  const wingExtension = (isAirborne ? 1.35 : 1.0) + (isFlapping ? 0.25 : 0);
+
+  // Left Wing
+  ctx.save();
+  ctx.translate(-7, -8);
+  ctx.rotate(-0.35 - wingBaseAngle);
+  ctx.scale(wingExtension, wingExtension);
+
+  ctx.fillStyle = darkCoverts;
+  ctx.strokeStyle = '#1c1917';
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.quadraticCurveTo(-14, -14, -28, -6);
+  ctx.lineTo(-24, 2);
+  ctx.lineTo(-14, 8);
+  ctx.closePath();
+  ctx.fill();
+  if (!isAfterimage) ctx.stroke();
+
+  ctx.fillStyle = primaryPlumage;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.quadraticCurveTo(-11, -11, -22, -2);
+  ctx.lineTo(-18, 5);
+  ctx.lineTo(-10, 8);
+  ctx.closePath();
+  ctx.fill();
+  if (!isAfterimage) ctx.stroke();
+
+  ctx.fillStyle = '#bae6fd';
+  ctx.beginPath();
+  ctx.moveTo(-22, -2);
+  ctx.lineTo(-27, -5);
+  ctx.lineTo(-24, 1);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+
+  // Right Wing
+  ctx.save();
+  ctx.translate(7, -8);
+  ctx.rotate(0.35 + wingBaseAngle);
+  ctx.scale(wingExtension, wingExtension);
+
+  ctx.fillStyle = darkCoverts;
+  ctx.strokeStyle = '#1c1917';
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.quadraticCurveTo(14, -14, 28, -6);
+  ctx.lineTo(24, 2);
+  ctx.lineTo(14, 8);
+  ctx.closePath();
+  ctx.fill();
+  if (!isAfterimage) ctx.stroke();
+
+  ctx.fillStyle = primaryPlumage;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.quadraticCurveTo(11, -11, 22, -2);
+  ctx.lineTo(18, 5);
+  ctx.lineTo(10, 8);
+  ctx.closePath();
+  ctx.fill();
+  if (!isAfterimage) ctx.stroke();
+
+  ctx.fillStyle = '#bae6fd';
+  ctx.beginPath();
+  ctx.moveTo(22, -2);
+  ctx.lineTo(27, -5);
+  ctx.lineTo(24, 1);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+
+  // Tail Feathers
+  ctx.fillStyle = darkCoverts;
+  ctx.strokeStyle = '#1c1917';
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  ctx.moveTo(-5, 4);
+  ctx.lineTo(0, 15);
+  ctx.lineTo(5, 4);
+  ctx.closePath();
+  ctx.fill();
+  if (!isAfterimage) ctx.stroke();
+
+  // Armless Chibi Body
+  ctx.fillStyle = primaryPlumage;
+  ctx.strokeStyle = '#1c1917';
+  ctx.lineWidth = 2.0;
+  ctx.beginPath();
+  ctx.roundRect(-8.5, -9, 17, 18, 7);
+  ctx.fill();
+  if (!isAfterimage) ctx.stroke();
+
+  // Downy Cloud-White Chest Plumage
+  ctx.fillStyle = chestPlumage;
+  ctx.beginPath();
+  ctx.moveTo(-5, -6);
+  ctx.quadraticCurveTo(0, -2, 5, -6);
+  ctx.lineTo(4, 3);
+  ctx.quadraticCurveTo(0, 8, -4, 3);
+  ctx.closePath();
+  ctx.fill();
+
+  // Round Chibi Avian Head
+  ctx.fillStyle = primaryPlumage;
+  ctx.strokeStyle = '#1c1917';
+  ctx.lineWidth = 2.0;
+  ctx.beginPath();
+  ctx.arc(0, -16, 12, 0, Math.PI * 2);
+  ctx.fill();
+  if (!isAfterimage) ctx.stroke();
+
+  // Crown Crest atop head
+  ctx.fillStyle = darkCoverts;
+  ctx.beginPath();
+  ctx.moveTo(-4, -26);
+  ctx.quadraticCurveTo(0, -33, 4, -26);
+  ctx.lineTo(1, -22);
+  ctx.lineTo(-2, -22);
+  ctx.closePath();
+  ctx.fill();
+  if (!isAfterimage) ctx.stroke();
+
+  ctx.fillStyle = '#fde047';
+  ctx.beginPath();
+  ctx.moveTo(-1.5, -24);
+  ctx.lineTo(0, -29);
+  ctx.lineTo(1.5, -24);
+  ctx.closePath();
+  ctx.fill();
+
+  const lookX = Math.cos(facing) * 3.5;
+  const lookY = Math.sin(facing) * 2.2;
+
+  // Sharp Golden Eagle Eyes
+  ctx.fillStyle = eyeColor;
+  ctx.beginPath();
+  ctx.ellipse(-4.5 + lookX * 0.7, -16 + lookY * 0.5, 3.2, 4.0, 0, 0, Math.PI * 2);
+  ctx.ellipse(4.5 + lookX * 0.7, -16 + lookY * 0.5, 3.2, 4.0, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#1c1917';
+  ctx.beginPath();
+  ctx.ellipse(-4.2 + lookX * 0.9, -16 + lookY * 0.6, 1.4, 2.8, 0, 0, Math.PI * 2);
+  ctx.ellipse(4.8 + lookX * 0.9, -16 + lookY * 0.6, 1.4, 2.8, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(-5 + lookX * 0.8, -17.5 + lookY * 0.5, 1.1, 0, Math.PI * 2);
+  ctx.arc(4 + lookX * 0.8, -17.5 + lookY * 0.5, 1.1, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Curved Raptor Beak
+  ctx.fillStyle = beakColor;
+  ctx.strokeStyle = '#78350f';
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  ctx.moveTo(lookX, -13.5 + lookY);
+  ctx.lineTo(lookX + 4.5, -11.5 + lookY);
+  ctx.quadraticCurveTo(lookX + 1.5, -7 + lookY, lookX - 1.5, -9 + lookY);
+  ctx.lineTo(lookX - 4.5, -11.5 + lookY);
+  ctx.closePath();
+  ctx.fill();
+  if (!isAfterimage) ctx.stroke();
+
+  ctx.restore();
+  ctx.restore();
+}
+
 function drawHeroAndEffects(ctx: CanvasRenderingContext2D, player: PlayerRenderState, time: number) {
   if (player.isDowned) {
     drawRevivalCircle(ctx, player.x, player.y, player.reviveProgress || 0, time);
@@ -3220,6 +3547,8 @@ function drawHeroAndEffects(ctx: CanvasRenderingContext2D, player: PlayerRenderS
       drawChibiGhoulBody(ctx, player.x, player.y + 6, player.facing, 0, 0.88, false, false, 0, 0, 0, 0, 0);
     } else if (player.heroId === 'zombie') {
       drawChibiZombieBody(ctx, player.x, player.y + 6, player.facing, 0, 0.88, false, false, 0, 0, 0, 0);
+    } else if (player.heroId === 'eaglekin') {
+      drawChibiEaglekinBody(ctx, player.x, player.y + 6, player.facing, 0, 0.88, false);
     } else {
       drawChibiSkeletonBody(ctx, player.x, player.y + 6, player.facing, 0, 0.88, '#67e8f9', false, '#9a3412', null, 0, 0, 0, 0);
     }
@@ -3480,6 +3809,25 @@ function drawHeroAndEffects(ctx: CanvasRenderingContext2D, player: PlayerRenderS
       player.attackLunge,
       player.attackTwist,
       player.attackSquash
+    );
+  } else if (player.heroId === 'eaglekin') {
+    drawChibiEaglekinBody(
+      ctx,
+      player.x,
+      player.y,
+      player.facing,
+      player.walkPhase,
+      heroScale,
+      false,
+      player.hitFlash,
+      player.airborneHeight || 0,
+      player.wingFlapTimer || 0,
+      player.attackLunge,
+      player.attackTwist,
+      player.attackSquash,
+      player.celestialBarrageTimer || 0,
+      player.rainOfFeathersTimer || 0,
+      player.wrathSkyTimer || 0
     );
   } else {
     drawChibiSkeletonBody(
@@ -4870,6 +5218,8 @@ function drawScrapDebris(
 }
 
 function drawFloatingHeroWeapon(ctx: CanvasRenderingContext2D, player: PlayerRenderState, time: number) {
+  if (player.heroId === 'eaglekin') return;
+
   if (player.heroId === 'human') {
     if (player.pipeThrown) return;
     ctx.save();
@@ -5886,13 +6236,80 @@ function drawEnemy(ctx: CanvasRenderingContext2D, e: EnemyEntity, time: number, 
     ctx.fillStyle = e.poisonTimer > 0 ? '#84cc16' : '#ef4444';
     ctx.fillRect(bx, by, bw * Math.max(0, e.hp / e.maxHp), 4);
   }
+
+  // Eaglekin Hunter's Mark target crosshairs and eye reticle
+  if (e.huntersMarkTimer && e.huntersMarkTimer > 0) {
+    ctx.save();
+    ctx.translate(drawX, drawY - (e.kind === EnemyKind.BOSS_WARDEN ? 54 : 44) * scale);
+    const pulse = Math.sin(time * 6.5) * 2;
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 2.0;
+    ctx.beginPath();
+    ctx.arc(0, 0, 11 + pulse, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Crosshairs
+    ctx.strokeStyle = '#fde047';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(0, -16 - pulse); ctx.lineTo(0, -7);
+    ctx.moveTo(0, 7); ctx.lineTo(0, 16 + pulse);
+    ctx.moveTo(-16 - pulse, 0); ctx.lineTo(-7, 0);
+    ctx.moveTo(7, 0); ctx.lineTo(16 + pulse, 0);
+    ctx.stroke();
+
+    // Golden Eagle Eye glyph in center
+    ctx.fillStyle = '#fde047';
+    ctx.beginPath();
+    ctx.arc(0, 0, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
 }
 
 function drawPickupOrb(ctx: CanvasRenderingContext2D, orb: PickupOrb, time: number) {
   const pulse = Math.sin(time * 7 + orb.x) * 2;
   ctx.save();
   ctx.translate(orb.x, orb.y + pulse * 0.6);
-  if (orb.kind === 'xp') {
+  if (orb.kind === 'boss_essence') {
+    // Radiant Golden Boss Essence with pulsating celestial star & aura rings
+    const glowRad = 16 + Math.sin(time * 4) * 3;
+    const grad = ctx.createRadialGradient(0, 0, 2, 0, 0, glowRad);
+    grad.addColorStop(0, 'rgba(254, 240, 138, 0.95)');
+    grad.addColorStop(0.4, 'rgba(251, 191, 36, 0.65)');
+    grad.addColorStop(1, 'rgba(245, 158, 11, 0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(0, 0, glowRad, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Rotating 8-point celestial star
+    ctx.save();
+    ctx.rotate(time * 1.8);
+    ctx.fillStyle = '#fef08a';
+    ctx.beginPath();
+    for (let p = 0; p < 8; p++) {
+      const ang = (p * Math.PI) / 4;
+      const r = p % 2 === 0 ? 10 : 4.5;
+      if (p === 0) ctx.moveTo(Math.cos(ang) * r, Math.sin(ang) * r);
+      else ctx.lineTo(Math.cos(ang) * r, Math.sin(ang) * r);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    // Central radiant crystal core
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(0, 0, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Floating text label
+    ctx.font = 'bold 9px "Plus Jakarta Sans", sans-serif';
+    ctx.fillStyle = '#fde047';
+    ctx.textAlign = 'center';
+    ctx.fillText('ESSENCE', 0, -14);
+  } else if (orb.kind === 'xp') {
     ctx.fillStyle = '#38bdf8';
     ctx.beginPath();
     ctx.arc(0, 0, 5.5, 0, Math.PI * 2);
@@ -6170,8 +6587,183 @@ function drawProjectile(ctx: CanvasRenderingContext2D, p: Projectile, time: numb
     ctx.lineTo(9, 0);
     ctx.lineTo(7, 4.5);
     ctx.closePath();
+  } else if (p.kind === 'feather_shot') {
+    // Eaglekin Normal Basic Attack: Sharp aerodynamic feather in straight line
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = 'rgba(56, 189, 248, 0.38)';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 18, 6.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // Aerodynamic feather vane & quill shaft
+    ctx.fillStyle = '#0284c7';
+    ctx.strokeStyle = '#bae6fd';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(14, 0);
+    ctx.quadraticCurveTo(2, -6, -14, -3);
+    ctx.lineTo(-18, 0);
+    ctx.lineTo(-14, 3);
+    ctx.quadraticCurveTo(2, 6, 14, 0);
+    ctx.closePath();
     ctx.fill();
     ctx.stroke();
+
+    // White central quill shaft
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(-16, 0);
+    ctx.lineTo(13, 0);
+    ctx.stroke();
+  } else if (p.kind === 'double_feather') {
+    // Eaglekin Enhanced Basic Attack: Piercing twin sharpened feather
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = 'rgba(14, 165, 233, 0.44)';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 20, 7.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.fillStyle = '#0369a1';
+    ctx.strokeStyle = '#e0f2fe';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(16, 0);
+    ctx.quadraticCurveTo(4, -6.5, -13, -3.5);
+    ctx.lineTo(-19, 0);
+    ctx.lineTo(-13, 3.5);
+    ctx.quadraticCurveTo(4, 6.5, 16, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.moveTo(-17, 0);
+    ctx.lineTo(15, 0);
+    ctx.stroke();
+  } else if (p.kind === 'piercing_feather') {
+    // Eaglekin Skill 1 (Piercing Volley) & 3rd Attack: Supersonic piercing sky-feather
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = 'rgba(56, 189, 248, 0.48)';
+    ctx.beginPath();
+    ctx.ellipse(2, 0, 26, 9, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Supersonic shockwave ring
+    ctx.strokeStyle = '#bae6fd';
+    ctx.lineWidth = 2.0;
+    ctx.beginPath();
+    ctx.ellipse(-2, 0, 4, 11, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.fillStyle = '#0284c7';
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(22, 0);
+    ctx.quadraticCurveTo(6, -7.5, -18, -4);
+    ctx.lineTo(-24, 0);
+    ctx.lineTo(-18, 4);
+    ctx.quadraticCurveTo(6, 7.5, 22, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.strokeStyle = '#f0f9ff';
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.moveTo(-22, 0);
+    ctx.lineTo(21, 0);
+    ctx.stroke();
+  } else if (p.kind === 'homing_feather') {
+    // Eaglekin Skill 2 (Homing Feathers): Enchanted curved seeking feather
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = 'rgba(6, 182, 212, 0.45)';
+    ctx.beginPath();
+    ctx.arc(0, 0, 14, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Tracking wind spiral
+    ctx.strokeStyle = '#a5f3fc';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    for (let st = 0; st <= 6; st++) {
+      const u = st / 6;
+      const sx = -16 + u * 24;
+      const sy = Math.sin(u * Math.PI * 2 - time * 20) * 4.5 * (1 - u * 0.4);
+      if (st === 0) ctx.moveTo(sx, sy);
+      else ctx.lineTo(sx, sy);
+    }
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.fillStyle = '#0891b2';
+    ctx.strokeStyle = '#cffafe';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(14, 0);
+    ctx.quadraticCurveTo(2, -6, -12, -2.5);
+    ctx.lineTo(-16, 0);
+    ctx.lineTo(-12, 2.5);
+    ctx.quadraticCurveTo(2, 6, 14, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  } else if (p.kind === 'final_feather') {
+    // Eaglekin Ultimate 3 (Final Horizon): Gigantic enchanted battlefield-piercing sky arrow
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const grad = ctx.createRadialGradient(8, 0, 4, 8, 0, 36);
+    grad.addColorStop(0, 'rgba(254, 240, 138, 0.9)');
+    grad.addColorStop(0.4, 'rgba(56, 189, 248, 0.6)');
+    grad.addColorStop(1, 'rgba(2, 132, 199, 0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.ellipse(4, 0, 46, 20, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Outer sonic compression rings
+    ctx.strokeStyle = '#fef08a';
+    ctx.lineWidth = 2.4;
+    ctx.beginPath();
+    ctx.ellipse(-6, 0, 7, 24, 0, 0, Math.PI * 2);
+    ctx.ellipse(-20, 0, 8, 30, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.fillStyle = '#0284c7';
+    ctx.strokeStyle = '#fef08a';
+    ctx.lineWidth = 2.6;
+    ctx.beginPath();
+    ctx.moveTo(38, 0);
+    ctx.quadraticCurveTo(12, -14, -28, -8);
+    ctx.lineTo(-38, 0);
+    ctx.lineTo(-28, 8);
+    ctx.quadraticCurveTo(12, 14, 38, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 3.2;
+    ctx.beginPath();
+    ctx.moveTo(-34, 0);
+    ctx.lineTo(36, 0);
+    ctx.stroke();
+
+    ctx.fillStyle = '#fde047';
+    ctx.beginPath();
+    ctx.arc(8, 0, 5.5, 0, Math.PI * 2);
+    ctx.fill();
   } else {
     // High Warden Ossian 'boss_shard' spinning crimson crystal!
     ctx.save();
