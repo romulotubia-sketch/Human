@@ -561,6 +561,8 @@ export interface RectZone {
   h: number;
 }
 
+import { Blessing } from './blessing';
+
 export interface WorldProp {
   id: string;
   kind:
@@ -574,7 +576,8 @@ export interface WorldProp {
     | 'torch'
     | 'chest'
     | 'portal_next'
-    | 'portal_guild';
+    | 'portal_guild'
+    | 'blessing_statue';
   x: number;
   y: number;
   w: number;
@@ -616,7 +619,7 @@ export interface MinimapEnemyDot {
 export interface MinimapMarker {
   x: number;
   y: number;
-  kind: 'chest' | 'portal_next' | 'portal_guild';
+  kind: 'chest' | 'portal_next' | 'portal_guild' | 'blessing_statue';
 }
 
 export interface MinimapTeammateDot {
@@ -655,11 +658,21 @@ export interface HudSnapshot {
   enemiesRemaining: number;
   cooldowns: Record<ActiveSkillId, number>;
   maxCooldowns: Record<ActiveSkillId, number>;
-  nearInteraction: 'door_dungeon' | 'skill_shrine' | 'chest' | 'portal_next' | 'portal_guild' | null;
+  nearInteraction:
+    | 'door_dungeon'
+    | 'skill_shrine'
+    | 'chest'
+    | 'portal_next'
+    | 'portal_guild'
+    | 'blessing_statue'
+    | null;
   bossInfo: { name: string; hp: number; maxHp: number } | null;
   runOutcome: 'victory' | 'defeat' | null;
   minimap: MinimapSnapshot | null;
   isDowned?: boolean;
   reviveProgress?: number;
   portalWaiting?: { readyCount: number; requiredCount: number } | null;
+  activeBlessings?: Blessing[];
+  maxBlessings?: number;
 }
+

@@ -12,7 +12,14 @@ interface MobaControlsProps {
   skillButtonScale: number;
   joystickScale: number;
   isForcedCssLandscape: boolean;
-  nearInteraction: 'door_dungeon' | 'skill_shrine' | 'chest' | 'portal_next' | 'portal_guild' | null;
+  nearInteraction:
+    | 'door_dungeon'
+    | 'skill_shrine'
+    | 'chest'
+    | 'portal_next'
+    | 'portal_guild'
+    | 'blessing_statue'
+    | null;
   onJoystickMove: (nx: number, ny: number) => void;
   onBasicAttackHeld: (held: boolean) => void;
   onSkillAim: (
@@ -313,11 +320,13 @@ export function MobaControls({
         ? 'Open Skill Tree'
         : nearInteraction === 'chest'
           ? 'Open Chest'
-          : nearInteraction === 'portal_next'
-            ? 'Next Crypt Floor'
-            : nearInteraction === 'portal_guild'
-              ? 'Return to Guild'
-              : null;
+          : nearInteraction === 'blessing_statue'
+            ? '✦ Receive Ancient Blessing'
+            : nearInteraction === 'portal_next'
+              ? 'Next Crypt Floor'
+              : nearInteraction === 'portal_guild'
+                ? 'Return to Guild'
+                : null;
 
   return (
     <div className="pointer-events-none absolute inset-0 z-20 flex flex-col justify-end">

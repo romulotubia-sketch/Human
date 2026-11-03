@@ -671,7 +671,7 @@ export function buildProceduralDungeon(floor: number): {
       props.push({
         id: `chest_${treasureIndex}_${floor}`,
         kind: 'chest',
-        x: rm.x + Math.floor(rm.w * 0.5) - 28,
+        x: rm.x + Math.floor(rm.w * 0.5) - 60,
         y: rm.y + Math.floor(rm.h * 0.5) - 24,
         w: 56,
         h: 48,
@@ -679,6 +679,21 @@ export function buildProceduralDungeon(floor: number): {
         opened: false,
         label: treasureIndex === 1 ? 'Open Reliquary Chest' : 'Open Crypt Chest',
       });
+
+      if (treasureIndex === 1) {
+        props.push({
+          id: `blessing_statue_${floor}`,
+          kind: 'blessing_statue',
+          x: rm.x + Math.floor(rm.w * 0.5) + 32,
+          y: rm.y + Math.floor(rm.h * 0.5) - 34,
+          w: 56,
+          h: 68,
+          solid: true,
+          opened: false,
+          label: 'Ancient Statue of Blessing',
+        });
+      }
+
 
       const guardCount = 3 + Math.min(2, Math.floor(floor / 2));
       for (let g = 0; g < guardCount; g++) {
@@ -752,7 +767,23 @@ export function buildProceduralDungeon(floor: number): {
     }
   }
 
+  if (!props.some((p) => p.kind === 'blessing_statue')) {
+    const fallbackRoom = rooms.find((r) => r.kind === 'combat') || startRoom;
+    props.push({
+      id: `blessing_statue_${floor}`,
+      kind: 'blessing_statue',
+      x: fallbackRoom.x + Math.floor(fallbackRoom.w * 0.5) + 32,
+      y: fallbackRoom.y + Math.floor(fallbackRoom.h * 0.5) - 34,
+      w: 56,
+      h: 68,
+      solid: true,
+      opened: false,
+      label: 'Ancient Statue of Blessing',
+    });
+  }
+
   return {
+
     map: {
       isGuild: false,
       floor,

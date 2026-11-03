@@ -2099,8 +2099,143 @@ function drawProp(ctx: CanvasRenderingContext2D, prop: WorldProp, time: number) 
       prop.label || (isNext ? 'Next Crypt Floor' : 'Guild Portal'),
       isNext ? '#7dd3fc' : '#fde68a'
     );
+  } else if (kind === 'blessing_statue') {
+    const cx = x + w / 2;
+    const cy = y + h / 2;
+    const isBlessed = Boolean(prop.opened);
+
+    // Stone altar shadow
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+    ctx.beginPath();
+    ctx.ellipse(cx, y + h - 4, w * 0.58, 12, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 1. Tiered stone foundation plinth
+    ctx.fillStyle = '#1e293b';
+    ctx.strokeStyle = '#0f172a';
+    ctx.lineWidth = 2.4;
+    ctx.beginPath();
+    ctx.roundRect(x + 2, y + h - 22, w - 4, 18, 5);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = '#334155';
+    ctx.beginPath();
+    ctx.roundRect(x + 8, y + h - 34, w - 16, 16, 4);
+    ctx.fill();
+    ctx.stroke();
+
+    // 2. Ornate engraved pedestal shaft
+    ctx.fillStyle = '#475569';
+    ctx.beginPath();
+    ctx.roundRect(x + 14, y + 16, w - 28, h - 46, 6);
+    ctx.fill();
+    ctx.stroke();
+
+    // Carved glowing runic runes on shaft
+    ctx.save();
+    if (!isBlessed) {
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.moveTo(cx, y + 24);
+      ctx.lineTo(cx, y + h - 42);
+      ctx.moveTo(cx - 6, y + 30);
+      ctx.lineTo(cx + 6, y + 34);
+      ctx.moveTo(cx - 5, y + 42);
+      ctx.lineTo(cx + 5, y + 40);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // 3. Floating Ethereal Divine Relic / Statue Idol
+    const hover = Math.sin(time * 3.4) * 4.5;
+    const idolY = y + 10 + hover;
+
+    // Radiant celestial glow behind idol
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const glowAlpha = isBlessed ? 0.28 : 0.45 + Math.sin(time * 5) * 0.15;
+    ctx.fillStyle = isBlessed ? 'rgba(251, 191, 36, 0.3)' : 'rgba(56, 189, 248, 0.45)';
+    ctx.beginPath();
+    ctx.arc(cx, idolY, 26, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Counter-rotating blessing rune halo
+    if (!isBlessed) {
+      ctx.strokeStyle = '#fde047';
+      ctx.lineWidth = 2.0;
+      ctx.beginPath();
+      ctx.ellipse(cx, idolY, 20, 8, time * 2.2, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.ellipse(cx, idolY, 20, 8, -time * 2.2, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // Winged Ancient Relic Idol Vessel
+    ctx.save();
+    ctx.translate(cx, idolY);
+
+    // Left & Right Celestial Angelic Wings
+    ctx.fillStyle = isBlessed ? '#d97706' : '#0284c7';
+    ctx.strokeStyle = isBlessed ? '#fde68a' : '#e0f2fe';
+    ctx.lineWidth = 1.6;
+
+    // Left wing
+    ctx.beginPath();
+    ctx.moveTo(-5, 0);
+    ctx.quadraticCurveTo(-18, -16, -24, -4);
+    ctx.quadraticCurveTo(-15, 6, -5, 4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Right wing
+    ctx.beginPath();
+    ctx.moveTo(5, 0);
+    ctx.quadraticCurveTo(18, -16, 24, -4);
+    ctx.quadraticCurveTo(15, 6, 5, 4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Center radiant relic core
+    ctx.fillStyle = isBlessed ? '#f59e0b' : '#38bdf8';
+    ctx.beginPath();
+    ctx.moveTo(0, -12);
+    ctx.lineTo(8, 0);
+    ctx.lineTo(0, 12);
+    ctx.lineTo(-8, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.8;
+    ctx.stroke();
+
+    // Inner sacred star
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(0, 0, 3.2, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+
+    drawWorldLabel(
+      ctx,
+      cx,
+      y - 14,
+      isBlessed ? 'Ancient Statue (Blessed)' : 'Ancient Statue of Blessing',
+      isBlessed ? '#a8a29e' : '#fde047'
+    );
   }
 }
+
 
 function drawWorldLabel(ctx: CanvasRenderingContext2D, x: number, y: number, text: string, color: string) {
   ctx.save();

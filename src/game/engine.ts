@@ -27,6 +27,7 @@ import {
   ScrapDebrisPiece,
   SkillId,
   SlashWaveEffect,
+  SkillLoadout,
   SoulDrainTether,
   SpectralRiftZone,
   SwordAnimState,
@@ -34,8 +35,11 @@ import {
   ToxicCloudZone,
   WorldMap,
 } from '../types/game';
+import { Blessing, BlessingModifier } from '../types/blessing';
+import { getBlessingOptions } from '../data/heroBlessings';
 import { allocEntityId, buildGuildHouse, buildProceduralDungeon } from './dungeonGenerator';
 import { PlayerRenderState, RemotePlayerRenderState, renderGameWorld } from './renderer';
+
 import { multiplayerClient } from './multiplayerClient';
 import {
   ClientAttackMessage,
@@ -108,7 +112,14 @@ export class GameEngine {
   private boneShards = 0;
   private skillPoints = 4;
 
+  // Blessings system (Max 6 blessings per run)
+  private activeBlessings: Blessing[] = [];
+  public readonly maxBlessings = 6;
+  private activeLoadout: SkillLoadout = [...HERO_PROFILES.human.defaultLoadout];
+  private onPromptBlessing?: (options: Blessing[]) => void;
+
   private baseMaxHp = HERO_PROFILES.human.baseHp;
+
   private baseAtk = HERO_PROFILES.human.baseAtk;
   private moveSpeed = HERO_PROFILES.human.moveSpeed;
 
@@ -701,6 +712,105 @@ export class GameEngine {
     return true;
   }
 
+  public setOnPromptBlessing(cb: (options: Blessing[]) => void) {
+    this.onPromptBlessing = cb;
+  }
+
+  public setActiveLoadout(loadout: SkillLoadout) {
+    this.activeLoadout = [...loadout];
+  }
+
+  public getActiveBlessings(): Blessing[] {
+    return [...this.activeBlessings];
+  }
+
+  public addBlessing(blessing: Blessing): boolean {
+    if (this.activeBlessings.length >= this.maxBlessings) return false;
+    if (this.activeBlessings.some((b) => b.id === blessing.id)) return false;
+    this.activeBlessings.push(blessing);
+    soundEngine.playSkill('shield');
+    this.spawnBurstParticles(this.player.x, this.player.y - 12, blessing.glowColor, 28, true);
+    this.spawnFloatingText(
+      this.player.x,
+      this.player.y - 48,
+      `BLESSING: ${blessing.name}!`,
+      blessing.glowColor,
+      true
+    );
+    if (blessing.modifiers.shieldBonus) {
+      this.player.shield += blessing.modifiers.shieldBonus;
+    }
+    this.recalcStats(false);
+    this.emitHudSnapshot();
+    return true;
+  }
+
+  public promptBlessingSelection() {
+    if (this.activeBlessings.length >= this.maxBlessings) return;
+    const currentIds = this.activeBlessings.map((b) => b.id);
+    const options = getBlessingOptions(this.heroId, this.activeLoadout, currentIds, 3);
+    if (options.length > 0 && this.onPromptBlessing) {
+      this.onPromptBlessing(options);
+    }
+  }
+
+  public getBlessingDamageMult(skillId: ActiveSkillId): number {
+    let mult = 0;
+    for (const b of this.activeBlessings) {
+      if (b.skillId === skillId || b.skillId === 'all_skills') {
+        if (b.modifiers.damageMultBonus) mult += b.modifiers.damageMultBonus;
+      }
+    }
+    return mult;
+  }
+
+  public getBlessingCooldownReduction(skillId: ActiveSkillId): number {
+    let cdr = 0;
+    for (const b of this.activeBlessings) {
+      if (b.skillId === skillId || b.skillId === 'all_skills') {
+        if (b.modifiers.cooldownReduction) cdr += b.modifiers.cooldownReduction;
+      }
+    }
+    return Math.min(0.65, cdr);
+  }
+
+  public getBlessingRadiusBonus(skillId: ActiveSkillId): number {
+    let rad = 0;
+    for (const b of this.activeBlessings) {
+      if (b.skillId === skillId || b.skillId === 'all_skills') {
+        if (b.modifiers.radiusMultBonus) rad += b.modifiers.radiusMultBonus;
+      }
+    }
+    return rad;
+  }
+
+  public getBlessingLifesteal(skillId: ActiveSkillId): number {
+    let ls = 0;
+    for (const b of this.activeBlessings) {
+      if (b.skillId === skillId || b.skillId === 'all_skills') {
+        if (b.modifiers.lifestealPct) ls += b.modifiers.lifestealPct;
+      }
+    }
+    return ls;
+  }
+
+  public getBlessingExtraProjectiles(skillId: ActiveSkillId): number {
+    let proj = 0;
+    for (const b of this.activeBlessings) {
+      if (b.skillId === skillId || b.skillId === 'all_skills') {
+        if (b.modifiers.extraProjectiles) proj += b.modifiers.extraProjectiles;
+      }
+    }
+    return proj;
+  }
+
+  public hasBlessingEffect(skillId: ActiveSkillId, effectKey: keyof BlessingModifier): boolean {
+    return this.activeBlessings.some(
+      (b) => (b.skillId === skillId || b.skillId === 'all_skills') && Boolean(b.modifiers[effectKey])
+    );
+  }
+
+
   private recalcStats(fullHeal: boolean) {
     const prevMax = this.player.maxHp;
     let passiveHpBonus = 0;
@@ -765,6 +875,7 @@ export class GameEngine {
     this.currentReviveProgress = 0;
     this.player.isDowned = false;
     this.player.reviveProgress = 0;
+    this.activeBlessings = [];
 
     const guild = buildGuildHouse();
     this.map = guild.map;
@@ -810,8 +921,10 @@ export class GameEngine {
     this.resetGhoulTimers();
     this.resetGhostTimers();
     if (floor === 1) {
+      this.activeBlessings = [];
       this.recalcStats(true);
     } else {
+
       this.healPlayer(Math.round(this.player.maxHp * 0.45), false);
     }
     this.resetPlayerPosition(this.map.spawnX, this.map.spawnY);
@@ -4636,7 +4749,26 @@ export class GameEngine {
         this.emitHudSnapshot();
         return true;
       }
+      if (prop.kind === 'blessing_statue' && !prop.opened) {
+        if (this.activeBlessings.length >= this.maxBlessings) {
+          prop.opened = true;
+          this.boneShards += 50;
+          this.healPlayer(Math.round(this.player.maxHp * 0.4), false);
+          soundEngine.playSkill('shield');
+          this.spawnBurstParticles(cx, cy, '#fde047', 24, true);
+          this.spawnFloatingText(cx, cy - 28, 'Max Blessings (6/6)! +50 Shards', '#fde047', true);
+          this.emitHudSnapshot();
+          return true;
+        }
+        prop.opened = true;
+        soundEngine.playSkill('shield');
+        this.spawnBurstParticles(cx, cy, '#38bdf8', 28, true);
+        this.promptBlessingSelection();
+        this.emitHudSnapshot();
+        return true;
+      }
       if (prop.kind === 'portal_next') {
+
         if (this.isMultiplayer) {
           multiplayerClient.sendEnterPortal();
           return true;
@@ -9066,6 +9198,7 @@ export class GameEngine {
         if (prop.kind === 'door_dungeon') nearInteraction = 'door_dungeon';
         else if (prop.kind === 'skill_shrine') nearInteraction = 'skill_shrine';
         else if (prop.kind === 'chest' && !prop.opened) nearInteraction = 'chest';
+        else if (prop.kind === 'blessing_statue' && !prop.opened) nearInteraction = 'blessing_statue';
         else if (prop.kind === 'portal_next') nearInteraction = 'portal_next';
         else if (prop.kind === 'portal_guild') nearInteraction = 'portal_guild';
       }
@@ -9106,6 +9239,8 @@ export class GameEngine {
       for (const prop of this.map.props) {
         if (prop.kind === 'chest' && !prop.opened) {
           markers.push({ x: prop.x + prop.w / 2, y: prop.y + prop.h / 2, kind: 'chest' });
+        } else if (prop.kind === 'blessing_statue' && !prop.opened) {
+          markers.push({ x: prop.x + prop.w / 2, y: prop.y + prop.h / 2, kind: 'blessing_statue' });
         } else if (prop.kind === 'portal_next') {
           markers.push({ x: prop.x + prop.w / 2, y: prop.y + prop.h / 2, kind: 'portal_next' });
         } else if (prop.kind === 'portal_guild') {
@@ -9163,6 +9298,8 @@ export class GameEngine {
       isDowned: this.localIsDowned,
       reviveProgress: this.localReviveProgress,
       portalWaiting: this.portalWaitingState,
+      activeBlessings: [...this.activeBlessings],
+      maxBlessings: this.maxBlessings,
     });
   }
 }

@@ -139,7 +139,7 @@ export function Minimap({ minimap, heroId, floor }: MinimapProps) {
           );
         })}
 
-        {/* Interactive Props: Unopened Chests & Portals */}
+        {/* Interactive Props: Unopened Chests, Blessing Statues & Portals */}
         {minimap.markers.map((mk, idx) => {
           if (mk.kind === 'chest') {
             return (
@@ -148,12 +148,33 @@ export function Minimap({ minimap, heroId, floor }: MinimapProps) {
                 x={mk.x - unit * 0.52}
                 y={mk.y - unit * 0.52}
                 width={unit * 1.04}
-                height={mk.kind === 'chest' ? unit * 1.04 : unit}
+                height={unit * 1.04}
                 fill="#fde047"
                 stroke="#78350f"
                 strokeWidth={unit * 0.14}
                 transform={`rotate(45 ${mk.x} ${mk.y})`}
               />
+            );
+          }
+          if (mk.kind === 'blessing_statue') {
+            return (
+              <g key={`mk_${idx}`}>
+                <circle
+                  cx={mk.x}
+                  cy={mk.y}
+                  r={unit * 0.78}
+                  fill="#38bdf8"
+                  fillOpacity="0.4"
+                />
+                <circle
+                  cx={mk.x}
+                  cy={mk.y}
+                  r={unit * 0.55}
+                  fill="#38bdf8"
+                  stroke="#fde047"
+                  strokeWidth={unit * 0.16}
+                />
+              </g>
             );
           }
           return (
