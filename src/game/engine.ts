@@ -590,7 +590,9 @@ export class GameEngine {
             ? '#fb7185'
             : this.heroId === 'ghost'
               ? '#818cf8'
-              : '#67e8f9';
+              : this.heroId === 'eaglekin'
+                ? '#38bdf8'
+                : '#67e8f9';
   }
 
   private resetHumanTimers() {
@@ -660,6 +662,47 @@ export class GameEngine {
     this.wailingEchoTimer = 0;
   }
 
+  // Eaglekin Sky Marksman state variables
+  private windstepDashTimer = 0;
+  private windstepDashVx = 0;
+  private windstepDashVy = 0;
+  private rainOfFeathersVolleysLeft = 0;
+  private rainOfFeathersVolleyTimer = 0;
+  private rainOfFeathersTargetX = 0;
+  private rainOfFeathersTargetY = 0;
+  private rainOfFeathersRadius = 115;
+  private rainOfFeathersMult = 0.58;
+  private wrathSkyVolleysLeft = 0;
+  private wrathSkyVolleyTimer = 0;
+  private wrathSkyTargetX = 0;
+  private wrathSkyTargetY = 0;
+  private wrathSkyRadius = 230;
+  private wrathSkyMult = 2.85;
+  private celestialBarrageTimer = 0;
+  private celestialBarrageTickTimer = 0;
+  private celestialBarrageMult = 0.85;
+
+  private resetEaglekinTimers() {
+    this.player.wingFlapTimer = 0;
+    this.player.huntersMarkTargetId = null;
+    this.player.rainOfFeathersTimer = 0;
+    this.player.celestialBarrageTimer = 0;
+    this.player.celestialBarrageWings = 0;
+    this.player.wrathSkyTimer = 0;
+    this.player.precisionStacks = 0;
+    this.player.lastTargetHitId = null;
+    this.player.airborneHeight = 0;
+    this.windstepDashTimer = 0;
+    this.windstepDashVx = 0;
+    this.windstepDashVy = 0;
+    this.rainOfFeathersVolleysLeft = 0;
+    this.rainOfFeathersVolleyTimer = 0;
+    this.wrathSkyVolleysLeft = 0;
+    this.wrathSkyVolleyTimer = 0;
+    this.celestialBarrageTimer = 0;
+    this.celestialBarrageTickTimer = 0;
+  }
+
   private breakWeaponTrail() {
     for (let i = 0; i < this.swordTrail.length; i++) {
       this.swordTrail[i].active = false;
@@ -693,6 +736,7 @@ export class GameEngine {
     this.resetHumanTimers();
     this.resetGhoulTimers();
     this.resetGhostTimers();
+    this.resetEaglekinTimers();
     this.clearPools();
     this.resetRunProgression();
   }
@@ -1742,6 +1786,58 @@ export class GameEngine {
         this.spawnGroundEffect('brawler_stance_ring', data.x, data.y + 4, 0, 0, 0, 118, 0.55, '#fb923c', '#ffffff');
         this.spawnPipeStrike('street_sweep', data.x, data.y - 8, ang, 165, 1, 0.28, '#fb923c', '#ffffff');
         break;
+
+      // --- EAGLEKIN ---
+      case 'piercing_volley':
+        soundEngine.playWingFlap(1.22);
+        soundEngine.playFeatherShoot(1.1);
+        rp.wingFlapTimer = 0.35;
+        this.spawnArcBurst(data.x, data.y - 10, ang, def.range * 0.5, '#38bdf8', 12);
+        break;
+      case 'homing_feathers':
+        soundEngine.playWingFlap(1.15);
+        soundEngine.playFeatherShoot(1.25);
+        rp.wingFlapTimer = 0.35;
+        this.spawnRingEffect(data.x, data.y - 10, 52, '#06b6d4');
+        break;
+      case 'hunters_mark':
+        soundEngine.playSkyScreech(1.2);
+        rp.wingFlapTimer = 0.3;
+        this.spawnRingEffect(tx, ty, 48, '#38bdf8');
+        break;
+      case 'windstep':
+        soundEngine.playWingFlap(0.9);
+        soundEngine.playSkill('rush');
+        rp.wingFlapTimer = 0.32;
+        this.spawnRingEffect(data.x, data.y, 75, '#38bdf8');
+        break;
+      case 'rain_of_feathers':
+        soundEngine.playWingFlap(1.05);
+        soundEngine.playSkill('storm');
+        rp.airborneHeight = 28;
+        rp.rainOfFeathersTimer = 3.0;
+        this.spawnRingEffect(tx, ty, def.radiusOrAngle, '#38bdf8');
+        break;
+      case 'wrath_of_the_sky':
+        soundEngine.playSkyScreech(0.9);
+        soundEngine.playSkill('ultimate');
+        rp.airborneHeight = 44;
+        rp.wrathSkyTimer = 4.2;
+        this.spawnRingEffect(tx, ty, def.radiusOrAngle, '#0284c7');
+        break;
+      case 'celestial_barrage':
+        soundEngine.playSkyScreech(1.1);
+        soundEngine.playSkill('ultimate');
+        rp.celestialBarrageTimer = 8.5;
+        rp.celestialBarrageWings = 4;
+        this.spawnRingEffect(data.x, data.y, 110, '#38bdf8');
+        break;
+      case 'final_horizon':
+        soundEngine.playSkyScreech(0.85);
+        soundEngine.playSkill('ultimate');
+        rp.wingFlapTimer = 0.5;
+        this.spawnRingEffect(data.x, data.y - 10, 68, '#38bdf8');
+        break;
     }
   }
 
@@ -1997,7 +2093,7 @@ export class GameEngine {
   public handleRemoteLootCollected(
     lootId: number,
     collectorId: string,
-    kind: 'xp' | 'heal' | 'shard',
+    kind: 'xp' | 'heal' | 'shard' | 'boss_essence',
     value: number
   ) {
     for (const orb of this.pickups) {
@@ -2017,6 +2113,16 @@ export class GameEngine {
       this.boneShards += value;
     } else if (kind === 'heal' && isLocalCollector) {
       this.healPlayer(value, true);
+    } else if (kind === 'boss_essence' && isLocalCollector) {
+      soundEngine.playSkill('ultimate');
+      this.spawnRingEffect(this.player.x, this.player.y, 140, '#fbbf24');
+      this.spawnBurstParticles(this.player.x, this.player.y - 12, '#fde047', 32, true);
+      this.spawnFloatingText(this.player.x, this.player.y - 44, 'BOSS ESSENCE CLAIMED!', '#fbbf24', true);
+      if (this.activeBlessings.length < this.maxBlessings) {
+        setTimeout(() => {
+          this.promptBlessingSelection();
+        }, 300);
+      }
     }
     this.emitHudSnapshot();
   }
@@ -3790,6 +3896,230 @@ export class GameEngine {
       this.omaFinisherTimer = this.omaBlitzLeft * 0.135 + 0.12;
       this.omaMult = mult;
       this.omaLastEnemyId = -1;
+    } else if (skillId === 'piercing_volley') {
+      // Normal 1: Unleashes powerful spread of sharpened feathers in wide forward direction (piercing)
+      this.player.swordAnim = SwordAnimState.PIERCING_VOLLEY;
+      this.swordAnimDuration = 0.32;
+      this.swordAnimTimer = 0.32;
+      this.player.wingFlapTimer = 0.32;
+      soundEngine.playWingFlap(1.22);
+      soundEngine.playFeatherShoot(1.1);
+
+      const featherCount = 5 + (rank - 1);
+      const spreadSpan = 0.55;
+      const { dmg, isCrit } = this.rollPlayerDamage(mult / Math.max(1, featherCount * 0.42), 0.12);
+      for (let i = 0; i < featherCount; i++) {
+        const offsetAng = featherCount > 1 ? (i / (featherCount - 1) - 0.5) * spreadSpan : 0;
+        const fAng = targetAngle + offsetAng;
+        this.spawnProjectile({
+          fromPlayer: true,
+          kind: 'piercing_feather',
+          x: this.player.x + Math.cos(fAng) * 20,
+          y: this.player.y - 10 + Math.sin(fAng) * 20,
+          vx: Math.cos(fAng) * 680,
+          vy: Math.sin(fAng) * 680,
+          angle: fAng,
+          radius: 16,
+          damage: dmg,
+          isCrit,
+          pierce: true,
+          maxLife: def.range / 680 + 0.1,
+          color: '#38bdf8',
+        });
+      }
+      this.spawnArcBurst(this.player.x, this.player.y - 10, targetAngle, def.range * 0.4, '#38bdf8', 14);
+    } else if (skillId === 'homing_feathers') {
+      // Normal 2: Launches several enchanted feathers into the air tracking nearby enemies
+      this.player.swordAnim = SwordAnimState.HOMING_FEATHERS;
+      this.swordAnimDuration = 0.34;
+      this.swordAnimTimer = 0.34;
+      this.player.wingFlapTimer = 0.34;
+      soundEngine.playWingFlap(1.15);
+      soundEngine.playFeatherShoot(1.25);
+
+      const featherCount = 4 + (rank - 1);
+      const { dmg, isCrit } = this.rollPlayerDamage(mult / Math.max(1, featherCount * 0.45), 0.1);
+      for (let i = 0; i < featherCount; i++) {
+        const launchAng = targetAngle + (Math.random() - 0.5) * 1.6;
+        const spd = 420 + Math.random() * 80;
+        this.spawnProjectile({
+          fromPlayer: true,
+          kind: 'homing_feather',
+          x: this.player.x + Math.cos(launchAng) * 18,
+          y: this.player.y - 12 + Math.sin(launchAng) * 18,
+          vx: Math.cos(launchAng) * spd,
+          vy: Math.sin(launchAng) * spd,
+          angle: launchAng,
+          radius: 14,
+          damage: dmg,
+          isCrit,
+          pierce: false,
+          maxLife: 1.6,
+          color: '#06b6d4',
+          targetEnemyId: -1,
+        });
+      }
+      this.spawnRingEffect(this.player.x, this.player.y - 10, 52, '#06b6d4');
+    } else if (skillId === 'hunters_mark') {
+      // Normal 3: Exceptional eyesight marks target enemy; attacks +35% dmg & projectiles adjust trajectory
+      this.player.swordAnim = SwordAnimState.HUNTERS_MARK;
+      this.swordAnimDuration = 0.3;
+      this.swordAnimTimer = 0.3;
+      this.player.wingFlapTimer = 0.3;
+      soundEngine.playSkyScreech(1.2);
+      soundEngine.playSkill('rush');
+
+      let markTarget = this.findNearestEnemy(def.range + 80);
+      if (!isManual && markTarget) {
+        // Already nearest
+      } else {
+        const cx = this.player.x + Math.cos(targetAngle) * targetDist;
+        const cy = this.player.y + Math.sin(targetAngle) * targetDist;
+        markTarget = this.findNearestEnemyFrom(cx, cy, 140) || markTarget;
+      }
+
+      if (markTarget) {
+        markTarget.huntersMarkTimer = 7.0;
+        this.player.huntersMarkTargetId = markTarget.id;
+        const { dmg, isCrit } = this.rollPlayerDamage(mult, 0.25);
+        this.damageEnemy(markTarget, dmg, isCrit, '#38bdf8');
+        this.spawnFloatingText(markTarget.x, markTarget.y - markTarget.radius - 32, "HUNTER'S MARK!", '#38bdf8', true);
+        this.spawnRingEffect(markTarget.x, markTarget.y, 48, '#38bdf8');
+        this.spawnBurstParticles(markTarget.x, markTarget.y - 10, '#38bdf8', 16, true);
+      }
+    } else if (skillId === 'windstep') {
+      // Normal 4: Propels rapidly in selected direction while releasing a gust of wind
+      this.player.swordAnim = SwordAnimState.WINDSTEP;
+      this.swordAnimDuration = 0.24;
+      this.swordAnimTimer = 0.24;
+      this.player.wingFlapTimer = 0.32;
+      soundEngine.playWingFlap(0.9);
+      soundEngine.playSkill('rush');
+
+      const dashDur = 0.2;
+      const dashSpeed = def.range / dashDur;
+      this.windstepDashTimer = dashDur;
+      this.windstepDashVx = Math.cos(targetAngle) * dashSpeed;
+      this.windstepDashVy = Math.sin(targetAngle) * dashSpeed;
+
+      this.spawnRingEffect(this.player.x, this.player.y, 75, '#38bdf8');
+      this.spawnSoftMotes(this.player.x, this.player.y, targetAngle + Math.PI, 65, '#e0f2fe', 8);
+
+      // Wind gust damages and pushes back nearby enemies at origin
+      for (const e of this.enemies) {
+        if (e.hp <= 0) continue;
+        if (Math.hypot(e.x - this.player.x, e.y - this.player.y) <= 85 + e.radius) {
+          const { dmg, isCrit } = this.rollPlayerDamage(mult * 0.4, 0.1);
+          e.slowTimer = Math.max(e.slowTimer, 1.8);
+          this.damageEnemy(e, dmg, isCrit, '#38bdf8');
+          if (e.kind !== EnemyKind.TRAINING_DUMMY && e.kind !== EnemyKind.BOSS_WARDEN) {
+            const ka = Math.atan2(e.y - this.player.y, e.x - this.player.x);
+            this.tryMoveEntity(e.x, e.y, Math.cos(ka) * 44, Math.sin(ka) * 44, e.radius, (nx, ny) => {
+              e.x = nx;
+              e.y = ny;
+            });
+          }
+        }
+      }
+    } else if (skillId === 'rain_of_feathers') {
+      // Normal 5: Flies briefly above battlefield and releases continuous shower of feathers over area
+      this.player.swordAnim = SwordAnimState.RAIN_OF_FEATHERS;
+      this.swordAnimDuration = 0.38;
+      this.swordAnimTimer = 0.38;
+      this.player.wingFlapTimer = 0.45;
+      this.player.airborneHeight = 28;
+      this.player.rainOfFeathersTimer = 3.0;
+      soundEngine.playWingFlap(1.05);
+      soundEngine.playSkill('storm');
+
+      const cx = this.player.x + Math.cos(targetAngle) * targetDist;
+      const cy = this.player.y + Math.sin(targetAngle) * targetDist;
+      this.rainOfFeathersTargetX = cx;
+      this.rainOfFeathersTargetY = cy;
+      this.rainOfFeathersRadius = def.radiusOrAngle;
+      this.rainOfFeathersMult = mult;
+      this.rainOfFeathersVolleysLeft = 7 + (rank - 1) * 2;
+      this.rainOfFeathersVolleyTimer = 0.04;
+
+      this.spawnRingEffect(cx, cy, def.radiusOrAngle, '#38bdf8');
+      this.spawnBurstParticles(cx, cy, '#38bdf8', 18, true);
+      this.spawnFloatingText(cx, cy - 35, 'RAIN OF FEATHERS!', '#38bdf8', true);
+    } else if (skillId === 'wrath_of_the_sky') {
+      // Ultimate 1: Ascends high above battlefield, spreads enormous wings, unleashes huge storm of feathers
+      this.player.swordAnim = SwordAnimState.WRATH_OF_THE_SKY;
+      this.swordAnimDuration = 0.45;
+      this.swordAnimTimer = 0.45;
+      this.player.wingFlapTimer = 0.55;
+      this.player.airborneHeight = 44;
+      this.player.wrathSkyTimer = 4.2;
+      soundEngine.playSkyScreech(0.9);
+      soundEngine.playSkill('ultimate');
+      this.triggerShake(0.28, 6.5);
+
+      const cx = this.player.x + Math.cos(targetAngle) * targetDist;
+      const cy = this.player.y + Math.sin(targetAngle) * targetDist;
+      this.wrathSkyTargetX = cx;
+      this.wrathSkyTargetY = cy;
+      this.wrathSkyRadius = def.radiusOrAngle;
+      this.wrathSkyMult = mult;
+      this.wrathSkyVolleysLeft = 14 + (rank - 1) * 3;
+      this.wrathSkyVolleyTimer = 0.04;
+
+      this.spawnRingEffect(cx, cy, def.radiusOrAngle, '#0284c7');
+      this.spawnRingEffect(cx, cy, def.radiusOrAngle * 0.65, '#e0f2fe');
+      this.spawnBurstParticles(cx, cy, '#38bdf8', 28, true);
+      this.spawnFloatingText(this.player.x, this.player.y - 50, 'WRATH OF THE SKY!', '#38bdf8', true);
+    } else if (skillId === 'celestial_barrage') {
+      // Ultimate 2: Summons enormous spectral wings behind itself that continuously fire magical feathers
+      this.player.swordAnim = SwordAnimState.CELESTIAL_BARRAGE;
+      this.swordAnimDuration = 0.42;
+      this.swordAnimTimer = 0.42;
+      this.player.wingFlapTimer = 0.5;
+      this.player.celestialBarrageTimer = 8.5;
+      this.player.celestialBarrageWings = 4;
+      this.celestialBarrageTimer = 8.5;
+      this.celestialBarrageTickTimer = 0.22;
+      this.celestialBarrageMult = mult;
+      soundEngine.playSkyScreech(1.1);
+      soundEngine.playSkill('ultimate');
+      this.triggerShake(0.22, 5.0);
+
+      this.spawnRingEffect(this.player.x, this.player.y, 110, '#38bdf8');
+      this.spawnBurstParticles(this.player.x, this.player.y - 12, '#e0f2fe', 24, true);
+      this.spawnFloatingText(this.player.x, this.player.y - 48, 'CELESTIAL BARRAGE!', '#38bdf8', true);
+    } else if (skillId === 'final_horizon') {
+      // Ultimate 3: Gigantic enchanted feather pierces whole battlefield, then explodes into homing feathers
+      this.player.swordAnim = SwordAnimState.FINAL_HORIZON;
+      this.swordAnimDuration = 0.46;
+      this.swordAnimTimer = 0.46;
+      this.player.wingFlapTimer = 0.5;
+      soundEngine.playSkyScreech(0.85);
+      soundEngine.playSkill('ultimate');
+      this.triggerShake(0.32, 8.5);
+
+      const { dmg, isCrit } = this.rollPlayerDamage(mult, 0.28);
+      const spawnX = this.player.x + Math.cos(targetAngle) * 24;
+      const spawnY = this.player.y - 12 + Math.sin(targetAngle) * 24;
+
+      this.spawnProjectile({
+        fromPlayer: true,
+        kind: 'final_feather',
+        x: spawnX,
+        y: spawnY,
+        vx: Math.cos(targetAngle) * 720,
+        vy: Math.sin(targetAngle) * 720,
+        angle: targetAngle,
+        radius: 34,
+        damage: dmg,
+        isCrit,
+        pierce: true,
+        maxLife: def.range / 720 + 0.12,
+        color: '#e0f2fe',
+      });
+
+      this.spawnRingEffect(spawnX, spawnY, 68, '#38bdf8');
+      this.spawnBurstParticles(spawnX, spawnY, '#e0f2fe', 30, true);
+      this.spawnFloatingText(this.player.x, this.player.y - 52, 'FINAL HORIZON!', '#e0f2fe', true);
     }
 
     if (this.isMultiplayer && this.player.shield > prevShield) {
@@ -4488,6 +4818,110 @@ export class GameEngine {
           '#c084fc',
           '#2dd4bf'
         );
+      }
+      return;
+    }
+
+    // =========================================================================
+    // EAGLEKIN – SKY MARKSMAN BASIC ATTACK SEQUENCE (FEATHER SHOT, DOUBLE, EAGLE'S PIERCE)
+    // =========================================================================
+    if (this.heroId === 'eaglekin') {
+      const eagleRange = 450;
+      const nearest = this.findNearestEnemy(eagleRange);
+      if (nearest) {
+        this.player.facing = Math.atan2(nearest.y - this.player.y, nearest.x - this.player.x);
+      } else if (Math.hypot(this.joyX, this.joyY) > 0.15) {
+        this.player.facing = Math.atan2(this.joyY, this.joyX);
+      }
+
+      this.comboStep = (this.comboStep % 3) + 1;
+      this.comboResetTimer = 1.4;
+
+      const rawCd = this.comboStep === 3 ? 0.36 : this.comboStep === 2 ? 0.22 : 0.24;
+      this.basicCooldown = rawCd;
+
+      const syncedDur = Math.max(0.18, this.basicCooldown * 1.05);
+      this.swordAnimDuration = syncedDur;
+      this.swordAnimTimer = syncedDur;
+      this.player.wingFlapTimer = syncedDur;
+      this.player.swordAnim =
+        this.comboStep === 1
+          ? SwordAnimState.FEATHER_SHOT
+          : this.comboStep === 2
+            ? SwordAnimState.DOUBLE_FEATHER
+            : SwordAnimState.BASIC_3;
+
+      const wingFlapPitch = this.comboStep === 1 ? 1.15 : this.comboStep === 2 ? 1.3 : 0.95;
+      soundEngine.playWingFlap(wingFlapPitch);
+      soundEngine.playFeatherShoot(this.comboStep === 3 ? 0.88 : 1.05);
+
+      const spawnX = this.player.x + Math.cos(this.player.facing) * 16;
+      const spawnY = this.player.y - 10 + Math.sin(this.player.facing) * 16;
+
+      if (this.comboStep === 1) {
+        // Normal Basic Attack: Feather Shot – sharp, hardened feather in straight line
+        const { dmg, isCrit } = this.rollPlayerDamage(1.1, 0.08);
+        this.spawnProjectile({
+          fromPlayer: true,
+          kind: 'feather_shot',
+          x: spawnX,
+          y: spawnY,
+          vx: Math.cos(this.player.facing) * 640,
+          vy: Math.sin(this.player.facing) * 640,
+          angle: this.player.facing,
+          radius: 14,
+          damage: dmg,
+          isCrit,
+          pierce: false,
+          maxLife: eagleRange / 640 + 0.1,
+          color: '#38bdf8',
+        });
+        this.spawnSoftMotes(spawnX, spawnY, this.player.facing, 12, '#38bdf8', 3);
+      } else if (this.comboStep === 2) {
+        // Enhanced Basic Attack: Double Feather Shot – 2 piercing feathers in rapid succession
+        const spreadAng = 0.08;
+        for (const sign of [-1, 1]) {
+          const fAng = this.player.facing + sign * spreadAng;
+          const { dmg, isCrit } = this.rollPlayerDamage(0.72, 0.1);
+          this.spawnProjectile({
+            fromPlayer: true,
+            kind: 'double_feather',
+            x: spawnX + Math.cos(fAng + Math.PI / 2) * (sign * 6),
+            y: spawnY + Math.sin(fAng + Math.PI / 2) * (sign * 6),
+            vx: Math.cos(fAng) * 660,
+            vy: Math.sin(fAng) * 660,
+            angle: fAng,
+            radius: 13,
+            damage: dmg,
+            isCrit,
+            pierce: true,
+            maxLife: eagleRange / 660 + 0.1,
+            color: '#0284c7',
+          });
+        }
+        this.spawnSoftMotes(spawnX, spawnY, this.player.facing, 16, '#0284c7', 5);
+      } else {
+        // 3rd Attack: Enhanced Eagle's Pierce – Gathers wind energy around wings, fires enormous reinforced feather!
+        soundEngine.playSkyScreech(1.15);
+        this.triggerShake(0.12, 3.2);
+        const { dmg, isCrit } = this.rollPlayerDamage(1.88, 0.22);
+        this.spawnProjectile({
+          fromPlayer: true,
+          kind: 'piercing_feather',
+          x: spawnX,
+          y: spawnY,
+          vx: Math.cos(this.player.facing) * 780,
+          vy: Math.sin(this.player.facing) * 780,
+          angle: this.player.facing,
+          radius: 22,
+          damage: dmg,
+          isCrit,
+          pierce: true,
+          maxLife: eagleRange / 780 + 0.12,
+          color: '#e0f2fe',
+        });
+        this.spawnArcBurst(spawnX, spawnY, this.player.facing, 44, '#38bdf8', 12);
+        this.spawnRingEffect(spawnX, spawnY, 32, '#e0f2fe');
       }
       return;
     }
@@ -5974,6 +6408,130 @@ export class GameEngine {
       }
     }
 
+    // =========================================================================
+    // EAGLEKIN – SKY MARKSMAN PERIODIC UPDATES & ABILITIES
+    // =========================================================================
+    if (this.player.wingFlapTimer && this.player.wingFlapTimer > 0) {
+      this.player.wingFlapTimer = Math.max(0, this.player.wingFlapTimer - dt);
+    }
+    if (this.player.rainOfFeathersTimer && this.player.rainOfFeathersTimer > 0) {
+      this.player.rainOfFeathersTimer = Math.max(0, this.player.rainOfFeathersTimer - dt);
+      if (this.player.rainOfFeathersTimer <= 0 && (!this.player.wrathSkyTimer || this.player.wrathSkyTimer <= 0)) {
+        this.player.airborneHeight = 0;
+      }
+    }
+    if (this.player.wrathSkyTimer && this.player.wrathSkyTimer > 0) {
+      this.player.wrathSkyTimer = Math.max(0, this.player.wrathSkyTimer - dt);
+      if (this.player.wrathSkyTimer <= 0 && (!this.player.rainOfFeathersTimer || this.player.rainOfFeathersTimer <= 0)) {
+        this.player.airborneHeight = 0;
+      }
+    }
+
+    // Eaglekin Normal 5 (Rain of Feathers): Continuous shower of sky feathers over target area
+    if (this.rainOfFeathersVolleysLeft > 0) {
+      this.rainOfFeathersVolleyTimer -= dt;
+      if (this.rainOfFeathersVolleyTimer <= 0) {
+        this.rainOfFeathersVolleysLeft -= 1;
+        this.rainOfFeathersVolleyTimer = 0.12;
+        soundEngine.playFeatherShoot(1.2);
+        this.player.wingFlapTimer = 0.18;
+
+        for (let f = 0; f < 3; f++) {
+          const offDist = Math.random() * this.rainOfFeathersRadius;
+          const offAng = Math.random() * Math.PI * 2;
+          const fx = this.rainOfFeathersTargetX + Math.cos(offAng) * offDist;
+          const fy = this.rainOfFeathersTargetY + Math.sin(offAng) * offDist;
+          this.spawnBurstParticles(fx, fy, '#38bdf8', 4, true);
+
+          for (const e of this.enemies) {
+            if (e.hp <= 0) continue;
+            if (Math.hypot(e.x - fx, e.y - fy) <= 36 + e.radius) {
+              const { dmg, isCrit } = this.rollPlayerDamage(this.rainOfFeathersMult * 0.28, 0.12);
+              this.damageEnemy(e, dmg, isCrit, '#38bdf8');
+            }
+          }
+        }
+      }
+    }
+
+    // Eaglekin Ultimate 1 (Wrath of the Sky): Raining storm of sharpened celestial feathers across wide area
+    if (this.wrathSkyVolleysLeft > 0) {
+      this.wrathSkyVolleyTimer -= dt;
+      if (this.wrathSkyVolleyTimer <= 0) {
+        this.wrathSkyVolleysLeft -= 1;
+        this.wrathSkyVolleyTimer = 0.09;
+        soundEngine.playFeatherShoot(0.95);
+        this.player.wingFlapTimer = 0.2;
+
+        for (let f = 0; f < 4; f++) {
+          const offDist = Math.random() * this.wrathSkyRadius;
+          const offAng = Math.random() * Math.PI * 2;
+          const fx = this.wrathSkyTargetX + Math.cos(offAng) * offDist;
+          const fy = this.wrathSkyTargetY + Math.sin(offAng) * offDist;
+          this.spawnBurstParticles(fx, fy, '#e0f2fe', 6, true);
+          this.spawnRingEffect(fx, fy, 28, '#0284c7');
+
+          for (const e of this.enemies) {
+            if (e.hp <= 0) continue;
+            if (Math.hypot(e.x - fx, e.y - fy) <= 42 + e.radius) {
+              const { dmg, isCrit } = this.rollPlayerDamage(this.wrathSkyMult * 0.22, 0.18);
+              this.damageEnemy(e, dmg, isCrit, '#0284c7');
+            }
+          }
+        }
+      }
+    }
+
+    // Eaglekin Ultimate 2 (Celestial Barrage): 4 spectral wings continuously fire magical feathers
+    if (this.celestialBarrageTimer > 0) {
+      this.celestialBarrageTimer = Math.max(0, this.celestialBarrageTimer - dt);
+      this.player.celestialBarrageTimer = this.celestialBarrageTimer;
+      this.celestialBarrageTickTimer -= dt;
+      if (this.celestialBarrageTickTimer <= 0) {
+        this.celestialBarrageTickTimer = 0.22;
+        soundEngine.playFeatherShoot(1.3);
+        this.player.wingFlapTimer = 0.16;
+
+        const target = this.findNearestEnemy(460);
+        const ang = target
+          ? Math.atan2(target.y - this.player.y, target.x - this.player.x)
+          : this.player.facing;
+        for (const wingOffset of [-0.25, 0.25]) {
+          const wAng = ang + wingOffset;
+          const { dmg, isCrit } = this.rollPlayerDamage(this.celestialBarrageMult * 0.42, 0.14);
+          this.spawnProjectile({
+            fromPlayer: true,
+            kind: 'celestial_feather',
+            x: this.player.x + Math.cos(wAng + Math.PI / 2) * (wingOffset * 60),
+            y: this.player.y - 18 + Math.sin(wAng + Math.PI / 2) * (wingOffset * 60),
+            vx: Math.cos(wAng) * 620,
+            vy: Math.sin(wAng) * 620,
+            angle: wAng,
+            radius: 14,
+            damage: dmg,
+            isCrit,
+            pierce: false,
+            maxLife: 1.4,
+            color: '#38bdf8',
+            targetEnemyId: target ? target.id : -1,
+          });
+        }
+      }
+      if (this.celestialBarrageTimer <= 0) {
+        this.player.celestialBarrageWings = 0;
+      }
+    }
+
+    // Tick Hunter's Mark on enemies
+    for (const e of this.enemies) {
+      if (e.huntersMarkTimer && e.huntersMarkTimer > 0) {
+        e.huntersMarkTimer = Math.max(0, e.huntersMarkTimer - dt);
+        if (e.huntersMarkTimer <= 0 && this.player.huntersMarkTargetId === e.id) {
+          this.player.huntersMarkTargetId = null;
+        }
+      }
+    }
+
     // Ghost Haunted Possession active state: ride inside possessed enemy & erupt when finished!
     if (this.player.possessingTimer > 0) {
       this.player.possessingTimer = Math.max(0, this.player.possessingTimer - dt);
@@ -7031,7 +7589,14 @@ export class GameEngine {
     const isTransformed = this.player.colossusTimer > 0;
     const isZombie = this.heroId === 'zombie';
     const isGhoul = this.heroId === 'ghoul';
-    const isGhost = this.heroId === 'ghost';
+    // Eaglekin Sky Marksman has integrated feathered wings attached to its body (no floating weapon)
+    if (this.heroId === 'eaglekin') {
+      this.breakWeaponTrail();
+      if (this.swordAnimTimer > 0) {
+        this.swordAnimTimer = Math.max(0, this.swordAnimTimer - dt);
+      }
+      return;
+    }
 
     // Bespoke Floating Astral Soul Lantern choreography for Ghost (pendulum hover & cast pulse, zero melee blade trail!)
     if (isGhost) {
@@ -8176,12 +8741,43 @@ export class GameEngine {
     e.walkPhase += dt * 9 * slowMult;
   }
 
+  private triggerFinalHorizonExplosion(x: number, y: number, damage: number) {
+    soundEngine.playSkyScreech(1.1);
+    this.triggerShake(0.2, 5.5);
+    this.spawnRingEffect(x, y, 95, '#38bdf8');
+    this.spawnBurstParticles(x, y, '#e0f2fe', 24, true);
+    const subCount = 8;
+    for (let k = 0; k < subCount; k++) {
+      const sa = (k * Math.PI * 2) / subCount + (Math.random() - 0.5) * 0.3;
+      const spd = 460 + Math.random() * 80;
+      this.spawnProjectile({
+        fromPlayer: true,
+        kind: 'homing_feather',
+        x,
+        y,
+        vx: Math.cos(sa) * spd,
+        vy: Math.sin(sa) * spd,
+        angle: sa,
+        radius: 14,
+        damage: Math.max(8, Math.round(damage * 0.42)),
+        isCrit: false,
+        pierce: false,
+        maxLife: 1.5,
+        color: '#38bdf8',
+        targetEnemyId: -1,
+      });
+    }
+  }
+
   private updateProjectiles(dt: number) {
     for (const p of this.projectiles) {
       if (!p.active) continue;
       p.life += dt;
       if (p.life >= p.maxLife) {
         p.active = false;
+        if (p.kind === 'final_feather' && !p.visualOnly) {
+          this.triggerFinalHorizonExplosion(p.x, p.y, p.damage);
+        }
         continue;
       }
 
@@ -8260,7 +8856,9 @@ export class GameEngine {
       if (
         p.kind === 'homing_splinter' ||
         p.kind === 'ghost_wisp' ||
-        p.kind === 'ghost_soul_orb'
+        p.kind === 'ghost_soul_orb' ||
+        p.kind === 'homing_feather' ||
+        p.kind === 'celestial_feather'
       ) {
         let target: EnemyEntity | null = null;
         if (p.targetEnemyId !== undefined && p.targetEnemyId >= 0) {
@@ -8272,7 +8870,19 @@ export class GameEngine {
           }
         }
         if (!target) {
-          target = this.findNearestEnemyFrom(p.x, p.y, 400);
+          // If hunter's mark target is active, prioritize it
+          if (this.player.huntersMarkTargetId) {
+            for (const e of this.enemies) {
+              if (e.id === this.player.huntersMarkTargetId && e.hp > 0) {
+                target = e;
+                p.targetEnemyId = target.id;
+                break;
+              }
+            }
+          }
+        }
+        if (!target) {
+          target = this.findNearestEnemyFrom(p.x, p.y, 440);
           if (target) p.targetEnemyId = target.id;
         }
         if (target) {
@@ -8280,11 +8890,38 @@ export class GameEngine {
           let diff = desired - p.angle;
           while (diff > Math.PI) diff -= Math.PI * 2;
           while (diff < -Math.PI) diff += Math.PI * 2;
-          const turnRate = p.kind === 'homing_splinter' ? 9 : 11.8;
+          const turnRate =
+            p.kind === 'homing_feather' || p.kind === 'celestial_feather'
+              ? 13.5
+              : p.kind === 'homing_splinter'
+                ? 9
+                : 11.8;
           p.angle += diff * Math.min(1, dt * turnRate);
           const spd = Math.hypot(p.vx, p.vy);
           p.vx = Math.cos(p.angle) * spd;
           p.vy = Math.sin(p.angle) * spd;
+        }
+      }
+
+      // Hunter's Mark projectile tracking: straight feather shots adjust trajectory to follow marked target!
+      if (
+        this.player.huntersMarkTargetId &&
+        (p.kind === 'feather_shot' || p.kind === 'double_feather' || p.kind === 'piercing_feather')
+      ) {
+        for (const e of this.enemies) {
+          if (e.id === this.player.huntersMarkTargetId && e.hp > 0) {
+            const desired = Math.atan2(e.y - 8 - p.y, e.x - p.x);
+            let diff = desired - p.angle;
+            while (diff > Math.PI) diff -= Math.PI * 2;
+            while (diff < -Math.PI) diff += Math.PI * 2;
+            if (Math.abs(diff) < Math.PI * 0.45) {
+              p.angle += diff * Math.min(1, dt * 4.5);
+              const spd = Math.hypot(p.vx, p.vy);
+              p.vx = Math.cos(p.angle) * spd;
+              p.vy = Math.sin(p.angle) * spd;
+            }
+            break;
+          }
         }
       }
 
@@ -8355,6 +8992,9 @@ export class GameEngine {
                   }
                 }
               }
+            } else if (p.kind === 'piercing_feather') {
+              this.spawnArcBurst(p.x, p.y, p.angle, 38, '#38bdf8', 8);
+              this.spawnSoftMotes(p.x, p.y, p.angle, 20, '#e0f2fe', 4);
             }
             if (!p.visualOnly) {
               this.damageEnemy(e, p.damage, p.isCrit, p.color);
@@ -8408,12 +9048,24 @@ export class GameEngine {
           multiplayerClient.sendLootPickup(orb.id);
           continue;
         }
-        soundEngine.playPickup();
         if (orb.kind === 'xp') {
+          soundEngine.playPickup();
           this.gainXp(orb.value);
         } else if (orb.kind === 'heal') {
+          soundEngine.playPickup();
           this.healPlayer(orb.value, true);
+        } else if (orb.kind === 'boss_essence') {
+          soundEngine.playSkill('ultimate');
+          this.spawnRingEffect(this.player.x, this.player.y, 140, '#fbbf24');
+          this.spawnBurstParticles(this.player.x, this.player.y - 12, '#fde047', 32, true);
+          this.spawnFloatingText(this.player.x, this.player.y - 44, 'BOSS ESSENCE CLAIMED!', '#fbbf24', true);
+          if (this.activeBlessings.length < this.maxBlessings) {
+            setTimeout(() => {
+              this.promptBlessingSelection();
+            }, 300);
+          }
         } else {
+          soundEngine.playPickup();
           this.boneShards += orb.value;
         }
       }
@@ -8560,6 +9212,10 @@ export class GameEngine {
       const restRank = this.skillRanks.restless_spirit || 1;
       critChance = 0.18 + this.player.restlessStacks * 0.02 + (restRank - 1) * 0.02 + bonusCritChance;
       critMult = 1.62 + (restRank - 1) * 0.06;
+    } else if (this.heroId === 'eaglekin') {
+      const eagleRank = Math.max(1, this.skillRanks.eagle_eyes || 1);
+      critChance = 0.22 + 0.12 + (eagleRank - 1) * 0.03 + bonusCritChance;
+      critMult = 1.75 + (eagleRank - 1) * 0.08;
     }
     let blessingCrit = 0;
     for (const b of this.activeBlessings) {
@@ -8664,6 +9320,23 @@ export class GameEngine {
         const instRank = Math.max(1, this.skillRanks.feral_instinct || 1);
         const execMult = 1.22 + (instRank - 1) * 0.06;
         adjustedDmg = Math.round(adjustedDmg * execMult);
+      }
+    }
+
+    // Eaglekin Passives & Marks on hit:
+    if (this.heroId === 'eaglekin') {
+      // Hunter's Mark: +35% damage bonus against marked enemies
+      if (e.huntersMarkTimer && e.huntersMarkTimer > 0) {
+        adjustedDmg = Math.round(adjustedDmg * 1.35);
+      }
+      // Passive 2: Predator's Precision (subsequent attacks become increasingly precise against same target, up to 5x)
+      const precRank = Math.max(1, this.skillRanks.predators_precision || 1);
+      const stacks = Math.min(5, (e.precisionHits || 0) + 1);
+      e.precisionHits = stacks;
+      const stackBonus = 1 + (stacks - 1) * (0.08 + (precRank - 1) * 0.02);
+      adjustedDmg = Math.round(adjustedDmg * stackBonus);
+      if (stacks > 1 && Math.random() < 0.35) {
+        this.spawnFloatingText(e.x, e.y - e.radius - 28, `PRECISION x${stacks}!`, '#38bdf8', false);
       }
     }
 
@@ -8861,12 +9534,9 @@ export class GameEngine {
     if (isBoss) {
       soundEngine.playSkill('ultimate');
       this.spawnBurstParticles(e.x, e.y, '#fde047', 48, true);
-      this.spawnFloatingText(e.x, e.y - 48, 'BOSS VANQUISHED! DIVINE BLESSING EARNED!', '#fbbf24', true);
-      if (this.activeBlessings.length < this.maxBlessings) {
-        setTimeout(() => {
-          this.promptBlessingSelection();
-        }, 500);
-      }
+      this.spawnFloatingText(e.x, e.y - 48, 'BOSS VANQUISHED! ESSENCE DROPPED!', '#fbbf24', true);
+      // Spawn Boss Essence! Only upon collecting this essence will the blessings show up!
+      this.spawnPickup(e.x, e.y, 'boss_essence', 1);
     }
   }
 

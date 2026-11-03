@@ -22,7 +22,7 @@ interface MultiplayerLobbyScreenProps {
   errorMessage?: string | null;
 }
 
-const HERO_LIST: HeroId[] = ['human', 'skeleton', 'zombie', 'ghoul', 'ghost'];
+const HERO_LIST: HeroId[] = ['human', 'skeleton', 'zombie', 'ghoul', 'ghost', 'eaglekin'];
 
 export function MultiplayerLobbyScreen({
   roomDetails,
@@ -265,33 +265,93 @@ export function MultiplayerLobbyScreen({
                 </button>
               </div>
 
-              {/* 5 Heroes Selector Row */}
-              <div className="grid grid-cols-5 gap-2">
-                {HERO_LIST.map((hId) => {
-                  const prof = HERO_PROFILES[hId];
-                  const selected = localHeroId === hId;
-                  return (
-                    <button
-                      key={hId}
-                      type="button"
-                      onClick={() => {
-                        soundEngine.unlock();
-                        soundEngine.playUiTap();
-                        onSelectHero(hId);
-                      }}
-                      className={`flex flex-col items-center rounded-xl border p-2 text-center transition-all ${
-                        selected
-                          ? 'border-amber-400 bg-amber-400/15 shadow-md'
-                          : 'border-stone-700 bg-stone-800/80 hover:bg-stone-700'
-                      }`}
-                    >
-                      <SkillIcon skillId={prof.basicSkillId || prof.defaultLoadout[0]} className="h-5 w-5" />
-                      <span className="mt-1 font-display text-[11px] font-bold text-stone-100">
-                        {prof.name}
-                      </span>
-                    </button>
-                  );
-                })}
+              {/* Heroes Selector Grouped by Category */}
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+                {/* Default Character */}
+                <div className="flex flex-col gap-1 rounded-xl border border-stone-800 bg-stone-950/40 p-1.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400/90 px-1">
+                    Default Character
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      soundEngine.unlock();
+                      soundEngine.playUiTap();
+                      onSelectHero('human');
+                    }}
+                    className={`flex items-center gap-2 rounded-lg border p-1.5 text-left transition-all ${
+                      localHeroId === 'human'
+                        ? 'border-orange-400 bg-orange-400/15 shadow-sm'
+                        : 'border-stone-800 bg-stone-900/80 hover:bg-stone-800'
+                    }`}
+                  >
+                    <SkillIcon skillId={HERO_PROFILES.human.basicSkillId || HERO_PROFILES.human.defaultLoadout[0]} className="h-6 w-6 shrink-0" />
+                    <div className="min-w-0">
+                      <div className="font-display text-xs font-bold text-stone-100">Human</div>
+                      <div className="text-[10px] text-stone-400">Pipe Brawler</div>
+                    </div>
+                  </button>
+                </div>
+
+                {/* Undead Legion */}
+                <div className="flex flex-col gap-1 rounded-xl border border-purple-900/40 bg-purple-950/15 p-1.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-purple-400/90 px-1">
+                    Undead Legion
+                  </span>
+                  <div className="grid grid-cols-2 gap-1">
+                    {(['skeleton', 'zombie', 'ghoul', 'ghost'] as HeroId[]).map((hId) => {
+                      const prof = HERO_PROFILES[hId];
+                      const selected = localHeroId === hId;
+                      return (
+                        <button
+                          key={hId}
+                          type="button"
+                          onClick={() => {
+                            soundEngine.unlock();
+                            soundEngine.playUiTap();
+                            onSelectHero(hId);
+                          }}
+                          className={`flex items-center gap-1.5 rounded-lg border p-1 text-left transition-all ${
+                            selected
+                              ? 'border-purple-400 bg-purple-400/20 shadow-sm'
+                              : 'border-stone-800 bg-stone-900/80 hover:bg-stone-800'
+                          }`}
+                        >
+                          <SkillIcon skillId={prof.basicSkillId || prof.defaultLoadout[0]} className="h-5 w-5 shrink-0" />
+                          <span className="truncate font-display text-[11px] font-bold text-stone-100">
+                            {prof.name}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Wildborn Tribes */}
+                <div className="flex flex-col gap-1 rounded-xl border border-sky-900/40 bg-sky-950/15 p-1.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-sky-400/90 px-1">
+                    Wildborn Tribes
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      soundEngine.unlock();
+                      soundEngine.playUiTap();
+                      onSelectHero('eaglekin');
+                    }}
+                    className={`flex items-center gap-2 rounded-lg border p-1.5 text-left transition-all ${
+                      localHeroId === 'eaglekin'
+                        ? 'border-sky-400 bg-sky-400/20 shadow-sm'
+                        : 'border-stone-800 bg-stone-900/80 hover:bg-stone-800'
+                    }`}
+                  >
+                    <SkillIcon skillId={HERO_PROFILES.eaglekin.basicSkillId || HERO_PROFILES.eaglekin.defaultLoadout[0]} className="h-6 w-6 shrink-0" />
+                    <div className="min-w-0">
+                      <div className="font-display text-xs font-bold text-stone-100">Eaglekin</div>
+                      <div className="text-[10px] text-sky-300">Sky Marksman</div>
+                    </div>
+                  </button>
+                </div>
               </div>
 
               {/* Normal Skills (Choose 2) & Ultimate Skill (Choose 1) */}

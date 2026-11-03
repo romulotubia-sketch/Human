@@ -1917,7 +1917,7 @@ export const HERO_BLESSINGS: Record<HeroId, Blessing[]> = {
       glowColor: '#10b981',
       secondaryColor: '#a7f3d0',
       modifiers: {
-        cooldownReductionPct: 0.25,
+        cooldownReduction: 0.25,
         damageMultBonus: 0.2,
       },
     },

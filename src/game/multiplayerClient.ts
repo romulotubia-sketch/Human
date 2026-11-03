@@ -60,7 +60,7 @@ export interface MultiplayerCallbacks {
   onLootCollected?: (payload: {
     lootId: number;
     collectorId: string;
-    kind: 'shard' | 'heal' | 'xp';
+    kind: 'shard' | 'heal' | 'xp' | 'boss_essence';
     value: number;
   }) => void;
   onChestOpened?: (payload: { propId: string; openerId: string; openerName?: string }) => void;

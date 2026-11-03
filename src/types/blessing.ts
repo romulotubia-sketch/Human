@@ -16,6 +16,7 @@ export interface BlessingModifier {
   critChanceBonus?: number;       // e.g. +0.20
   shieldBonus?: number;           // e.g. +50 bonus shield
   staggerBonus?: number;          // stun/stagger foes
+  rangeBonus?: number;            // bonus projectile / attack range
 }
 
 export interface Blessing {

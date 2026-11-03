@@ -250,6 +250,71 @@ class SoundEngine {
       osc.stop(now + dur + 0.02);
     });
   }
+
+  public playFeatherShoot(pitch = 1, heavy = false) {
+    const ctx = this.ensureContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+
+    // High aerodynamic quill whistle & bowstring snap
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = heavy ? 'sawtooth' : 'triangle';
+    osc.frequency.setValueAtTime((heavy ? 720 : 980) * pitch, now);
+    osc.frequency.exponentialRampToValueAtTime((heavy ? 220 : 340) * pitch, now + (heavy ? 0.14 : 0.09));
+
+    gain.gain.setValueAtTime((heavy ? 0.17 : 0.12) * this.volume, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + (heavy ? 0.15 : 0.1));
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + (heavy ? 0.16 : 0.11));
+  }
+
+  public playWingFlap(pitch = 1) {
+    const ctx = this.ensureContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+
+    // Soft, deep aerodynamic wing displacement
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(145 * pitch, now);
+    osc.frequency.exponentialRampToValueAtTime(55 * pitch, now + 0.14);
+
+    gain.gain.setValueAtTime(0.18 * this.volume, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.16);
+  }
+
+  public playSkyScreech(pitch = 1) {
+    const ctx = this.ensureContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+
+    // Resonant raptor sky cry with harmonics
+    [540, 1080].forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(freq * pitch, now);
+      osc.frequency.exponentialRampToValueAtTime((freq * 0.45) * pitch, now + 0.32);
+
+      gain.gain.setValueAtTime((idx === 0 ? 0.14 : 0.08) * this.volume, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.36);
+    });
+  }
 }
 
 export const soundEngine = new SoundEngine();

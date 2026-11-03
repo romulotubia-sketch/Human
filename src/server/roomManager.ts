@@ -574,6 +574,20 @@ export class RoomManager {
       spawnedLoot.push(xpItem);
     }
 
+    // Boss Essence Drop: Drops an essence orb that awards a divine blessing upon pickup!
+    if (isBoss) {
+      const essenceItem: SyncLootItem = {
+        id: this.nextLootId++,
+        kind: 'boss_essence',
+        x: Math.round(enemy.x),
+        y: Math.round(enemy.y),
+        value: 1,
+        active: true,
+      };
+      room.loot.set(essenceItem.id, essenceItem);
+      spawnedLoot.push(essenceItem);
+    }
+
     this.broadcast(room, {
       type: 's:enemy_died',
       enemyId: enemy.id,

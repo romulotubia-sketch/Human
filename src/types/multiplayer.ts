@@ -106,7 +106,7 @@ export interface SyncEnemyAttackEvent {
 
 export interface SyncLootItem {
   id: number;
-  kind: 'shard' | 'heal' | 'xp';
+  kind: 'shard' | 'heal' | 'xp' | 'boss_essence';
   x: number;
   y: number;
   value: number;

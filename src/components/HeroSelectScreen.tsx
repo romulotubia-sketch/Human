@@ -94,10 +94,13 @@ export function HeroSelectScreen({
             Guild Lobby
           </span>
 
-          {/* Hero Switcher Tabs by Category: Standalone Human | Undead Legion | Wildborn Tribes */}
-          <div className="flex items-center gap-1 overflow-x-auto py-0.5">
+          {/* Hero Switcher Tabs by Category: Default (Human) | Undead Legion | Wildborn Tribes */}
+          <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
             {/* Standalone Default: Human */}
-            <div className="flex items-center rounded-lg border border-stone-800 bg-stone-900/90 p-0.5">
+            <div className="flex items-center gap-1 rounded-lg border border-amber-900/40 bg-stone-900/90 p-0.5">
+              <span className="px-1 text-[9px] font-bold uppercase tracking-wider text-amber-400/90">
+                Default:
+              </span>
               <button
                 type="button"
                 onClick={() => {
@@ -116,9 +119,9 @@ export function HeroSelectScreen({
             </div>
 
             {/* Category: Undead Legion */}
-            <div className="flex items-center gap-0.5 rounded-lg border border-purple-900/50 bg-purple-950/25 p-0.5 sm:gap-1">
-              <span className="hidden xl:inline px-1 text-[9px] font-bold uppercase tracking-wider text-purple-400/90">
-                Undead:
+            <div className="flex items-center gap-0.5 rounded-lg border border-purple-900/60 bg-purple-950/30 p-0.5 sm:gap-1">
+              <span className="px-1 text-[9px] font-bold uppercase tracking-wider text-purple-300/90">
+                Undead Legion:
               </span>
               {(['skeleton', 'zombie', 'ghoul', 'ghost'] as HeroId[]).map((id) => {
                 const active = heroId === id;
@@ -133,12 +136,12 @@ export function HeroSelectScreen({
                     className={`h-7 whitespace-nowrap rounded-md px-2 text-[11px] font-semibold transition-colors sm:px-2 sm:text-xs ${
                       active
                         ? id === 'ghost'
-                          ? 'bg-indigo-400 text-stone-950 font-bold'
+                          ? 'bg-indigo-400 text-stone-950 font-bold shadow-sm'
                           : id === 'ghoul'
-                            ? 'bg-rose-500 text-white font-bold'
+                            ? 'bg-rose-500 text-white font-bold shadow-sm'
                             : id === 'zombie'
-                              ? 'bg-lime-400 text-stone-950 font-bold'
-                              : 'bg-cyan-400 text-stone-950 font-bold'
+                              ? 'bg-lime-400 text-stone-950 font-bold shadow-sm'
+                              : 'bg-cyan-400 text-stone-950 font-bold shadow-sm'
                         : 'text-stone-300 hover:text-white'
                     }`}
                   >
@@ -149,9 +152,9 @@ export function HeroSelectScreen({
             </div>
 
             {/* Category: Wildborn Tribes */}
-            <div className="flex items-center gap-0.5 rounded-lg border border-sky-900/50 bg-sky-950/25 p-0.5">
-              <span className="hidden xl:inline px-1 text-[9px] font-bold uppercase tracking-wider text-sky-400/90">
-                Wildborn:
+            <div className="flex items-center gap-0.5 rounded-lg border border-sky-900/60 bg-sky-950/30 p-0.5">
+              <span className="px-1 text-[9px] font-bold uppercase tracking-wider text-sky-300/90">
+                Wildborn Tribes:
               </span>
               <button
                 type="button"
