@@ -7,9 +7,11 @@ interface SettingsModalProps {
   isFullscreen: boolean;
   fullscreenBlockedNote: boolean;
   isDungeon: boolean;
+  isMultiplayer?: boolean;
   onUpdateSettings: (patch: Partial<GameSettings>) => void;
   onToggleFullscreen: () => void;
   onReturnToGuild: () => void;
+  onLeaveMultiplayer?: () => void;
   onClose: () => void;
 }
 
@@ -18,9 +20,11 @@ export function SettingsModal({
   isFullscreen,
   fullscreenBlockedNote,
   isDungeon,
+  isMultiplayer,
   onUpdateSettings,
   onToggleFullscreen,
   onReturnToGuild,
+  onLeaveMultiplayer,
   onClose,
 }: SettingsModalProps) {
   return (
@@ -179,7 +183,21 @@ export function SettingsModal({
             </button>
           </div>
 
-          {isDungeon && (
+          {isMultiplayer ? (
+            <div className="border-t border-stone-800 pt-3.5">
+              <button
+                type="button"
+                onClick={() => {
+                  soundEngine.playUiTap();
+                  onLeaveMultiplayer?.();
+                  onClose();
+                }}
+                className="min-h-[46px] w-full whitespace-nowrap rounded-xl border border-rose-500/50 bg-rose-950/70 px-4 py-2.5 text-sm font-semibold text-rose-200 transition-colors hover:bg-rose-900/80 active:scale-95"
+              >
+                Leave Co-Op Session
+              </button>
+            </div>
+          ) : isDungeon ? (
             <div className="border-t border-stone-800 pt-3.5">
               <button
                 type="button"
@@ -193,7 +211,7 @@ export function SettingsModal({
                 Return to Guild House
               </button>
             </div>
-          )}
+          ) : null}
         </div>
       </div>
     </div>

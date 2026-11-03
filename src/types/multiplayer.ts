@@ -56,12 +56,16 @@ export interface RemotePlayerSyncState {
   possessingTimer: number;
   nightmareTimer: number;
   pipeThrown: boolean;
+  kneeStrikeTimer?: number;
   lastStandTimer: number;
   oneManArmyTimer: number;
   airborneHeight: number;
   isDowned: boolean;
   reviveProgress: number;
+  frenzyStacks?: number;
   connected?: boolean;
+  disconnected?: boolean;
+  isHost?: boolean;
 }
 
 export interface SyncEnemyState {
@@ -79,6 +83,11 @@ export interface SyncEnemyState {
   windupDuration: number;
   windupType: 'slash' | 'shoot' | 'slam' | 'nova' | 'dash';
   windupAngle: number;
+  slowTimer?: number;
+  staggerTimer?: number;
+  poisonTimer?: number;
+  fearTimer?: number;
+  possessedTimer?: number;
 }
 
 export interface SyncEnemyAttackEvent {
@@ -91,6 +100,8 @@ export interface SyncEnemyAttackEvent {
   endY?: number;
   angle: number;
   damage: number;
+  radius?: number;
+  isBoss?: boolean;
 }
 
 export interface SyncLootItem {
@@ -130,8 +141,9 @@ export interface FullGameSyncPayload {
   status: 'lobby' | 'playing' | 'game_over';
   roomDetails: RoomDetails;
   dungeonMap: WorldMap | null;
+  map?: WorldMap | null;
   enemies: Array<any>;
   loot: SyncLootItem[];
-  players: RemotePlayerSyncState[];
+  players: RemotePlayerSyncState[] | Record<string, RemotePlayerSyncState>;
   floorCleared: boolean;
 }

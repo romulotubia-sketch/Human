@@ -63,7 +63,7 @@ export interface MultiplayerCallbacks {
     kind: 'shard' | 'heal' | 'xp';
     value: number;
   }) => void;
-  onChestOpened?: (payload: { propId: string; openerId: string }) => void;
+  onChestOpened?: (payload: { propId: string; openerId: string; openerName?: string }) => void;
   onPlayerDowned?: (payload: { playerId: string; name: string }) => void;
   onPlayerRevived?: (payload: { targetId: string; reviverId: string; hp: number }) => void;
   onPlayerDisconnected?: (payload: { playerId: string; name: string }) => void;
@@ -562,6 +562,7 @@ export class MultiplayerClient {
           this.callbacks.onChestOpened?.({
             propId: data.propId,
             openerId: data.openerId,
+            openerName: data.openerName,
           });
           break;
         }

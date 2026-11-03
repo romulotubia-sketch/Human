@@ -132,6 +132,7 @@ export interface HeroProfile {
   ultimateSkills: UltimateSkillId[];
   passiveSkills: PassiveSkillId[];
   defaultLoadout: SkillLoadout;
+  basicSkillId?: ActiveSkillId;
 }
 
 export interface SkillDefinition {
@@ -308,9 +309,11 @@ export interface GroundEffect {
     | 'enemy_slam_crack'
     | 'contagion_ring'
     | 'predator_crater'
+    | 'pounce_impact'
     | 'shadow_smoke_ring'
     | 'carnage_dash_line'
     | 'spectral_mist_node'
+    | 'mist_node'
     | 'wailing_wave'
     | 'possession_burst'
     | 'astral_nova'
@@ -337,7 +340,9 @@ export interface PipeStrikeEffect {
     | 'basic_jab'
     | 'basic_batter'
     | 'pipe_swing_cone'
+    | 'wide_swing'
     | 'headcracker_anvil'
+    | 'overhead_slam'
     | 'knee_burst'
     | 'street_sweep'
     | 'last_stand_cleave'

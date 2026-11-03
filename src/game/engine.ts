@@ -820,19 +820,6 @@ export class GameEngine {
     this.emitHudSnapshot();
   }
 
-  public leaveMultiplayerGame() {
-    this.isMultiplayer = false;
-    this.remotePlayers.clear();
-    this.localIsDowned = false;
-    this.localReviveProgress = 0;
-    this.portalWaitingState = null;
-    this.currentRevivingPlayerName = null;
-    this.currentReviveProgress = 0;
-    this.player.isDowned = false;
-    this.player.reviveProgress = 0;
-    this.runOutcome = null;
-  }
-
   private createRemotePlayerRenderState(
     id: string,
     name: string,
@@ -910,7 +897,7 @@ export class GameEngine {
     floor: number,
     dungeonMap: WorldMap,
     enemies: EnemyEntity[],
-    players: Array<{ id: string; name: string; heroId: HeroId; isHost: boolean }>
+    players: Array<{ id: string; name: string; heroId: HeroId; isHost?: boolean }>
   ) {
     this.isMultiplayer = true;
     this.map = dungeonMap;
@@ -959,8 +946,11 @@ export class GameEngine {
 
   public syncFullMultiplayerState(payload: FullGameSyncPayload) {
     this.isMultiplayer = true;
-    this.map = payload.map;
-    this.map.floor = payload.floor;
+    const worldMap = payload.dungeonMap || payload.map;
+    if (worldMap) {
+      this.map = worldMap;
+      this.map.floor = payload.floor;
+    }
     this.enemies = payload.enemies.map((e) => ({ ...e }));
     this.runOutcome = null;
     this.portalWaitingState = null;
@@ -968,7 +958,11 @@ export class GameEngine {
     this.clearPools();
 
     const localId = multiplayerClient.getLocalPlayerId();
-    for (const [id, st] of Object.entries(payload.players)) {
+    const playersList = Array.isArray(payload.players)
+      ? payload.players
+      : Object.values(payload.players || {});
+    for (const st of playersList) {
+      const id = st.id;
       if (id === localId) {
         this.setHero(st.heroId);
         this.resetPlayerPosition(st.x, st.y);
@@ -1108,11 +1102,11 @@ export class GameEngine {
         e.windupDuration = se.windupDuration;
         e.windupType = se.windupType;
         e.windupAngle = se.windupAngle;
-        e.slowTimer = Math.max(e.slowTimer, se.slowTimer);
-        e.staggerTimer = Math.max(e.staggerTimer, se.staggerTimer);
-        e.poisonTimer = Math.max(e.poisonTimer, se.poisonTimer);
-        e.fearTimer = Math.max(e.fearTimer, se.fearTimer);
-        e.possessedTimer = Math.max(e.possessedTimer, se.possessedTimer);
+        e.slowTimer = Math.max(e.slowTimer, se.slowTimer || 0);
+        e.staggerTimer = Math.max(e.staggerTimer, se.staggerTimer || 0);
+        e.poisonTimer = Math.max(e.poisonTimer, se.poisonTimer || 0);
+        e.fearTimer = Math.max(e.fearTimer, se.fearTimer || 0);
+        e.possessedTimer = Math.max(e.possessedTimer, se.possessedTimer || 0);
       }
     }
   }
@@ -1663,6 +1657,9 @@ export class GameEngine {
       e.attackAnimTimer = e.attackAnimDuration;
     }
 
+    const isBoss = Boolean(evt.isBoss || evt.kind === EnemyKind.BOSS_WARDEN);
+    const attackRad = evt.radius ?? 24;
+
     if (evt.attackType === 'slash') {
       soundEngine.playSlash(1.28);
       this.spawnSlashWave(
@@ -1670,19 +1667,19 @@ export class GameEngine {
         evt.x,
         evt.y - 8,
         evt.angle,
-        evt.radius + 44,
+        attackRad + 44,
         1.45,
         1,
         0.22,
         '#ffe4e6',
         '#fb7185'
       );
-      this.spawnArcBurst(evt.x, evt.y, evt.angle, evt.radius + 36, '#fb7185', 8);
+      this.spawnArcBurst(evt.x, evt.y, evt.angle, attackRad + 36, '#fb7185', 8);
     } else if (evt.attackType === 'slam') {
-      const slamRad = evt.isBoss ? 135 : 78;
-      this.triggerShake(evt.isBoss ? 0.22 : 0.12, evt.isBoss ? 6 : 3.5);
-      const hitX = evt.x + (evt.isBoss ? 0 : Math.cos(evt.angle) * 18);
-      const hitY = evt.y + (evt.isBoss ? 0 : Math.sin(evt.angle) * 14);
+      const slamRad = isBoss ? 135 : 78;
+      this.triggerShake(isBoss ? 0.22 : 0.12, isBoss ? 6 : 3.5);
+      const hitX = evt.x + (isBoss ? 0 : Math.cos(evt.angle) * 18);
+      const hitY = evt.y + (isBoss ? 0 : Math.sin(evt.angle) * 14);
       this.spawnGroundEffect(
         'enemy_slam_crack',
         hitX,
@@ -1692,10 +1689,10 @@ export class GameEngine {
         evt.angle,
         slamRad * 0.92,
         1.35,
-        evt.isBoss ? '#fb7185' : '#f97316',
+        isBoss ? '#fb7185' : '#f97316',
         '#fde047'
       );
-      if (evt.isBoss) {
+      if (isBoss) {
         this.spawnSlashWave(
           'boss_cleave',
           evt.x,
@@ -1709,8 +1706,8 @@ export class GameEngine {
           '#f43f5e'
         );
       }
-      this.spawnRingEffect(evt.x, evt.y, slamRad, evt.isBoss ? '#f43f5e' : '#f97316');
-      this.spawnBurstParticles(hitX, hitY, evt.isBoss ? '#fb7185' : '#fdba74', 14, true);
+      this.spawnRingEffect(evt.x, evt.y, slamRad, isBoss ? '#f43f5e' : '#f97316');
+      this.spawnBurstParticles(hitX, hitY, isBoss ? '#fb7185' : '#fdba74', 14, true);
     } else if (evt.attackType === 'nova') {
       this.triggerShake(0.18, 4.8);
       this.spawnSlashWave(
@@ -1880,7 +1877,7 @@ export class GameEngine {
     this.emitHudSnapshot();
   }
 
-  public handleRemoteChestOpened(propId: string, _openerId: string, openerName: string) {
+  public handleRemoteChestOpened(propId: string, _openerId: string, openerName: string = 'Ally') {
     const prop = this.map.props.find((p) => p.id === propId);
     const cx = prop ? prop.x + prop.w / 2 : this.player.x;
     const cy = prop ? prop.y + prop.h / 2 : this.player.y;
@@ -2045,6 +2042,21 @@ export class GameEngine {
     this.emitHudSnapshot();
   }
 
+  public leaveMultiplayerGame() {
+    this.isMultiplayer = false;
+    this.remotePlayers.clear();
+    this.portalWaitingState = null;
+    this.localIsDowned = false;
+    this.localReviveProgress = 0;
+    this.player.isDowned = false;
+    this.player.reviveProgress = 0;
+    this.currentRevivingPlayerName = null;
+    this.currentReviveProgress = 0;
+    this.clearPools();
+    this.runOutcome = null;
+    this.enterGuildHouse();
+  }
+
   public getRemotePlayersList(): RemotePlayerRenderState[] {
     return Array.from(this.remotePlayers.values());
   }
@@ -2147,7 +2159,15 @@ export class GameEngine {
     this.player.isScytheForm = skillId === 'reapers_judgment';
 
     if (this.isMultiplayer) {
-      multiplayerClient.sendSkill(skillId, isManual, targetAngle, distanceRatio, this.player.x, this.player.y);
+      multiplayerClient.sendSkill(
+        skillId,
+        this.skillRanks[skillId] || 1,
+        isManual,
+        targetAngle,
+        distanceRatio,
+        this.player.x,
+        this.player.y
+      );
     }
 
     // =========================================================================
@@ -4058,14 +4078,14 @@ export class GameEngine {
 
     if (this.isMultiplayer) {
       const nextStep = (this.comboStep % (this.heroId === 'ghoul' ? 4 : 3)) + 1;
-      multiplayerClient.sendAttack(
-        nextStep,
-        this.player.facing,
-        this.player.x,
-        this.player.y,
-        this.heroId === 'ghost' ? 350 : this.player.colossusTimer > 0 ? 146 : 104,
-        this.heroId === 'ghoul' && this.player.ambushReady
-      );
+      multiplayerClient.sendAttack({
+        comboStep: nextStep,
+        facing: this.player.facing,
+        x: this.player.x,
+        y: this.player.y,
+        reach: this.heroId === 'ghost' ? 350 : this.player.colossusTimer > 0 ? 146 : 104,
+        isAmbush: Boolean(this.heroId === 'ghoul' && this.player.ambushReady),
+      });
     }
 
     // =========================================================================

@@ -435,9 +435,9 @@ export class RoomManager {
     this.broadcast(
       room,
       {
+        ...attackData,
         type: 's:player_attack',
         playerId,
-        ...attackData,
       },
       playerId
     );
@@ -470,9 +470,9 @@ export class RoomManager {
     this.broadcast(
       room,
       {
+        ...skillData,
         type: 's:player_skill',
         playerId,
-        ...skillData,
       },
       playerId
     );
@@ -671,6 +671,7 @@ export class RoomManager {
       type: 's:chest_opened',
       propId,
       openerId: playerId,
+      openerName: opener.name,
     });
   }
 

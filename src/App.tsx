@@ -155,10 +155,10 @@ export default function App() {
       onGameTick: ({ players, enemies }) => {
         engineRef.current?.updateMultiplayerTick(players, enemies);
       },
-      onPlayerAttack: ({ playerId, ...data }) => {
+      onPlayerAttack: (playerId, data) => {
         engineRef.current?.handleRemotePlayerAttack(playerId, data);
       },
-      onPlayerSkill: ({ playerId, ...data }) => {
+      onPlayerSkill: (playerId, data) => {
         engineRef.current?.handleRemotePlayerSkill(playerId, data);
       },
       onPlayerDamaged: (data) => {
@@ -167,7 +167,7 @@ export default function App() {
           data.hp,
           data.shield,
           data.damage,
-          data.isDowned
+          data.hp <= 0
         );
       },
       onEnemyAttack: (evt) => {
@@ -191,7 +191,7 @@ export default function App() {
         engineRef.current?.handleRemoteChestOpened(
           data.propId,
           data.openerId,
-          data.openerName
+          data.openerName || 'Ally'
         );
       },
       onPlayerDowned: ({ playerId, name }) => {
@@ -224,13 +224,17 @@ export default function App() {
         setIsMultiplayer(true);
         setIsMultiplayerLoading(false);
         const localId = multiplayerClient.getLocalPlayerId();
-        if (localId && state.players[localId]) {
-          setHeroId(state.players[localId].heroId);
+        const playersList = Array.isArray(state.players)
+          ? state.players
+          : Object.values(state.players || {});
+        const me = playersList.find((p) => p.id === localId);
+        if (me) {
+          setHeroId(me.heroId);
         }
         engineRef.current?.syncFullMultiplayerState(state);
         setPhase(GamePhase.DUNGEON);
       },
-      onHostMigrated: ({ newHostId }) => {
+      onHostMigrated: (newHostId) => {
         setRoomDetails((prev) =>
           prev
             ? {
@@ -348,7 +352,7 @@ export default function App() {
       const dt = (now - lastTime) / 1000;
       lastTime = now;
 
-      const paused = showSkillTree || showSettings;
+      const paused = (showSkillTree || showSettings) && !isMultiplayer;
       const { w, h } = getGameViewportSize();
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
@@ -1013,6 +1017,7 @@ export default function App() {
           isFullscreen={isFullscreen}
           fullscreenBlockedNote={fullscreenBlockedNote}
           isDungeon={phase === GamePhase.DUNGEON}
+          isMultiplayer={isMultiplayer}
           onUpdateSettings={(patch) => setSettings((prev) => ({ ...prev, ...patch }))}
           onToggleFullscreen={handleToggleFullscreen}
           onReturnToGuild={() => {
@@ -1022,6 +1027,7 @@ export default function App() {
               engineRef.current?.enterGuildHouse();
             }
           }}
+          onLeaveMultiplayer={handleLeaveMultiplayerRoom}
           onClose={() => setShowSettings(false)}
         />
       )}

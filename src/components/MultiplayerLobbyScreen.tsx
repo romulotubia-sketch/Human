@@ -206,7 +206,7 @@ export function MultiplayerLobbyScreen({
                                 : 'border-cyan-400/65'
                       }`}
                     >
-                      <SkillIcon skillId={profile.basicSkillId} className="h-7 w-7" />
+                      <SkillIcon skillId={profile.basicSkillId || profile.defaultLoadout[0]} className="h-7 w-7" />
                     </div>
                     <span className="mt-1 font-display text-xs font-bold text-stone-100">
                       {profile.name}
@@ -285,7 +285,7 @@ export function MultiplayerLobbyScreen({
                           : 'border-stone-700 bg-stone-800/80 hover:bg-stone-700'
                       }`}
                     >
-                      <SkillIcon skillId={prof.basicSkillId} className="h-5 w-5" />
+                      <SkillIcon skillId={prof.basicSkillId || prof.defaultLoadout[0]} className="h-5 w-5" />
                       <span className="mt-1 font-display text-[11px] font-bold text-stone-100">
                         {prof.name}
                       </span>
