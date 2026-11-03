@@ -108,7 +108,7 @@ export function BlessingsTrayModal({
                 No Blessings Earned Yet
               </h4>
               <p className="mt-1 max-w-sm text-xs text-stone-400 leading-relaxed">
-                Pray at Ancient Statues encountered in the Crypt or defeat Floor Bosses to receive up to 6 strategic skill boons!
+                Pray at Ancient Statues encountered in the Graveyard of the Fallen or defeat Floor Bosses to receive up to 6 strategic skill boons!
               </p>
             </div>
           ) : (

@@ -141,7 +141,7 @@ export function MultiplayerHudOverlay({
           <div className="flex items-center gap-2 rounded-xl border border-cyan-400/60 bg-stone-950/90 px-3.5 py-1.5 text-xs font-semibold text-cyan-100 shadow-xl backdrop-blur-md">
             <Sparkles className="h-3.5 w-3.5 text-cyan-300" />
             <span>
-              Crypt Portal Ready ({portalWaiting.readyCount}/{portalWaiting.requiredCount} Heroes)
+              Graveyard Portal Ready ({portalWaiting.readyCount}/{portalWaiting.requiredCount} Heroes)
             </span>
           </div>
         </div>

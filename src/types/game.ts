@@ -524,7 +524,60 @@ export enum EnemyKind {
   ARCHER = 'ARCHER',
   BRUTE = 'BRUTE',
   BOSS_WARDEN = 'BOSS_WARDEN',
+  // Mini versions of Undead Legion heroes as normal dungeon monsters:
+  MINI_SKELETON = 'MINI_SKELETON',
+  MINI_ZOMBIE = 'MINI_ZOMBIE',
+  MINI_GHOUL = 'MINI_GHOUL',
+  MINI_GHOST = 'MINI_GHOST',
+  // Members of the Undead Legion appearing as ultra-powerful bosses:
+  BOSS_LEGION_SKELETON = 'BOSS_LEGION_SKELETON',
+  BOSS_LEGION_ZOMBIE = 'BOSS_LEGION_ZOMBIE',
+  BOSS_LEGION_GHOUL = 'BOSS_LEGION_GHOUL',
+  BOSS_LEGION_GHOST = 'BOSS_LEGION_GHOST',
 }
+
+export function isBossKind(kind: EnemyKind): boolean {
+  return (
+    kind === EnemyKind.BOSS_WARDEN ||
+    kind === EnemyKind.BOSS_LEGION_SKELETON ||
+    kind === EnemyKind.BOSS_LEGION_ZOMBIE ||
+    kind === EnemyKind.BOSS_LEGION_GHOUL ||
+    kind === EnemyKind.BOSS_LEGION_GHOST
+  );
+}
+
+export function isUndeadLegionBoss(kind: EnemyKind): boolean {
+  return (
+    kind === EnemyKind.BOSS_LEGION_SKELETON ||
+    kind === EnemyKind.BOSS_LEGION_ZOMBIE ||
+    kind === EnemyKind.BOSS_LEGION_GHOUL ||
+    kind === EnemyKind.BOSS_LEGION_GHOST
+  );
+}
+
+export function isMiniHeroKind(kind: EnemyKind): boolean {
+  return (
+    kind === EnemyKind.MINI_SKELETON ||
+    kind === EnemyKind.MINI_ZOMBIE ||
+    kind === EnemyKind.MINI_GHOUL ||
+    kind === EnemyKind.MINI_GHOST
+  );
+}
+
+export type EnemyAttackType =
+  | 'slash'
+  | 'shoot'
+  | 'slam'
+  | 'nova'
+  | 'dash'
+  | 'whirlwind'
+  | 'thrust'
+  | 'volley'
+  | 'poison_lob'
+  | 'shockwave_line'
+  | 'charge'
+  | 'spell'
+  | 'pounce';
 
 export interface EnemyEntity {
   id: number;
@@ -544,7 +597,7 @@ export interface EnemyEntity {
   attackCooldown: number;
   windupTimer: number;
   windupDuration: number;
-  windupType: 'slash' | 'shoot' | 'slam' | 'nova' | 'dash';
+  windupType: EnemyAttackType;
   windupAngle: number;
   attackAnimTimer: number;
   attackAnimDuration: number;
@@ -564,6 +617,16 @@ export interface EnemyEntity {
   staggerTimer: number;
   huntersMarkTimer?: number;
   precisionHits?: number;
+  // Undead Legion member boss and attack variation extras:
+  isLegionBoss?: boolean;
+  legionHeroId?: 'skeleton' | 'zombie' | 'ghoul' | 'ghost';
+  specialCooldowns?: Record<string, number>;
+  bossPhase?: number;
+  activeAuraTimer?: number;
+  activeAuraType?: string;
+  attackVariant?: string;
+  shieldHp?: number;
+  maxShieldHp?: number;
 }
 
 export interface AlliedMinion {
@@ -756,7 +819,13 @@ export interface HudSnapshot {
     | 'portal_guild'
     | 'blessing_statue'
     | null;
-  bossInfo: { name: string; hp: number; maxHp: number } | null;
+  bossInfo: {
+    name: string;
+    hp: number;
+    maxHp: number;
+    isLegionBoss?: boolean;
+    title?: string;
+  } | null;
   runOutcome: 'victory' | 'defeat' | null;
   minimap: MinimapSnapshot | null;
   isDowned?: boolean;

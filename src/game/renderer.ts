@@ -8,6 +8,9 @@ import {
   FloatingText,
   GroundEffect,
   HeroId,
+  isBossKind,
+  isMiniHeroKind,
+  isUndeadLegionBoss,
   LifeSiphonBeam,
   Particle,
   PickupOrb,
@@ -2375,7 +2378,7 @@ function drawProp(ctx: CanvasRenderingContext2D, prop: WorldProp, time: number) 
       ctx,
       cx,
       y - 12,
-      prop.label || (isNext ? 'Next Crypt Floor' : 'Guild Portal'),
+      prop.label || (isNext ? 'Next Graveyard Floor' : 'Guild Portal'),
       isNext ? '#7dd3fc' : '#fde68a'
     );
   } else if (kind === 'blessing_statue') {
@@ -6352,9 +6355,15 @@ function drawEnemyTelegraph(ctx: CanvasRenderingContext2D, e: EnemyEntity) {
   ctx.save();
   ctx.translate(e.x, e.y);
 
-  if (e.windupType === 'slam' || e.windupType === 'nova') {
-    const rad = e.kind === EnemyKind.BOSS_WARDEN ? 135 : 78;
-    ctx.strokeStyle = e.windupType === 'nova' ? 'rgba(251, 113, 133, 0.85)' : 'rgba(249, 115, 22, 0.82)';
+  if (e.windupType === 'slam' || e.windupType === 'nova' || e.windupType === 'whirlwind') {
+    const isNova = e.windupType === 'nova';
+    const isWhirlwind = e.windupType === 'whirlwind';
+    const rad = isBossKind(e.kind) ? 140 : isWhirlwind ? e.radius + 58 : 78;
+    ctx.strokeStyle = isNova
+      ? 'rgba(251, 113, 133, 0.85)'
+      : isWhirlwind
+        ? 'rgba(244, 63, 94, 0.85)'
+        : 'rgba(249, 115, 22, 0.82)';
     ctx.fillStyle = `rgba(239, 68, 68, ${0.09 + ratio * 0.18})`;
     ctx.lineWidth = 2.2;
     ctx.beginPath();
@@ -6365,10 +6374,21 @@ function drawEnemyTelegraph(ctx: CanvasRenderingContext2D, e: EnemyEntity) {
     ctx.beginPath();
     ctx.arc(0, 0, rad * ratio, 0, Math.PI * 2);
     ctx.stroke();
+
+    if (isWhirlwind) {
+      // Rotating blade warning ticks around circle
+      for (let w = 0; w < 4; w++) {
+        const wa = (w * Math.PI) / 2 + ratio * Math.PI;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(wa) * (rad - 8), Math.sin(wa) * (rad - 8));
+        ctx.lineTo(Math.cos(wa) * rad, Math.sin(wa) * rad);
+        ctx.stroke();
+      }
+    }
   } else if (e.windupType === 'slash') {
-    // Crypt Rattler melee slash cone telegraph!
-    const reach = e.radius + 50;
-    const halfCone = 0.68;
+    // Melee slash cone telegraph!
+    const reach = e.radius + 52;
+    const halfCone = 0.72;
     ctx.rotate(e.windupAngle);
     ctx.fillStyle = `rgba(244, 63, 94, ${0.1 + ratio * 0.2})`;
     ctx.strokeStyle = 'rgba(251, 113, 133, 0.78)';
@@ -6386,8 +6406,20 @@ function drawEnemyTelegraph(ctx: CanvasRenderingContext2D, e: EnemyEntity) {
     ctx.arc(0, 0, reach * ratio, -halfCone, halfCone);
     ctx.closePath();
     ctx.fill();
+  } else if (e.windupType === 'thrust') {
+    // Rapid piercing lunge line
+    const len = 115;
+    const halfW = 12;
+    ctx.rotate(e.windupAngle);
+    ctx.fillStyle = `rgba(244, 63, 94, ${0.12 + ratio * 0.2})`;
+    ctx.strokeStyle = 'rgba(251, 113, 133, 0.85)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.rect(0, -halfW, len * ratio, halfW * 2);
+    ctx.fill();
+    ctx.strokeRect(0, -halfW, len, halfW * 2);
   } else if (e.windupType === 'shoot') {
-    // Marrow Archer narrowing venom sightline!
+    // Narrowing venom sightline
     const len = 285;
     const halfW = Math.max(2, (1 - ratio) * 11);
     ctx.rotate(e.windupAngle);
@@ -6401,8 +6433,48 @@ function drawEnemyTelegraph(ctx: CanvasRenderingContext2D, e: EnemyEntity) {
     ctx.moveTo(14, 0);
     ctx.lineTo(len, 0);
     ctx.stroke();
-  } else if (e.windupType === 'dash') {
-    const len = 225;
+  } else if (e.windupType === 'volley') {
+    // Triple arrow spread volley
+    const len = 260;
+    ctx.rotate(e.windupAngle);
+    ctx.strokeStyle = `rgba(190, 242, 100, ${0.45 + ratio * 0.45})`;
+    ctx.lineWidth = 1.8;
+    ctx.setLineDash([6, 5]);
+    for (const ang of [-0.32, 0, 0.32]) {
+      ctx.beginPath();
+      ctx.moveTo(14, 0);
+      ctx.lineTo(Math.cos(ang) * len, Math.sin(ang) * len);
+      ctx.stroke();
+    }
+  } else if (e.windupType === 'poison_lob') {
+    // Lobbed venom mortar landing circle at distance
+    const dist = 145;
+    const tx = Math.cos(e.windupAngle) * dist;
+    const ty = Math.sin(e.windupAngle) * dist;
+    ctx.strokeStyle = 'rgba(163, 230, 53, 0.85)';
+    ctx.fillStyle = `rgba(132, 204, 22, ${0.1 + ratio * 0.22})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(tx, ty, 48, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(tx, ty, 48 * ratio, 0, Math.PI * 2);
+    ctx.stroke();
+  } else if (e.windupType === 'shockwave_line') {
+    // Long seismic crack lane
+    const len = 230;
+    const halfW = 18;
+    ctx.rotate(e.windupAngle);
+    ctx.fillStyle = `rgba(249, 115, 22, ${0.12 + ratio * 0.22})`;
+    ctx.strokeStyle = 'rgba(251, 146, 60, 0.85)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.rect(0, -halfW, len, halfW * 2);
+    ctx.fill();
+    ctx.stroke();
+  } else if (e.windupType === 'dash' || e.windupType === 'charge') {
+    const len = e.windupType === 'charge' ? 175 : 225;
     ctx.rotate(e.windupAngle);
     ctx.fillStyle = `rgba(244, 63, 94, ${0.14 + ratio * 0.22})`;
     ctx.strokeStyle = 'rgba(251, 113, 133, 0.82)';
@@ -6418,6 +6490,27 @@ function drawEnemyTelegraph(ctx: CanvasRenderingContext2D, e: EnemyEntity) {
     ctx.moveTo(cx - 12, -11);
     ctx.lineTo(cx + 4, 0);
     ctx.lineTo(cx - 12, 11);
+    ctx.stroke();
+  } else if (e.windupType === 'pounce') {
+    // Feral pounce impact reticle
+    const pDist = 120;
+    const px = Math.cos(e.windupAngle) * pDist;
+    const py = Math.sin(e.windupAngle) * pDist;
+    ctx.strokeStyle = 'rgba(244, 63, 94, 0.9)';
+    ctx.fillStyle = `rgba(239, 68, 68, ${0.12 + ratio * 0.24})`;
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.arc(px, py, 42, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  } else if (e.windupType === 'spell') {
+    // Mystical spell ring
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.85)';
+    ctx.fillStyle = `rgba(14, 165, 233, ${0.1 + ratio * 0.2})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, 0, 64, 0, Math.PI * 2);
+    ctx.fill();
     ctx.stroke();
   }
   ctx.restore();
@@ -6480,6 +6573,41 @@ function drawEnemy(ctx: CanvasRenderingContext2D, e: EnemyEntity, time: number, 
     eyeColor = '#f43f5e';
     scarfColor = '#581c87';
     crown = '#f59e0b';
+  } else if (isMiniHeroKind(e.kind)) {
+    scale = 0.72;
+    if (e.kind === EnemyKind.MINI_ZOMBIE) {
+      eyeColor = '#84cc16';
+      scarfColor = '#14532d';
+    } else if (e.kind === EnemyKind.MINI_GHOUL) {
+      eyeColor = '#f43f5e';
+      scarfColor = '#881337';
+    } else if (e.kind === EnemyKind.MINI_GHOST) {
+      eyeColor = '#38bdf8';
+      scarfColor = '#1e1b4b';
+    } else {
+      eyeColor = '#fb923c';
+      scarfColor = '#7c2d12';
+    }
+  } else if (isUndeadLegionBoss(e.kind)) {
+    scale = 2.0;
+    crown = '#fbbf24';
+    if (e.kind === EnemyKind.BOSS_LEGION_ZOMBIE) {
+      eyeColor = '#a3e635';
+      scarfColor = '#14532d';
+      scale = 2.15;
+    } else if (e.kind === EnemyKind.BOSS_LEGION_GHOUL) {
+      eyeColor = '#ef4444';
+      scarfColor = '#4c0519';
+      scale = 1.95;
+    } else if (e.kind === EnemyKind.BOSS_LEGION_GHOST) {
+      eyeColor = '#67e8f9';
+      scarfColor = '#1e1b4b';
+      scale = 1.92;
+    } else {
+      eyeColor = '#f97316';
+      scarfColor = '#450a0a';
+      scale = 2.05;
+    }
   }
 
   const isWindingUp = e.windupTimer > 0;
@@ -6574,25 +6702,98 @@ function drawEnemy(ctx: CanvasRenderingContext2D, e: EnemyEntity, time: number, 
 
   const fearShakeX = e.fearTimer > 0 ? Math.sin(time * 42 + e.id) * 2.2 : 0;
 
-  drawChibiSkeletonBody(
-    ctx,
-    drawX + fearShakeX,
-    drawY,
-    aimAng,
-    e.walkPhase,
-    scale,
-    e.possessedTimer > 0
-      ? '#2dd4bf'
-      : e.fearTimer > 0
-        ? '#e879f9'
-        : isWindingUp && windProg > 0.65
-          ? '#fef08a'
-          : eyeColor,
-    false,
-    e.possessedTimer > 0 ? '#4f46e5' : scarfColor,
-    crown,
-    e.hitFlash
-  );
+  // Undead Legion Boss Floor Runes & Dark Aura
+  if (isUndeadLegionBoss(e.kind)) {
+    ctx.save();
+    ctx.translate(drawX, drawY + 14 * scale);
+    ctx.rotate(time * 0.9);
+    ctx.globalCompositeOperation = 'lighter';
+    const bossGlow = 0.45 + Math.sin(time * 4.5) * 0.25;
+    ctx.strokeStyle =
+      e.kind === EnemyKind.BOSS_LEGION_ZOMBIE
+        ? `rgba(132, 204, 22, ${bossGlow})`
+        : e.kind === EnemyKind.BOSS_LEGION_GHOUL
+          ? `rgba(239, 68, 68, ${bossGlow})`
+          : e.kind === EnemyKind.BOSS_LEGION_GHOST
+            ? `rgba(56, 189, 248, ${bossGlow})`
+            : `rgba(249, 115, 22, ${bossGlow})`;
+    ctx.lineWidth = 2.8;
+    const br = 36 * scale;
+    ctx.beginPath();
+    ctx.arc(0, 0, br, 0, Math.PI * 2);
+    ctx.stroke();
+
+    for (let r = 0; r < 8; r++) {
+      const ra = (r * Math.PI) / 4;
+      const rx = Math.cos(ra) * br;
+      const ry = Math.sin(ra) * br;
+      ctx.beginPath();
+      ctx.moveTo(rx - 4, ry - 4);
+      ctx.lineTo(rx + 4, ry + 4);
+      ctx.moveTo(rx + 4, ry - 4);
+      ctx.lineTo(rx - 4, ry + 4);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  if (e.kind === EnemyKind.MINI_ZOMBIE || e.kind === EnemyKind.BOSS_LEGION_ZOMBIE) {
+    drawChibiZombieBody(
+      ctx,
+      drawX + fearShakeX,
+      drawY,
+      aimAng,
+      e.walkPhase,
+      scale,
+      false,
+      e.kind === EnemyKind.BOSS_LEGION_ZOMBIE,
+      e.hitFlash
+    );
+  } else if (e.kind === EnemyKind.MINI_GHOUL || e.kind === EnemyKind.BOSS_LEGION_GHOUL) {
+    drawChibiGhoulBody(
+      ctx,
+      drawX + fearShakeX,
+      drawY,
+      aimAng,
+      e.walkPhase,
+      scale,
+      false,
+      e.kind === EnemyKind.BOSS_LEGION_GHOUL,
+      e.hitFlash
+    );
+  } else if (e.kind === EnemyKind.MINI_GHOST || e.kind === EnemyKind.BOSS_LEGION_GHOST) {
+    drawChibiGhostBody(
+      ctx,
+      drawX + fearShakeX,
+      drawY,
+      aimAng,
+      e.walkPhase,
+      scale,
+      false,
+      e.kind === EnemyKind.BOSS_LEGION_GHOST,
+      e.hitFlash
+    );
+  } else {
+    drawChibiSkeletonBody(
+      ctx,
+      drawX + fearShakeX,
+      drawY,
+      aimAng,
+      e.walkPhase,
+      scale,
+      e.possessedTimer > 0
+        ? '#2dd4bf'
+        : e.fearTimer > 0
+          ? '#e879f9'
+          : isWindingUp && windProg > 0.65
+            ? '#fef08a'
+            : eyeColor,
+      false,
+      e.possessedTimer > 0 ? '#4f46e5' : scarfColor,
+      crown,
+      e.hitFlash
+    );
+  }
 
   // Ghost Haunted Possession Overhead Puppet Crossbar & Glowing Spirit Mask!
   if (e.possessedTimer > 0) {
@@ -6990,7 +7191,7 @@ function drawEnemy(ctx: CanvasRenderingContext2D, e: EnemyEntity, time: number, 
     ctx.restore();
   }
 
-  if (e.kind !== EnemyKind.BOSS_WARDEN && e.hp < e.maxHp) {
+  if (!isBossKind(e.kind) && e.hp < e.maxHp) {
     const bw = 38 * scale;
     const bx = drawX - bw / 2;
     const by = drawY - 39 * scale;
@@ -6998,6 +7199,19 @@ function drawEnemy(ctx: CanvasRenderingContext2D, e: EnemyEntity, time: number, 
     ctx.fillRect(bx - 1, by - 1, bw + 2, 6);
     ctx.fillStyle = e.poisonTimer > 0 ? '#84cc16' : '#ef4444';
     ctx.fillRect(bx, by, bw * Math.max(0, e.hp / e.maxHp), 4);
+  }
+
+  // Overhead Undead Legion Boss Name & Grand Title
+  if (isUndeadLegionBoss(e.kind)) {
+    ctx.save();
+    ctx.translate(drawX, drawY - 56 * scale);
+    ctx.font = 'bold 11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#fde047';
+    ctx.shadowColor = '#000000';
+    ctx.shadowBlur = 6;
+    ctx.fillText('UNDEAD LEGION BOSS', 0, -6);
+    ctx.restore();
   }
 
   // Eaglekin Hunter's Mark target crosshairs and eye reticle

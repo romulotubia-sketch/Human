@@ -90,7 +90,7 @@ export function buildGuildHouse(): { map: WorldMap; enemies: EnemyEntity[] } {
       w: 130,
       h: 50,
       solid: false,
-      label: 'Enter Dungeon',
+      label: 'Enter Graveyard of the Fallen',
     },
     {
       id: 'guild_torch_1',
@@ -507,7 +507,7 @@ export function buildProceduralDungeon(floor: number): {
       enemies.push({
         id: allocEntityId(),
         kind,
-        name: floor >= 3 ? `Dread Rattler Lv.${floor}` : 'Crypt Rattler',
+        name: floor >= 3 ? `Dread Rattler Lv.${floor}` : 'Graveyard Rattler',
         x,
         y,
         vx: 0,
@@ -522,7 +522,7 @@ export function buildProceduralDungeon(floor: number): {
         attackCooldown: 0.55 + Math.random() * 0.55,
         windupTimer: 0,
         windupDuration: Math.max(0.27, 0.38 * windupScale),
-        windupType: 'slash',
+        windupType: Math.random() < 0.4 ? 'slash' : Math.random() < 0.7 ? 'whirlwind' : 'thrust',
         windupAngle: 0,
         hitFlash: 0,
         roomId: rm.id,
@@ -550,7 +550,7 @@ export function buildProceduralDungeon(floor: number): {
         attackCooldown: 0.95 + Math.random() * 0.65,
         windupTimer: 0,
         windupDuration: Math.max(0.38, 0.55 * windupScale),
-        windupType: 'shoot',
+        windupType: Math.random() < 0.45 ? 'shoot' : Math.random() < 0.75 ? 'volley' : 'poison_lob',
         windupAngle: 0,
         hitFlash: 0,
         roomId: rm.id,
@@ -563,7 +563,7 @@ export function buildProceduralDungeon(floor: number): {
       enemies.push({
         id: allocEntityId(),
         kind,
-        name: floor >= 3 ? `Catacomb Crusher Lv.${floor}` : 'Skullguard Brute',
+        name: floor >= 3 ? `Graveyard Crusher Lv.${floor}` : 'Skullguard Brute',
         x,
         y,
         vx: 0,
@@ -578,7 +578,119 @@ export function buildProceduralDungeon(floor: number): {
         attackCooldown: 1.15 + Math.random() * 0.45,
         windupTimer: 0,
         windupDuration: Math.max(0.48, 0.68 * windupScale),
-        windupType: 'slam',
+        windupType: Math.random() < 0.45 ? 'slam' : Math.random() < 0.75 ? 'charge' : 'shockwave_line',
+        windupAngle: 0,
+        hitFlash: 0,
+        roomId: rm.id,
+        weaponAngle: 0,
+        weaponSwing: 0,
+        armorCrackTimer: 0,
+        ...baseDebuffs,
+      });
+    } else if (kind === EnemyKind.MINI_SKELETON) {
+      enemies.push({
+        id: allocEntityId(),
+        kind,
+        name: floor >= 3 ? `Mini Boneblade Lv.${floor}` : 'Mini Skeleton',
+        x,
+        y,
+        vx: 0,
+        vy: 0,
+        radius: 16,
+        hp: Math.round(92 * scaleHp),
+        maxHp: Math.round(92 * scaleHp),
+        atk: Math.round(15 * scaleAtk),
+        speed: Math.round(126 * scaleSpeed),
+        facing: Math.random() * Math.PI * 2,
+        walkPhase: Math.random() * Math.PI * 2,
+        attackCooldown: 0.6 + Math.random() * 0.45,
+        windupTimer: 0,
+        windupDuration: Math.max(0.24, 0.32 * windupScale),
+        windupType: Math.random() < 0.55 ? 'slash' : 'shoot',
+        windupAngle: 0,
+        hitFlash: 0,
+        roomId: rm.id,
+        weaponAngle: 0,
+        weaponSwing: 0,
+        armorCrackTimer: 0,
+        ...baseDebuffs,
+      });
+    } else if (kind === EnemyKind.MINI_ZOMBIE) {
+      enemies.push({
+        id: allocEntityId(),
+        kind,
+        name: floor >= 3 ? `Mini Plaguebearer Lv.${floor}` : 'Mini Zombie',
+        x,
+        y,
+        vx: 0,
+        vy: 0,
+        radius: 17,
+        hp: Math.round(135 * scaleHp),
+        maxHp: Math.round(135 * scaleHp),
+        atk: Math.round(16 * scaleAtk),
+        speed: Math.round(96 * scaleSpeed),
+        facing: Math.random() * Math.PI * 2,
+        walkPhase: Math.random() * Math.PI * 2,
+        attackCooldown: 0.75 + Math.random() * 0.45,
+        windupTimer: 0,
+        windupDuration: Math.max(0.32, 0.42 * windupScale),
+        windupType: Math.random() < 0.5 ? 'slash' : 'poison_lob',
+        windupAngle: 0,
+        hitFlash: 0,
+        roomId: rm.id,
+        weaponAngle: 0,
+        weaponSwing: 0,
+        armorCrackTimer: 0,
+        ...baseDebuffs,
+      });
+    } else if (kind === EnemyKind.MINI_GHOUL) {
+      enemies.push({
+        id: allocEntityId(),
+        kind,
+        name: floor >= 3 ? `Mini Shadowstalker Lv.${floor}` : 'Mini Ghoul',
+        x,
+        y,
+        vx: 0,
+        vy: 0,
+        radius: 15,
+        hp: Math.round(86 * scaleHp),
+        maxHp: Math.round(86 * scaleHp),
+        atk: Math.round(18 * scaleAtk),
+        speed: Math.round(142 * scaleSpeed),
+        facing: Math.random() * Math.PI * 2,
+        walkPhase: Math.random() * Math.PI * 2,
+        attackCooldown: 0.52 + Math.random() * 0.38,
+        windupTimer: 0,
+        windupDuration: Math.max(0.22, 0.29 * windupScale),
+        windupType: Math.random() < 0.55 ? 'pounce' : 'slash',
+        windupAngle: 0,
+        hitFlash: 0,
+        roomId: rm.id,
+        weaponAngle: 0,
+        weaponSwing: 0,
+        armorCrackTimer: 0,
+        ...baseDebuffs,
+      });
+    } else if (kind === EnemyKind.MINI_GHOST) {
+      enemies.push({
+        id: allocEntityId(),
+        kind,
+        name: floor >= 3 ? `Mini Netherwisp Lv.${floor}` : 'Mini Ghost',
+        x,
+        y,
+        vx: 0,
+        vy: 0,
+        radius: 14,
+        hp: Math.round(74 * scaleHp),
+        maxHp: Math.round(74 * scaleHp),
+        atk: Math.round(19 * scaleAtk),
+        speed: Math.round(112 * scaleSpeed),
+        facing: Math.random() * Math.PI * 2,
+        walkPhase: Math.random() * Math.PI * 2,
+        attackCooldown: 0.72 + Math.random() * 0.45,
+        windupTimer: 0,
+        windupDuration: Math.max(0.28, 0.36 * windupScale),
+        windupType: Math.random() < 0.6 ? 'shoot' : 'spell',
         windupAngle: 0,
         hitFlash: 0,
         roomId: rm.id,
@@ -590,7 +702,7 @@ export function buildProceduralDungeon(floor: number): {
     }
   };
 
-  // 8. Populate props, chests, pillars (away from doorway midlines!) & scaled enemy packs per room
+  // 8. Populate props, chests, pillars & scaled enemy packs per room
   let combatIndex = 0;
   let treasureIndex = 0;
 
@@ -636,7 +748,7 @@ export function buildProceduralDungeon(floor: number): {
 
     if (rm.kind === 'combat') {
       combatIndex++;
-      // Corner pillars placed strictly at 20%/80% so center N/S/E/W corridors stay 100% open
+      // Corner pillars placed strictly at 20%/80%
       const pxL = rm.x + Math.floor(rm.w * 0.2);
       const pxR = rm.x + Math.floor(rm.w * 0.8) - 44;
       const pyT = rm.y + Math.floor(rm.h * 0.2);
@@ -648,7 +760,14 @@ export function buildProceduralDungeon(floor: number): {
         { id: `pil_${rm.id}_4`, kind: 'pillar', x: pxR, y: pyB, w: 44, h: 44, solid: true }
       );
 
-      const baseCount = 4 + (combatIndex % 2) + Math.min(4, floor - 1);
+      const baseCount = 5 + (combatIndex % 2) + Math.min(4, floor - 1);
+      const miniPool = [
+        EnemyKind.MINI_SKELETON,
+        EnemyKind.MINI_ZOMBIE,
+        EnemyKind.MINI_GHOUL,
+        EnemyKind.MINI_GHOST,
+      ];
+
       for (let m = 0; m < baseCount; m++) {
         const ang = (m / baseCount) * Math.PI * 2 + Math.random() * 0.45;
         const radX = rm.w * (0.14 + Math.random() * 0.16);
@@ -659,8 +778,11 @@ export function buildProceduralDungeon(floor: number): {
         let kind = EnemyKind.RATTLER;
         if (m === 0 && (combatIndex >= 2 || floor >= 2)) {
           kind = EnemyKind.BRUTE;
-        } else if (m === 1 && floor >= 3) {
-          kind = EnemyKind.BRUTE;
+        } else if (m === 1) {
+          // Mini Undead Legion heroes regularly spawn in every combat pack!
+          kind = miniPool[(combatIndex + m) % miniPool.length];
+        } else if (m === 2 && floor >= 2) {
+          kind = miniPool[(combatIndex + m + 2) % miniPool.length];
         } else if (m % 3 === 1) {
           kind = EnemyKind.ARCHER;
         }
@@ -677,7 +799,7 @@ export function buildProceduralDungeon(floor: number): {
         h: 48,
         solid: true,
         opened: false,
-        label: treasureIndex === 1 ? 'Open Reliquary Chest' : 'Open Crypt Chest',
+        label: treasureIndex === 1 ? 'Open Reliquary Chest' : 'Open Graveyard Chest',
       });
 
       if (treasureIndex === 1) {
@@ -694,13 +816,25 @@ export function buildProceduralDungeon(floor: number): {
         });
       }
 
-
-      const guardCount = 3 + Math.min(2, Math.floor(floor / 2));
+      const miniPool = [
+        EnemyKind.MINI_SKELETON,
+        EnemyKind.MINI_ZOMBIE,
+        EnemyKind.MINI_GHOUL,
+        EnemyKind.MINI_GHOST,
+      ];
+      const guardCount = 3 + Math.min(3, Math.floor(floor / 2));
       for (let g = 0; g < guardCount; g++) {
         const ga = (g / guardCount) * Math.PI * 2 + 0.5;
         const gx = rm.x + rm.w * 0.5 + Math.cos(ga) * (rm.w * 0.24);
         const gy = rm.y + rm.h * 0.5 + Math.sin(ga) * (rm.h * 0.24);
-        const gKind = g === 0 ? EnemyKind.BRUTE : g === 1 ? EnemyKind.ARCHER : EnemyKind.RATTLER;
+        const gKind =
+          g === 0
+            ? EnemyKind.BRUTE
+            : g === 1
+              ? miniPool[(floor + g) % miniPool.length]
+              : g === 2
+                ? EnemyKind.ARCHER
+                : EnemyKind.RATTLER;
         spawnSkeletonMob(gKind, rm, gx, gy);
       }
     } else if (rm.kind === 'boss') {
@@ -712,53 +846,163 @@ export function buildProceduralDungeon(floor: number): {
         { id: `bp_${rm.id}_4`, kind: 'pillar', x: rm.x + rm.w - bOff - 50, y: rm.y + rm.h - bOff - 50, w: 50, h: 50, solid: true }
       );
 
-      enemies.push({
-        id: allocEntityId(),
-        kind: EnemyKind.BOSS_WARDEN,
-        name:
-          floor === 1
-            ? 'High Warden Ossian'
-            : `Ascendant Ossian · Crypt ${floor}`,
-        x: rm.x + rm.w * 0.5,
-        y: rm.y + rm.h * 0.5,
-        vx: 0,
-        vy: 0,
-        radius: 38,
-        hp: Math.round(1020 * scaleHp),
-        maxHp: Math.round(1020 * scaleHp),
-        atk: Math.round(29 * scaleAtk),
-        speed: Math.round(98 * scaleSpeed),
-        facing: Math.PI,
-        walkPhase: 0,
-        attackCooldown: Math.max(0.95, 1.45 * windupScale),
-        windupTimer: 0,
-        windupDuration: Math.max(0.58, 0.84 * windupScale),
-        windupType: 'slam',
-        windupAngle: 0,
-        attackAnimTimer: 0,
-        attackAnimDuration: 0.36,
-        hitFlash: 0,
-        roomId: rm.id,
-        weaponAngle: 0,
-        weaponSwing: 0,
-        armorCrackTimer: 0,
-        poisonTimer: 0,
-        poisonDps: 0,
-        poisonTickAccum: 0,
-        slowTimer: 0,
-        preyMarkTimer: 0,
-        pounceMarkTimer: 0,
-        fearTimer: 0,
-        possessedTimer: 0,
-        staggerTimer: 0,
-      });
+      // Members of the Undead Legion appear as bosses! They have far higher HP & damage than normal bosses.
+      const isLegionBossRoll = Math.random() < 0.75;
+      const legionBossPool: Array<{
+        kind: EnemyKind;
+        legionHeroId: 'skeleton' | 'zombie' | 'ghoul' | 'ghost';
+        name: string;
+        baseHp: number;
+        baseAtk: number;
+        radius: number;
+        speed: number;
+      }> = [
+        {
+          kind: EnemyKind.BOSS_LEGION_SKELETON,
+          legionHeroId: 'skeleton',
+          name: floor === 1 ? 'Legion Champion · Skeleton Blademaster' : `Legion Overlord · Bone Scourge Lv.${floor}`,
+          baseHp: 2200,
+          baseAtk: 44,
+          radius: 42,
+          speed: 132,
+        },
+        {
+          kind: EnemyKind.BOSS_LEGION_ZOMBIE,
+          legionHeroId: 'zombie',
+          name: floor === 1 ? 'Legion Abomination · Zombie Plaguebearer' : `Legion Colossus · Corpse Goliath Lv.${floor}`,
+          baseHp: 2650,
+          baseAtk: 40,
+          radius: 46,
+          speed: 104,
+        },
+        {
+          kind: EnemyKind.BOSS_LEGION_GHOUL,
+          legionHeroId: 'ghoul',
+          name: floor === 1 ? 'Legion Apex · Ghoul Shadowlord' : `Legion Carnage · Night Stalker Lv.${floor}`,
+          baseHp: 2100,
+          baseAtk: 50,
+          radius: 40,
+          speed: 152,
+        },
+        {
+          kind: EnemyKind.BOSS_LEGION_GHOST,
+          legionHeroId: 'ghost',
+          name: floor === 1 ? 'Legion Dread · Ghost Spirit Sovereign' : `Legion Sovereign · Void Phantom Lv.${floor}`,
+          baseHp: 2000,
+          baseAtk: 46,
+          radius: 40,
+          speed: 124,
+        },
+      ];
 
-      // On higher floors (Floor 2+), Boss Warden is flanked by elite Royal Honor Guards!
-      const royalGuards = Math.min(3, floor - 1);
+      if (isLegionBossRoll) {
+        const picked = legionBossPool[Math.floor(Math.random() * legionBossPool.length)];
+        enemies.push({
+          id: allocEntityId(),
+          kind: picked.kind,
+          name: picked.name,
+          x: rm.x + rm.w * 0.5,
+          y: rm.y + rm.h * 0.5,
+          vx: 0,
+          vy: 0,
+          radius: picked.radius,
+          hp: Math.round(picked.baseHp * scaleHp),
+          maxHp: Math.round(picked.baseHp * scaleHp),
+          atk: Math.round(picked.baseAtk * scaleAtk),
+          speed: Math.round(picked.speed * scaleSpeed),
+          facing: Math.PI,
+          walkPhase: 0,
+          attackCooldown: 1.2,
+          windupTimer: 0,
+          windupDuration: Math.max(0.5, 0.72 * windupScale),
+          windupType: 'slash',
+          windupAngle: 0,
+          attackAnimTimer: 0,
+          attackAnimDuration: 0.35,
+          hitFlash: 0,
+          roomId: rm.id,
+          weaponAngle: 0,
+          weaponSwing: 0,
+          armorCrackTimer: 0,
+          poisonTimer: 0,
+          poisonDps: 0,
+          poisonTickAccum: 0,
+          slowTimer: 0,
+          preyMarkTimer: 0,
+          pounceMarkTimer: 0,
+          fearTimer: 0,
+          possessedTimer: 0,
+          staggerTimer: 0,
+          isLegionBoss: true,
+          legionHeroId: picked.legionHeroId,
+          bossPhase: 1,
+          specialCooldowns: {
+            skill1: 1.5,
+            skill2: 3.5,
+            skill3: 5.5,
+            skill4: 7.0,
+            skill5: 9.0,
+            ult1: 12.0,
+            ult2: 22.0,
+            ult3: 32.0,
+          },
+        });
+      } else {
+        enemies.push({
+          id: allocEntityId(),
+          kind: EnemyKind.BOSS_WARDEN,
+          name:
+            floor === 1
+              ? 'High Warden Ossian'
+              : `Ascendant Ossian · Graveyard ${floor}`,
+          x: rm.x + rm.w * 0.5,
+          y: rm.y + rm.h * 0.5,
+          vx: 0,
+          vy: 0,
+          radius: 38,
+          hp: Math.round(1020 * scaleHp),
+          maxHp: Math.round(1020 * scaleHp),
+          atk: Math.round(29 * scaleAtk),
+          speed: Math.round(98 * scaleSpeed),
+          facing: Math.PI,
+          walkPhase: 0,
+          attackCooldown: Math.max(0.95, 1.45 * windupScale),
+          windupTimer: 0,
+          windupDuration: Math.max(0.58, 0.84 * windupScale),
+          windupType: 'slam',
+          windupAngle: 0,
+          attackAnimTimer: 0,
+          attackAnimDuration: 0.36,
+          hitFlash: 0,
+          roomId: rm.id,
+          weaponAngle: 0,
+          weaponSwing: 0,
+          armorCrackTimer: 0,
+          poisonTimer: 0,
+          poisonDps: 0,
+          poisonTickAccum: 0,
+          slowTimer: 0,
+          preyMarkTimer: 0,
+          pounceMarkTimer: 0,
+          fearTimer: 0,
+          possessedTimer: 0,
+          staggerTimer: 0,
+        });
+      }
+
+      // Boss honor guards (mix of Brutes, Archers, and Mini Undead Legion heroes)
+      const royalGuards = Math.min(3, floor);
+      const miniPool = [
+        EnemyKind.MINI_SKELETON,
+        EnemyKind.MINI_ZOMBIE,
+        EnemyKind.MINI_GHOUL,
+        EnemyKind.MINI_GHOST,
+      ];
       for (let rg = 0; rg < royalGuards; rg++) {
         const ra = (rg / Math.max(1, royalGuards)) * Math.PI * 2 + 0.8;
+        const gKind = rg === 0 ? EnemyKind.BRUTE : miniPool[rg % miniPool.length];
         spawnSkeletonMob(
-          rg % 2 === 0 ? EnemyKind.BRUTE : EnemyKind.ARCHER,
+          gKind,
           rm,
           rm.x + rm.w * 0.5 + Math.cos(ra) * 165,
           rm.y + rm.h * 0.5 + Math.sin(ra) * 145

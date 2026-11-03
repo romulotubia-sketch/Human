@@ -5,6 +5,9 @@ import {
   EnemyEntity,
   EnemyKind,
   HeroId,
+  isBossKind,
+  isMiniHeroKind,
+  isUndeadLegionBoss,
   SkillLoadout,
   SwordAnimState,
   WorldMap,
@@ -521,7 +524,7 @@ export class RoomManager {
     if (slowDuration > 0) {
       enemy.slowTimer = Math.max(enemy.slowTimer, Math.min(4.0, slowDuration));
     }
-    if (staggerDuration > 0 && enemy.kind !== EnemyKind.BOSS_WARDEN) {
+    if (staggerDuration > 0 && !isBossKind(enemy.kind)) {
       enemy.staggerTimer = Math.max(enemy.staggerTimer, Math.min(1.2, staggerDuration));
       enemy.windupTimer = 0;
     }
@@ -543,7 +546,7 @@ export class RoomManager {
 
   private handleEnemyDeath(room: GameRoom, enemy: EnemyEntity, killerId: string) {
     const spawnedLoot: SyncLootItem[] = [];
-    const isBoss = enemy.kind === EnemyKind.BOSS_WARDEN;
+    const isBoss = isBossKind(enemy.kind);
     const isBrute = enemy.kind === EnemyKind.BRUTE;
 
     // Bone Shards
@@ -620,7 +623,7 @@ export class RoomManager {
     for (const e of room.enemies.values()) {
       if (e.hp > 0 && e.kind !== EnemyKind.TRAINING_DUMMY) {
         remaining++;
-        if (e.kind === EnemyKind.BOSS_WARDEN) {
+        if (isBossKind(e.kind)) {
           bossAlive = true;
         }
       }
@@ -641,7 +644,7 @@ export class RoomManager {
             w: 54,
             h: 54,
             solid: false,
-            label: `Crypt Floor ${room.floor + 1}`,
+            label: `Graveyard of the Fallen · Floor ${room.floor + 1}`,
           });
         }
 
@@ -1261,7 +1264,8 @@ export class RoomManager {
                   enemy.walkPhase = 0;
                 }
                 if (minDist <= 295 && enemy.attackCooldown <= 0) {
-                  enemy.windupType = 'shoot';
+                  const r = Math.random();
+                  enemy.windupType = r < 0.45 ? 'shoot' : r < 0.75 ? 'volley' : 'poison_lob';
                   enemy.windupDuration = 0.54;
                   enemy.windupTimer = 0.54;
                   enemy.windupAngle = angToP;
@@ -1273,13 +1277,66 @@ export class RoomManager {
                   enemy.vx = 0;
                   enemy.vy = 0;
                   if (enemy.attackCooldown <= 0) {
-                    enemy.windupType = 'slam';
+                    const r = Math.random();
+                    enemy.windupType = r < 0.45 ? 'slam' : r < 0.75 ? 'charge' : 'shockwave_line';
                     enemy.windupDuration = 0.66;
                     enemy.windupTimer = 0.66;
                     enemy.windupAngle = angToP;
                   }
                 }
-              } else if (enemy.kind === EnemyKind.BOSS_WARDEN) {
+              } else if (enemy.kind === EnemyKind.MINI_SKELETON) {
+                if (minDist > 44) {
+                  this.moveEnemyOnServerMap(room, enemy, Math.cos(angToP), Math.sin(angToP), dt);
+                } else {
+                  enemy.vx = 0;
+                  enemy.vy = 0;
+                  if (enemy.attackCooldown <= 0) {
+                    enemy.windupType = Math.random() < 0.55 ? 'slash' : 'shoot';
+                    enemy.windupDuration = 0.32;
+                    enemy.windupTimer = 0.32;
+                    enemy.windupAngle = angToP;
+                  }
+                }
+              } else if (enemy.kind === EnemyKind.MINI_ZOMBIE) {
+                if (minDist > 46) {
+                  this.moveEnemyOnServerMap(room, enemy, Math.cos(angToP), Math.sin(angToP), dt);
+                } else {
+                  enemy.vx = 0;
+                  enemy.vy = 0;
+                  if (enemy.attackCooldown <= 0) {
+                    enemy.windupType = Math.random() < 0.55 ? 'slash' : 'poison_lob';
+                    enemy.windupDuration = 0.36;
+                    enemy.windupTimer = 0.36;
+                    enemy.windupAngle = angToP;
+                  }
+                }
+              } else if (enemy.kind === EnemyKind.MINI_GHOUL) {
+                if (minDist > 50) {
+                  this.moveEnemyOnServerMap(room, enemy, Math.cos(angToP), Math.sin(angToP), dt);
+                } else {
+                  enemy.vx = 0;
+                  enemy.vy = 0;
+                  if (enemy.attackCooldown <= 0) {
+                    enemy.windupType = Math.random() < 0.55 ? 'pounce' : 'slash';
+                    enemy.windupDuration = 0.3;
+                    enemy.windupTimer = 0.3;
+                    enemy.windupAngle = angToP;
+                  }
+                }
+              } else if (enemy.kind === EnemyKind.MINI_GHOST) {
+                if (minDist > 75) {
+                  this.moveEnemyOnServerMap(room, enemy, Math.cos(angToP), Math.sin(angToP), dt);
+                } else {
+                  enemy.vx = 0;
+                  enemy.vy = 0;
+                  if (enemy.attackCooldown <= 0) {
+                    enemy.windupType = Math.random() < 0.6 ? 'shoot' : 'spell';
+                    enemy.windupDuration = 0.35;
+                    enemy.windupTimer = 0.35;
+                    enemy.windupAngle = angToP;
+                  }
+                }
+              } else if (isBossKind(enemy.kind)) {
                 if (minDist > 105 && enemy.attackCooldown > 0.3) {
                   this.moveEnemyOnServerMap(room, enemy, Math.cos(angToP), Math.sin(angToP), dt);
                 } else {
@@ -1288,15 +1345,20 @@ export class RoomManager {
                 }
                 if (enemy.attackCooldown <= 0) {
                   const roll = Math.random();
-                  if (minDist <= 130 && roll < 0.48) {
+                  if (minDist <= 130 && roll < 0.38) {
                     enemy.windupType = 'slam';
                     enemy.windupDuration = 0.8;
                     enemy.windupTimer = 0.8;
                     enemy.windupAngle = angToP;
-                  } else if (roll < 0.78) {
+                  } else if (roll < 0.65) {
                     enemy.windupType = 'nova';
                     enemy.windupDuration = 0.74;
                     enemy.windupTimer = 0.74;
+                    enemy.windupAngle = angToP;
+                  } else if (roll < 0.85) {
+                    enemy.windupType = 'whirlwind';
+                    enemy.windupDuration = 0.65;
+                    enemy.windupTimer = 0.65;
                     enemy.windupAngle = angToP;
                   } else {
                     enemy.windupType = 'dash';
@@ -1306,14 +1368,15 @@ export class RoomManager {
                   }
                 }
               } else {
-                // Crypt Rattler
+                // Crypt Rattler: slash, whirlwind, or thrust!
                 if (minDist > 48) {
                   this.moveEnemyOnServerMap(room, enemy, Math.cos(angToP), Math.sin(angToP), dt);
                 } else {
                   enemy.vx = 0;
                   enemy.vy = 0;
                   if (enemy.attackCooldown <= 0) {
-                    enemy.windupType = 'slash';
+                    const r = Math.random();
+                    enemy.windupType = r < 0.45 ? 'slash' : r < 0.75 ? 'whirlwind' : 'thrust';
                     enemy.windupDuration = 0.38;
                     enemy.windupTimer = 0.38;
                     enemy.windupAngle = angToP;
@@ -1421,7 +1484,7 @@ export class RoomManager {
         damage: atk,
       });
     } else if (e.windupType === 'slam') {
-      const isBoss = e.kind === EnemyKind.BOSS_WARDEN;
+      const isBoss = isBossKind(e.kind);
       const slamRad = isBoss ? 135 : 78;
       e.attackAnimTimer = 0.34;
       for (const lp of livingPlayers) {
@@ -1433,6 +1496,55 @@ export class RoomManager {
         enemyId: e.id,
         kind: e.kind,
         attackType: 'slam',
+        x: originX,
+        y: originY,
+        angle: e.windupAngle,
+        damage: Math.round(atk * 1.25),
+      });
+    } else if (e.windupType === 'whirlwind') {
+      const isBoss = isBossKind(e.kind);
+      const whirlRad = isBoss ? 130 : e.radius + 56;
+      e.attackAnimTimer = 0.32;
+      for (const lp of livingPlayers) {
+        if (Math.hypot(lp.state.x - e.x, lp.state.y - e.y) <= whirlRad + 12) {
+          this.damagePlayerAuthoritative(room, lp, Math.round(atk * 1.2));
+        }
+      }
+      this.broadcastEnemyAttack(room, {
+        enemyId: e.id,
+        kind: e.kind,
+        attackType: 'whirlwind',
+        x: originX,
+        y: originY,
+        angle: e.windupAngle,
+        damage: Math.round(atk * 1.2),
+        radius: whirlRad,
+      });
+    } else if (e.windupType === 'thrust') {
+      const reach = isBossKind(e.kind) ? 160 : 110;
+      e.attackAnimTimer = 0.28;
+      const step = reach * 0.4;
+      const sx = e.x + Math.cos(e.windupAngle) * step;
+      const sy = e.y + Math.sin(e.windupAngle) * step;
+      if (this.isPointWalkableOnMap(room.dungeonMap, sx, sy, e.radius * 0.78)) {
+        e.x = sx;
+        e.y = sy;
+      }
+      for (const lp of livingPlayers) {
+        const dx = lp.state.x - e.x;
+        const dy = lp.state.y - e.y;
+        const dist = Math.hypot(dx, dy);
+        let diff = Math.atan2(dy, dx) - e.windupAngle;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        if (dist <= reach && Math.abs(diff) <= 0.42) {
+          this.damagePlayerAuthoritative(room, lp, Math.round(atk * 1.25));
+        }
+      }
+      this.broadcastEnemyAttack(room, {
+        enemyId: e.id,
+        kind: e.kind,
+        attackType: 'thrust',
         x: originX,
         y: originY,
         angle: e.windupAngle,
@@ -1461,6 +1573,149 @@ export class RoomManager {
         y: originY,
         angle: e.windupAngle,
         damage: atk,
+      });
+    } else if (e.windupType === 'volley') {
+      e.attackAnimTimer = 0.24;
+      const bowX = e.x + Math.cos(e.windupAngle) * 22;
+      const bowY = e.y - 6 + Math.sin(e.windupAngle) * 22;
+      for (const offset of [-0.28, 0, 0.28]) {
+        const va = e.windupAngle + offset;
+        room.enemyProjectiles.push({
+          id: this.nextProjId++,
+          x: bowX,
+          y: bowY,
+          vx: Math.cos(va) * 300,
+          vy: Math.sin(va) * 300,
+          radius: 7,
+          damage: Math.round(atk * 0.85),
+          life: 0,
+          maxLife: 1.6,
+        });
+      }
+      this.broadcastEnemyAttack(room, {
+        enemyId: e.id,
+        kind: e.kind,
+        attackType: 'volley',
+        x: originX,
+        y: originY,
+        angle: e.windupAngle,
+        damage: Math.round(atk * 0.85),
+      });
+    } else if (e.windupType === 'poison_lob') {
+      e.attackAnimTimer = 0.3;
+      const tx = e.x + Math.cos(e.windupAngle) * 140;
+      const ty = e.y + Math.sin(e.windupAngle) * 140;
+      for (const lp of livingPlayers) {
+        if (Math.hypot(lp.state.x - tx, lp.state.y - ty) <= 55) {
+          this.damagePlayerAuthoritative(room, lp, Math.round(atk * 0.9));
+        }
+      }
+      this.broadcastEnemyAttack(room, {
+        enemyId: e.id,
+        kind: e.kind,
+        attackType: 'poison_lob',
+        x: originX,
+        y: originY,
+        angle: e.windupAngle,
+        damage: Math.round(atk * 0.9),
+      });
+    } else if (e.windupType === 'shockwave_line') {
+      e.attackAnimTimer = 0.36;
+      const lineLen = isBossKind(e.kind) ? 280 : 220;
+      for (const lp of livingPlayers) {
+        const dx = lp.state.x - e.x;
+        const dy = lp.state.y - e.y;
+        const dist = Math.hypot(dx, dy);
+        let diff = Math.atan2(dy, dx) - e.windupAngle;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        if (dist <= lineLen && Math.abs(diff) <= 0.38) {
+          this.damagePlayerAuthoritative(room, lp, Math.round(atk * 1.3));
+        }
+      }
+      this.broadcastEnemyAttack(room, {
+        enemyId: e.id,
+        kind: e.kind,
+        attackType: 'shockwave_line',
+        x: originX,
+        y: originY,
+        angle: e.windupAngle,
+        damage: Math.round(atk * 1.3),
+      });
+    } else if (e.windupType === 'charge') {
+      e.attackAnimTimer = 0.3;
+      const step = 160;
+      const subSteps = 8;
+      for (let s = 0; s < subSteps; s++) {
+        const sx = e.x + Math.cos(e.windupAngle) * (step / subSteps);
+        const sy = e.y + Math.sin(e.windupAngle) * (step / subSteps);
+        if (this.isPointWalkableOnMap(room.dungeonMap, sx, sy, e.radius * 0.78)) {
+          e.x = sx;
+          e.y = sy;
+        } else break;
+      }
+      for (const lp of livingPlayers) {
+        if (Math.hypot(lp.state.x - e.x, lp.state.y - e.y) <= e.radius + 44) {
+          this.damagePlayerAuthoritative(room, lp, Math.round(atk * 1.15));
+        }
+      }
+      this.broadcastEnemyAttack(room, {
+        enemyId: e.id,
+        kind: e.kind,
+        attackType: 'charge',
+        x: originX,
+        y: originY,
+        endX: e.x,
+        endY: e.y,
+        angle: e.windupAngle,
+        damage: Math.round(atk * 1.15),
+      });
+    } else if (e.windupType === 'pounce') {
+      e.attackAnimTimer = 0.32;
+      const px = e.x + Math.cos(e.windupAngle) * 130;
+      const py = e.y + Math.sin(e.windupAngle) * 130;
+      if (this.isPointWalkableOnMap(room.dungeonMap, px, py, e.radius * 0.78)) {
+        e.x = px;
+        e.y = py;
+      }
+      for (const lp of livingPlayers) {
+        if (Math.hypot(lp.state.x - e.x, lp.state.y - e.y) <= 58) {
+          this.damagePlayerAuthoritative(room, lp, Math.round(atk * 1.25));
+        }
+      }
+      this.broadcastEnemyAttack(room, {
+        enemyId: e.id,
+        kind: e.kind,
+        attackType: 'pounce',
+        x: originX,
+        y: originY,
+        angle: e.windupAngle,
+        damage: Math.round(atk * 1.25),
+      });
+    } else if (e.windupType === 'spell') {
+      e.attackAnimTimer = 0.34;
+      for (let s = 0; s < 3; s++) {
+        const sa = e.windupAngle + (s - 1) * 0.45;
+        room.enemyProjectiles.push({
+          id: this.nextProjId++,
+          x: e.x + Math.cos(sa) * 22,
+          y: e.y + Math.sin(sa) * 22,
+          vx: Math.cos(sa) * 240,
+          vy: Math.sin(sa) * 240,
+          radius: 8,
+          damage: Math.round(atk * 0.95),
+          life: 0,
+          maxLife: 2.0,
+        });
+      }
+      this.broadcastEnemyAttack(room, {
+        enemyId: e.id,
+        kind: e.kind,
+        attackType: 'spell',
+        x: originX,
+        y: originY,
+        angle: e.windupAngle,
+        damage: Math.round(atk * 0.95),
       });
     } else if (e.windupType === 'nova') {
       e.attackAnimTimer = 0.38;
@@ -1520,7 +1775,7 @@ export class RoomManager {
       });
     }
 
-    e.attackCooldown = e.kind === EnemyKind.BOSS_WARDEN ? 1.35 : 1.12 + Math.random() * 0.35;
+    e.attackCooldown = isBossKind(e.kind) ? 1.35 : 1.12 + Math.random() * 0.35;
   }
 
   private broadcastEnemyAttack(room: GameRoom, evt: SyncEnemyAttackEvent) {

@@ -845,7 +845,7 @@ export default function App() {
                 <span>
                   {phase === GamePhase.GUILD_HOUSE
                     ? 'Guild House'
-                    : `Crypt Floor ${hud.floor}`}
+                    : `Graveyard of the Fallen · Floor ${hud.floor}`}
                 </span>
                 {phase === GamePhase.DUNGEON && (
                   <>
@@ -859,12 +859,25 @@ export default function App() {
             </div>
 
             {hud.bossInfo && (
-              <div className="hidden max-w-xs flex-1 flex-col items-center rounded-2xl border border-rose-500/50 bg-stone-950/85 px-4 py-2 backdrop-blur-md sm:flex">
+              <div
+                className={`hidden max-w-xs flex-1 flex-col items-center rounded-2xl border px-4 py-2 backdrop-blur-md sm:flex ${
+                  hud.bossInfo.isLegionBoss
+                    ? 'border-purple-500/80 bg-gradient-to-r from-stone-950/95 via-purple-950/60 to-rose-950/80 shadow-[0_0_20px_rgba(217,70,239,0.3)]'
+                    : 'border-rose-500/50 bg-stone-950/85'
+                }`}
+              >
                 <div className="flex w-full items-center justify-between gap-2 text-xs">
-                  <span className="font-display truncate font-semibold text-rose-200">
-                    {hud.bossInfo.name}
-                  </span>
-                  <span className="font-mono-num text-[11px] text-rose-300">
+                  <div className="flex items-center gap-1.5 truncate">
+                    {hud.bossInfo.isLegionBoss && (
+                      <span className="shrink-0 rounded bg-rose-500/30 px-1 py-0.5 text-[9px] font-black uppercase tracking-wider text-rose-300 border border-rose-500/40">
+                        Legion Boss
+                      </span>
+                    )}
+                    <span className="font-display truncate font-semibold text-rose-200">
+                      {hud.bossInfo.name}
+                    </span>
+                  </div>
+                  <span className="font-mono-num text-[11px] text-rose-300 shrink-0">
                     {hud.bossInfo.hp}/{hud.bossInfo.maxHp}
                   </span>
                 </div>
@@ -881,7 +894,7 @@ export default function App() {
                       (hud.bossInfo.hp / Math.max(1, hud.bossInfo.maxHp)) * 240
                     )}
                     height="8"
-                    fill="#f43f5e"
+                    fill={hud.bossInfo.isLegionBoss ? '#e11d48' : '#f43f5e'}
                   />
                 </svg>
               </div>
@@ -1014,7 +1027,7 @@ export default function App() {
           {hud.runOutcome === 'victory' && !victoryDismissed && (
             <div className="pointer-events-auto absolute left-1/2 top-16 z-30 flex w-[90%] max-w-md -translate-x-1/2 flex-col items-center rounded-2xl border border-amber-300/70 bg-stone-950/92 p-4 text-center shadow-2xl backdrop-blur-md">
               <h3 className="font-display text-lg font-bold text-amber-200">
-                Crypt Boss Vanquished!
+                Graveyard Boss Vanquished!
               </h3>
               <p className="mt-1 text-xs text-stone-300">
                 Earned +1 Skill Point and +60 Bone Shards.{' '}
@@ -1035,7 +1048,7 @@ export default function App() {
                   }}
                   className="min-h-[42px] whitespace-nowrap rounded-xl bg-cyan-400 px-4 py-2 text-xs font-bold text-stone-950"
                 >
-                  {isMultiplayer ? 'Ready for Next Floor' : 'Next Crypt Floor'}
+                  {isMultiplayer ? 'Ready for Next Floor' : 'Next Graveyard Floor'}
                 </button>
                 <button
                   type="button"
@@ -1066,11 +1079,11 @@ export default function App() {
             <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
               <div className="flex w-full max-w-md flex-col items-center rounded-2xl border border-stone-700 bg-[#181310] p-5 text-center shadow-2xl">
                 <h2 className="font-display text-xl font-bold text-rose-200 sm:text-2xl">
-                  Fallen in the Crypt
+                  Fallen in the Graveyard
                 </h2>
                 <p className="mt-1.5 text-xs leading-relaxed text-stone-300 sm:text-sm">
                   You reform safely beside the warm Guild Hearth. Shards and glory remain,
-                  while skill levels and trees reset for your next crypt expedition!
+                  while skill levels and trees reset for your next graveyard expedition!
                 </p>
                 <div className="mt-4 flex w-full flex-col gap-2.5 sm:flex-row">
                   <button

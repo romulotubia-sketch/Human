@@ -1,4 +1,12 @@
-import { ActiveSkillId, EnemyKind, HeroId, SkillLoadout, SwordAnimState, WorldMap } from './game';
+import {
+  ActiveSkillId,
+  EnemyAttackType,
+  EnemyKind,
+  HeroId,
+  SkillLoadout,
+  SwordAnimState,
+  WorldMap,
+} from './game';
 
 export interface LobbyPlayer {
   id: string;
@@ -88,19 +96,21 @@ export interface SyncEnemyState {
   walkPhase: number;
   windupTimer: number;
   windupDuration: number;
-  windupType: 'slash' | 'shoot' | 'slam' | 'nova' | 'dash';
+  windupType: EnemyAttackType;
   windupAngle: number;
   slowTimer?: number;
   staggerTimer?: number;
   poisonTimer?: number;
   fearTimer?: number;
   possessedTimer?: number;
+  isBoss?: boolean;
+  isLegionBoss?: boolean;
 }
 
 export interface SyncEnemyAttackEvent {
   enemyId: number;
   kind: EnemyKind;
-  attackType: 'slash' | 'shoot' | 'slam' | 'nova' | 'dash';
+  attackType: EnemyAttackType;
   x: number;
   y: number;
   endX?: number;
@@ -109,6 +119,7 @@ export interface SyncEnemyAttackEvent {
   damage: number;
   radius?: number;
   isBoss?: boolean;
+  isLegionBoss?: boolean;
 }
 
 export interface SyncLootItem {

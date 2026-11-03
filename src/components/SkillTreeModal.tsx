@@ -473,7 +473,7 @@ export function SkillTreeModal({
                 )}
                 {!isDungeon && (
                   <p className="mt-2 rounded-lg border border-amber-500/30 bg-amber-950/40 px-2.5 py-1.5 text-center text-[11px] text-amber-200">
-                    Skill upgrades are locked in the Guild House. Enter the Crypt Dungeon to spend Skill Points and upgrade skills during your run.
+                    Skill upgrades are locked in the Guild House. Enter the Graveyard of the Fallen to spend Skill Points and upgrade skills during your run.
                   </p>
                 )}
 

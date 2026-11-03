@@ -317,7 +317,7 @@ export function MobaControls({
 
   const interactionLabel =
     nearInteraction === 'door_dungeon'
-      ? 'Enter Dungeon'
+      ? 'Enter Graveyard of the Fallen'
       : nearInteraction === 'skill_shrine'
         ? 'Open Skill Tree'
         : nearInteraction === 'chest'
@@ -325,7 +325,7 @@ export function MobaControls({
           : nearInteraction === 'blessing_statue'
             ? '✦ Receive Ancient Blessing'
             : nearInteraction === 'portal_next'
-              ? 'Next Crypt Floor'
+              ? 'Next Graveyard Floor'
               : nearInteraction === 'portal_guild'
                 ? 'Return to Guild'
                 : null;
