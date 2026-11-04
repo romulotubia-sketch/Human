@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { soundEngine } from '../audio/soundEngine';
 import { HeroId, MinimapSnapshot } from '../types/game';
 
@@ -8,7 +8,7 @@ interface MinimapProps {
   floor: number;
 }
 
-export function Minimap({ minimap, heroId, floor }: MinimapProps) {
+function MinimapComponent({ minimap, heroId, floor }: MinimapProps) {
   const [expanded, setExpanded] = useState(false);
 
   // Compute tight bounding box around randomized dungeon rooms & corridors
@@ -294,3 +294,6 @@ export function Minimap({ minimap, heroId, floor }: MinimapProps) {
     </button>
   );
 }
+
+export const Minimap = React.memo(MinimapComponent);
+

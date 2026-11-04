@@ -2201,18 +2201,18 @@ function drawWorldFloorsAndWalls(
       ctx.stroke();
 
       ctx.fillStyle = 'rgba(52, 118, 90, 0.22)';
-      for (let x = sx; x < ex; x += tile) {
-        for (let y = sy; y < ey; y += tile) {
+      ctx.beginPath();
+      for (let x = sx; x < ex; x += tile * 2) {
+        for (let y = sy; y < ey; y += tile * 2) {
           if (x < r.x || y < r.y || x + tile > r.x + r.w || y + tile > r.y + r.h) continue;
           const hash = ((x * 73856093) ^ (y * 19349663)) & 15;
           if (hash === 3) {
-            ctx.beginPath();
-            ctx.arc(x + 14, y + 16, 5, 0, Math.PI * 2);
-            ctx.arc(x + 20, y + 18, 3.5, 0, Math.PI * 2);
-            ctx.fill();
+            ctx.arc(x + 14, y + 16, 4.5, 0, Math.PI * 2);
+            ctx.arc(x + 20, y + 18, 3, 0, Math.PI * 2);
           }
         }
       }
+      ctx.fill();
     }
   }
 
@@ -9133,49 +9133,52 @@ function drawParticles(
   cullB: number
 ) {
   ctx.save();
+  let currentGlow: boolean | null = null;
+
   for (let i = 0; i < particles.length; i++) {
     const p = particles[i];
     if (!p.active) continue;
-    if (p.x < cullL || p.x > cullR || p.y < cullTopOr(cullT) || p.y > cullB) continue;
+    if (p.x < cullL || p.x > cullR || p.y < cullT || p.y > cullB) continue;
 
     const t = p.age / p.maxAge;
     const alpha = Math.max(0, 1 - t);
     const sz = p.size + (p.endSize - p.size) * t;
 
-    ctx.save();
-    if (p.glow) {
-      ctx.globalCompositeOperation = 'lighter';
+    if (currentGlow !== p.glow) {
+      currentGlow = p.glow;
+      ctx.globalCompositeOperation = p.glow ? 'lighter' : 'source-over';
     }
     ctx.globalAlpha = alpha;
-    ctx.translate(p.x, p.y);
 
     if (p.shape === 'circle') {
       ctx.fillStyle = p.color;
       ctx.beginPath();
-      ctx.arc(0, 0, Math.max(0.5, sz), 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, Math.max(0.5, sz), 0, Math.PI * 2);
       ctx.fill();
-    } else if (p.shape === 'spark') {
-      ctx.rotate(p.rotation);
-      ctx.fillStyle = p.color;
-      ctx.beginPath();
-      ctx.moveTo(-sz * 1.8, 0);
-      ctx.lineTo(0, -sz * 0.55);
-      ctx.lineTo(sz * 1.8, 0);
-      ctx.lineTo(0, sz * 0.55);
-      ctx.closePath();
-      ctx.fill();
-    } else if (p.shape === 'bone') {
-      ctx.rotate(p.rotation);
-      ctx.fillStyle = p.color;
-      ctx.fillRect(-sz, -sz * 0.38, sz * 2, sz * 0.76);
     } else if (p.shape === 'ring') {
       ctx.strokeStyle = p.color;
       ctx.lineWidth = 2.5 * alpha;
       ctx.beginPath();
-      ctx.arc(0, 0, Math.max(1, sz), 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, Math.max(1, sz), 0, Math.PI * 2);
       ctx.stroke();
+    } else {
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rotation);
+      ctx.fillStyle = p.color;
+      if (p.shape === 'spark') {
+        ctx.beginPath();
+        ctx.moveTo(-sz * 1.8, 0);
+        ctx.lineTo(0, -sz * 0.55);
+        ctx.lineTo(sz * 1.8, 0);
+        ctx.lineTo(0, sz * 0.55);
+        ctx.closePath();
+        ctx.fill();
+      } else if (p.shape === 'bone') {
+        ctx.fillRect(-sz, -sz * 0.38, sz * 2, sz * 0.76);
+      }
+      ctx.restore();
     }
-    ctx.restore();
   }
   ctx.restore();
 }

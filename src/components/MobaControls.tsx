@@ -88,7 +88,7 @@ const DRAG_DEADZONE = 15;
 const MAX_SKILL_DRAG = 52;
 const MAX_JOY_RADIUS = 46;
 
-export function MobaControls({
+function MobaControlsComponent({
   heroId,
   loadout,
   skillRanks,
@@ -700,3 +700,6 @@ export function MobaControls({
     </div>
   );
 }
+
+export const MobaControls = React.memo(MobaControlsComponent);
+

@@ -407,7 +407,7 @@ export default function App() {
     };
 
     const syncCanvasSize = () => {
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
       const { w, h } = getGameViewportSize();
       if (canvas.width !== Math.floor(w * dpr) || canvas.height !== Math.floor(h * dpr)) {
         canvas.width = Math.floor(w * dpr);
@@ -432,7 +432,7 @@ export default function App() {
         const { w, h } = getGameViewportSize();
         const safeW = Math.max(120, w);
         const safeH = Math.max(120, h);
-        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
 
         if (canvas.width !== Math.floor(safeW * dpr) || canvas.height !== Math.floor(safeH * dpr)) {
           canvas.width = Math.floor(safeW * dpr);
@@ -611,6 +611,52 @@ export default function App() {
       };
     });
   };
+
+  const handleJoystickMove = useCallback((nx: number, ny: number) => {
+    engineRef.current?.setJoystick(nx, ny);
+  }, []);
+
+  const handleBasicAttackHeld = useCallback((held: boolean) => {
+    engineRef.current?.setBasicAttackHeld(held);
+  }, []);
+
+  const handleSkillAim = useCallback(
+    (
+      active: boolean,
+      slotIdx: number,
+      skillId: ActiveSkillId | null,
+      isManual: boolean,
+      angle: number,
+      distRatio: number,
+      willCancel: boolean
+    ) => {
+      engineRef.current?.updateSkillAim(
+        active,
+        slotIdx,
+        skillId,
+        isManual,
+        angle,
+        distRatio,
+        willCancel
+      );
+    },
+    []
+  );
+
+  const handleSkillCast = useCallback(
+    (skillId: ActiveSkillId, isManual: boolean, angle: number, distRatio: number) => {
+      engineRef.current?.castSkill(skillId, isManual, angle, distRatio);
+    },
+    []
+  );
+
+  const handleInteract = useCallback(() => {
+    engineRef.current?.interactNearbyProp();
+  }, []);
+
+  const handleOpenSkillTree = useCallback(() => {
+    setShowSkillTree(true);
+  }, []);
 
   const hpBarWidth = Math.max(0, Math.min(200, (hud.hp / Math.max(1, hud.maxHp)) * 200));
   const shieldBarWidth = Math.max(
@@ -1148,24 +1194,12 @@ export default function App() {
             joystickScale={settings.joystickScale}
             isForcedCssLandscape={isForcedCssLandscape}
             nearInteraction={hud.nearInteraction}
-            onJoystickMove={(nx, ny) => engineRef.current?.setJoystick(nx, ny)}
-            onBasicAttackHeld={(held) => engineRef.current?.setBasicAttackHeld(held)}
-            onSkillAim={(active, slotIdx, skillId, isManual, angle, distRatio, willCancel) =>
-              engineRef.current?.updateSkillAim(
-                active,
-                slotIdx,
-                skillId,
-                isManual,
-                angle,
-                distRatio,
-                willCancel
-              )
-            }
-            onSkillCast={(skillId, isManual, angle, distRatio) =>
-              engineRef.current?.castSkill(skillId, isManual, angle, distRatio)
-            }
-            onInteract={() => engineRef.current?.interactNearbyProp()}
-            onOpenSkillTree={() => setShowSkillTree(true)}
+            onJoystickMove={handleJoystickMove}
+            onBasicAttackHeld={handleBasicAttackHeld}
+            onSkillAim={handleSkillAim}
+            onSkillCast={handleSkillCast}
+            onInteract={handleInteract}
+            onOpenSkillTree={handleOpenSkillTree}
           />
         </>
       )}

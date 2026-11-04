@@ -121,6 +121,10 @@ export class EquipmentManager {
           this.ownedEquipmentIds = new Set(parsed.filter((id) => EQUIPMENT_BY_ID[id]));
         }
       }
+      if (this.ownedEquipmentIds.size === 0) {
+        this.ownedEquipmentIds.add('bonebreaker_emblem');
+        this.ownedEquipmentIds.add('scavenger_pipe');
+      }
       const eqRaw = localStorage.getItem(EQUIPPED_STORAGE_KEY);
       if (eqRaw) {
         const parsed = JSON.parse(eqRaw);
