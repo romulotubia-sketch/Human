@@ -111,6 +111,10 @@ export interface SyncEnemyState {
   isBoss?: boolean;
   isLegionBoss?: boolean;
   legionHeroId?: 'skeleton' | 'zombie' | 'ghoul' | 'ghost';
+  bossTransformTimer?: number;
+  bossBuffTimer?: number;
+  bossStealthTimer?: number;
+  bossScytheTimer?: number;
 }
 
 export interface SyncEnemyAttackEvent {
@@ -126,6 +130,7 @@ export interface SyncEnemyAttackEvent {
   radius?: number;
   isBoss?: boolean;
   isLegionBoss?: boolean;
+  legionSkillId?: string;
   skillLabel?: string;
   skillColor?: string;
 }

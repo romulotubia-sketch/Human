@@ -325,10 +325,18 @@ export function MobaControls({
           : nearInteraction === 'blessing_statue'
             ? '✦ Receive Ancient Blessing'
             : nearInteraction === 'portal_next'
-              ? 'Next Graveyard Floor'
+              ? '✦ Enter Next Dungeon'
               : nearInteraction === 'portal_guild'
-                ? 'Return to Guild'
+                ? '✦ Return to Lobby'
                 : null;
+
+  const isPortalNext = nearInteraction === 'portal_next';
+  const isPortalLobby = nearInteraction === 'portal_guild';
+  const interactionBtnCls = isPortalNext
+    ? 'animate-portal-btn border-cyan-300/80 bg-slate-950/90 text-cyan-100 shadow-cyan-500/30'
+    : isPortalLobby
+      ? 'animate-portal-btn border-amber-300/80 bg-amber-950/92 text-amber-100 shadow-amber-500/30'
+      : 'border-amber-300/60 bg-amber-950/90 text-amber-100';
 
   return (
     <div className="pointer-events-none absolute inset-0 z-20 flex flex-col justify-end">
@@ -356,7 +364,7 @@ export function MobaControls({
                 onInteract();
               }
             }}
-            className="min-h-[44px] whitespace-nowrap rounded-xl border border-amber-300/60 bg-amber-950/90 px-5 py-2 text-sm font-semibold text-amber-100 shadow-lg transition-transform duration-150 active:scale-95"
+            className={`min-h-[44px] whitespace-nowrap rounded-xl border px-5 py-2 text-sm font-semibold shadow-lg transition-transform duration-150 active:scale-95 ${interactionBtnCls}`}
           >
             {interactionLabel}
           </button>

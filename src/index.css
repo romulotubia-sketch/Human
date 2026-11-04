@@ -39,3 +39,96 @@
   touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
 }
+
+@keyframes portal-warp-backdrop {
+  0% {
+    opacity: 0;
+  }
+  28% {
+    opacity: 0.92;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes portal-warp-ring-expand {
+  0% {
+    opacity: 0.95;
+    transform: translate3d(-50%, -50%, 0) scale3d(0.18, 0.18, 1) rotate(0deg);
+  }
+  45% {
+    opacity: 0.9;
+    transform: translate3d(-50%, -50%, 0) scale3d(1.15, 1.15, 1) rotate(95deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(-50%, -50%, 0) scale3d(2.35, 2.35, 1) rotate(190deg);
+  }
+}
+
+@keyframes portal-warp-ring-counter {
+  0% {
+    opacity: 0.9;
+    transform: translate3d(-50%, -50%, 0) scale3d(0.32, 0.32, 1) rotate(0deg);
+  }
+  50% {
+    opacity: 0.85;
+    transform: translate3d(-50%, -50%, 0) scale3d(1.35, 1.35, 1) rotate(-110deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(-50%, -50%, 0) scale3d(2.65, 2.65, 1) rotate(-220deg);
+  }
+}
+
+@keyframes portal-warp-core-flash {
+  0% {
+    opacity: 0;
+    transform: translate3d(-50%, -50%, 0) scale3d(0.25, 0.25, 1);
+  }
+  30% {
+    opacity: 0.95;
+    transform: translate3d(-50%, -50%, 0) scale3d(1.2, 1.2, 1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(-50%, -50%, 0) scale3d(2.4, 2.4, 1);
+  }
+}
+
+@keyframes portal-btn-pulse {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale3d(1, 1, 1);
+  }
+  50% {
+    transform: translate3d(0, -2px, 0) scale3d(1.035, 1.035, 1);
+  }
+}
+
+.animate-portal-warp-backdrop {
+  will-change: opacity;
+  animation: portal-warp-backdrop 560ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-portal-warp-ring {
+  will-change: transform, opacity;
+  animation: portal-warp-ring-expand 560ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-portal-warp-counter {
+  will-change: transform, opacity;
+  animation: portal-warp-ring-counter 560ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-portal-warp-core {
+  will-change: transform, opacity;
+  animation: portal-warp-core-flash 520ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.animate-portal-btn {
+  will-change: transform;
+  animation: portal-btn-pulse 1.8s ease-in-out infinite;
+}
+

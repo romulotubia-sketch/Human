@@ -474,12 +474,12 @@ export function buildProceduralDungeon(floor: number): {
   props.push({
     id: 'start_guild_portal',
     kind: 'portal_guild',
-    x: startRoom.x + 68,
-    y: startRoom.y + 68,
-    w: 56,
-    h: 56,
+    x: startRoom.x + 62,
+    y: startRoom.y + 62,
+    w: 68,
+    h: 68,
     solid: false,
-    label: 'Return to Guild',
+    label: 'Return to Lobby',
   });
 
   // 7. Compounding Higher-Floor Scaling (Noticeably tougher HP, ATK, Speed, Reflexes & Mob Density!)
@@ -961,7 +961,7 @@ export function buildProceduralDungeon(floor: number): {
         {
           kind: EnemyKind.BOSS_LEGION_SKELETON,
           legionHeroId: 'skeleton',
-          name: floor === 1 ? 'Legion Champion · Skeleton Blademaster' : `Legion Overlord · Bone Scourge Lv.${floor}`,
+          name: 'Corrupted Skeleton',
           baseHp: 2200,
           baseAtk: 44,
           radius: 42,
@@ -970,7 +970,7 @@ export function buildProceduralDungeon(floor: number): {
         {
           kind: EnemyKind.BOSS_LEGION_ZOMBIE,
           legionHeroId: 'zombie',
-          name: floor === 1 ? 'Legion Abomination · Zombie Plaguebearer' : `Legion Colossus · Corpse Goliath Lv.${floor}`,
+          name: 'Corrupted Zombie',
           baseHp: 2650,
           baseAtk: 40,
           radius: 46,
@@ -979,7 +979,7 @@ export function buildProceduralDungeon(floor: number): {
         {
           kind: EnemyKind.BOSS_LEGION_GHOUL,
           legionHeroId: 'ghoul',
-          name: floor === 1 ? 'Legion Apex · Ghoul Shadowlord' : `Legion Carnage · Night Stalker Lv.${floor}`,
+          name: 'Corrupted Ghoul',
           baseHp: 2100,
           baseAtk: 50,
           radius: 40,
@@ -988,7 +988,7 @@ export function buildProceduralDungeon(floor: number): {
         {
           kind: EnemyKind.BOSS_LEGION_GHOST,
           legionHeroId: 'ghost',
-          name: floor === 1 ? 'Legion Dread · Ghost Spirit Sovereign' : `Legion Sovereign · Void Phantom Lv.${floor}`,
+          name: 'Corrupted Ghost',
           baseHp: 2000,
           baseAtk: 46,
           radius: 40,
@@ -1016,7 +1016,7 @@ export function buildProceduralDungeon(floor: number): {
           attackCooldown: 1.2,
           windupTimer: 0,
           windupDuration: Math.max(0.5, 0.72 * windupScale),
-          windupType: 'slash',
+          windupType: picked.legionHeroId === 'ghost' ? 'spell' : 'slash',
           windupAngle: 0,
           attackAnimTimer: 0,
           attackAnimDuration: 0.35,

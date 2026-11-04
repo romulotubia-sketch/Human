@@ -633,6 +633,11 @@ export interface EnemyEntity {
   attackVariant?: string;
   shieldHp?: number;
   maxShieldHp?: number;
+  bossTransformTimer?: number;
+  bossBuffTimer?: number;
+  bossStealthTimer?: number;
+  bossScytheTimer?: number;
+  comboCount?: number;
 }
 
 export interface AlliedMinion {
@@ -744,6 +749,8 @@ export interface WorldProp {
   solid: boolean;
   opened?: boolean;
   label?: string;
+  spawnTime?: number;
+  chargeProgress?: number;
 }
 
 export interface DungeonRoom {
@@ -837,7 +844,11 @@ export interface HudSnapshot {
   minimap: MinimapSnapshot | null;
   isDowned?: boolean;
   reviveProgress?: number;
-  portalWaiting?: { readyCount: number; requiredCount: number } | null;
+  portalWaiting?: {
+    readyCount: number;
+    requiredCount: number;
+    portalTarget?: 'next' | 'lobby';
+  } | null;
   activeBlessings?: Blessing[];
   maxBlessings?: number;
 }

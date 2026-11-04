@@ -38,6 +38,7 @@ import {
   SwordTrailPoint,
   ToxicCloudZone,
   WorldMap,
+  WorldProp,
 } from '../types/game';
 import { Blessing, BlessingModifier } from '../types/blessing';
 import { getBlessingOptions } from '../data/heroBlessings';
@@ -83,7 +84,13 @@ export class GameEngine {
   private currentReviveProgress = 0;
   private localIsDowned = false;
   private localReviveProgress = 0;
-  private portalWaitingState: { readyCount: number; requiredCount: number } | null = null;
+  private portalWaitingState: {
+    readyCount: number;
+    requiredCount: number;
+    portalTarget?: 'next' | 'lobby';
+  } | null = null;
+  private portalTransitionCooldown = 0;
+  private pendingPortalAction: { kind: 'next' | 'lobby'; timer: number } | null = null;
 
   // Object pools for zero-GC 60fps smoothness
   private particles: Particle[] = [];
@@ -121,6 +128,7 @@ export class GameEngine {
   public readonly maxBlessings = 6;
   private activeLoadout: SkillLoadout = [...HERO_PROFILES.human.defaultLoadout];
   private onPromptBlessing?: (options: Blessing[]) => void;
+  private onPortalWarp?: (kind: 'next' | 'lobby') => void;
 
   private baseMaxHp = HERO_PROFILES.human.baseHp;
 
@@ -794,6 +802,10 @@ export class GameEngine {
     this.onPromptBlessing = cb;
   }
 
+  public setOnPortalWarp(cb: (kind: 'next' | 'lobby') => void) {
+    this.onPortalWarp = cb;
+  }
+
   public setActiveLoadout(loadout: SkillLoadout) {
     this.activeLoadout = [...loadout];
   }
@@ -977,6 +989,8 @@ export class GameEngine {
     this.enemies = guild.enemies;
     this.runOutcome = null;
     this.bossSpawnedPortals = false;
+    this.pendingPortalAction = null;
+    this.portalTransitionCooldown = 0.85;
     this.doorCooldown = 1.0;
     this.resetRunProgression();
     this.player.shield = 0;
@@ -1009,6 +1023,8 @@ export class GameEngine {
     this.enemies = dungeon.enemies;
     this.runOutcome = null;
     this.bossSpawnedPortals = false;
+    this.pendingPortalAction = null;
+    this.portalTransitionCooldown = 0.85;
     this.doorCooldown = 1.0;
     this.pendingRottingClawTimer = 0;
     this.resetHumanTimers();
@@ -1114,6 +1130,8 @@ export class GameEngine {
     this.enemies = enemies.map((e) => ({ ...e }));
     this.runOutcome = null;
     this.bossSpawnedPortals = false;
+    this.pendingPortalAction = null;
+    this.portalTransitionCooldown = 0.85;
     this.localIsDowned = false;
     this.localReviveProgress = 0;
     this.portalWaitingState = null;
@@ -1322,6 +1340,18 @@ export class GameEngine {
         e.maxHp = se.maxHp;
         if (se.shieldHp !== undefined) e.shieldHp = se.shieldHp;
         if (se.maxShieldHp !== undefined) e.maxShieldHp = se.maxShieldHp;
+        if (se.bossTransformTimer !== undefined) {
+          e.bossTransformTimer = Math.max(e.bossTransformTimer || 0, se.bossTransformTimer);
+        }
+        if (se.bossBuffTimer !== undefined) {
+          e.bossBuffTimer = Math.max(e.bossBuffTimer || 0, se.bossBuffTimer);
+        }
+        if (se.bossStealthTimer !== undefined) {
+          e.bossStealthTimer = Math.max(e.bossStealthTimer || 0, se.bossStealthTimer);
+        }
+        if (se.bossScytheTimer !== undefined) {
+          e.bossScytheTimer = Math.max(e.bossScytheTimer || 0, se.bossScytheTimer);
+        }
         e.facing = this.blendAngle(e.facing, se.facing, 0.5);
         e.windupTimer = se.windupTimer;
         e.windupDuration = se.windupDuration;
@@ -1339,15 +1369,23 @@ export class GameEngine {
           kind: se.kind,
           name:
             se.name ||
-            (se.kind === EnemyKind.MINI_SKELETON
-              ? 'Legion Boneblade'
-              : se.kind === EnemyKind.MINI_ZOMBIE
-                ? 'Legion Plaguebearer'
-                : se.kind === EnemyKind.MINI_GHOUL
-                  ? 'Legion Shadow Stalker'
-                  : se.kind === EnemyKind.MINI_GHOST
-                    ? 'Legion Nether Spirit'
-                    : 'Graveyard Foe'),
+            (se.kind === EnemyKind.BOSS_LEGION_SKELETON
+              ? 'Corrupted Skeleton'
+              : se.kind === EnemyKind.BOSS_LEGION_ZOMBIE
+                ? 'Corrupted Zombie'
+                : se.kind === EnemyKind.BOSS_LEGION_GHOUL
+                  ? 'Corrupted Ghoul'
+                  : se.kind === EnemyKind.BOSS_LEGION_GHOST
+                    ? 'Corrupted Ghost'
+                    : se.kind === EnemyKind.MINI_SKELETON
+                      ? 'Legion Boneblade'
+                      : se.kind === EnemyKind.MINI_ZOMBIE
+                        ? 'Legion Plaguebearer'
+                        : se.kind === EnemyKind.MINI_GHOUL
+                          ? 'Legion Shadow Stalker'
+                          : se.kind === EnemyKind.MINI_GHOST
+                            ? 'Legion Nether Spirit'
+                            : 'Graveyard Foe'),
           x: se.x,
           y: se.y,
           vx: se.vx,
@@ -1384,6 +1422,10 @@ export class GameEngine {
           maxShieldHp: se.maxShieldHp,
           isLegionBoss: se.isLegionBoss,
           legionHeroId: se.legionHeroId,
+          bossTransformTimer: se.bossTransformTimer,
+          bossBuffTimer: se.bossBuffTimer,
+          bossStealthTimer: se.bossStealthTimer,
+          bossScytheTimer: se.bossScytheTimer,
         });
         this.spawnRingEffect(se.x, se.y, 44, '#c084fc');
       }
@@ -2147,26 +2189,379 @@ export class GameEngine {
   public handleRemoteEnemyAttack(evt: SyncEnemyAttackEvent) {
     const e = this.enemies.find((item) => item.id === evt.enemyId);
     if (e) {
-      e.x = evt.x;
-      e.y = evt.y;
+      e.x = evt.endX ?? evt.x;
+      e.y = evt.endY ?? evt.y;
       e.facing = evt.angle;
       e.windupTimer = 0;
       e.weaponSwing = 1.65;
       e.attackAnimDuration =
         evt.attackType === 'slam' || evt.attackType === 'nova' || evt.attackType === 'frost_nova'
           ? 0.35
-          : 0.25;
+          : 0.26;
       e.attackAnimTimer = e.attackAnimDuration;
     }
 
     if (evt.skillLabel) {
       this.spawnFloatingText(
-        evt.x,
-        evt.y - 48,
+        (evt.endX ?? evt.x),
+        (evt.endY ?? evt.y) - 48,
         evt.skillLabel,
         evt.skillColor || '#fde047',
         true
       );
+    }
+
+    // Authentic Undead Legion Hero Skill & Basic Attack VFX in Multiplayer!
+    if (evt.legionSkillId) {
+      const sx = evt.x;
+      const sy = evt.y;
+      const ex = evt.endX ?? evt.x;
+      const ey = evt.endY ?? evt.y;
+      const ang = evt.angle;
+      switch (evt.legionSkillId) {
+        // --- CORRUPTED SKELETON ---
+        case 'skeleton_basic':
+          soundEngine.playSlash(1.18);
+          this.spawnSlashWave('blade_arc', sx, sy - 8, ang, 108, 1.5, 1, 0.24, '#ffffff', '#67e8f9');
+          this.spawnArcBurst(sx, sy, ang, 86, '#67e8f9', 10);
+          return;
+        case 'bone_slash':
+          soundEngine.playSlash(1.22);
+          this.spawnSlashWave('blade_arc', sx, sy - 8, ang, 118, 1.65, 1, 0.25, '#ffffff', '#67e8f9');
+          this.spawnArcBurst(sx, sy, ang, 95, '#67e8f9', 16);
+          return;
+        case 'bone_spear':
+          soundEngine.playSkill('spear');
+          this.spawnProjectile({
+            fromPlayer: false,
+            visualOnly: true,
+            kind: 'bone_spear',
+            x: sx + Math.cos(ang) * 26,
+            y: sy - 8 + Math.sin(ang) * 26,
+            vx: Math.cos(ang) * 440,
+            vy: Math.sin(ang) * 440,
+            angle: ang,
+            radius: 16,
+            damage: 0,
+            isCrit: false,
+            pierce: true,
+            maxLife: 1.4,
+            color: '#67e8f9',
+          });
+          return;
+        case 'ribcage_shield':
+          soundEngine.playSkill('shield');
+          if (e) e.bossBuffTimer = 6.0;
+          this.spawnRingEffect(sx, sy, 95, '#fde68a');
+          return;
+        case 'skeletal_rush':
+          soundEngine.playSkill('rush');
+          this.spawnGroundEffect('flesh_tear_track', sx, sy + 8, ex, ey + 8, ang, 88, 0.85, '#67e8f9', '#f8fafc');
+          this.spawnSlashWave('blade_arc', ex, ey - 8, ang, 92, 1.45, 1, 0.24, '#ffffff', '#67e8f9');
+          return;
+        case 'bone_storm':
+          soundEngine.playSkill('storm');
+          if (e) e.bossBuffTimer = 4.5;
+          this.spawnSlashWave('feral_whirl', sx, sy - 8, ang, 120, Math.PI * 1.95, 1, 0.3, '#ffffff', '#67e8f9');
+          this.spawnRingEffect(sx, sy, 120, '#67e8f9');
+          return;
+        case 'bone_colossus':
+          soundEngine.playSkill('ultimate');
+          if (e) e.bossTransformTimer = 8.5;
+          this.triggerShake(0.24, 6);
+          this.spawnGroundEffect('enemy_slam_crack', sx, sy, 0, 0, 0, 130, 1.5, '#fde047', '#f59e0b');
+          this.spawnRingEffect(sx, sy, 150, '#fbbf24');
+          for (let k = 0; k < 10; k++) {
+            const sa = (k * Math.PI * 2) / 10;
+            this.spawnProjectile({
+              fromPlayer: false,
+              visualOnly: true,
+              kind: 'bone_spear',
+              x: sx + Math.cos(sa) * 28,
+              y: sy + Math.sin(sa) * 28,
+              vx: Math.cos(sa) * 290,
+              vy: Math.sin(sa) * 290,
+              angle: sa,
+              radius: 12,
+              damage: 0,
+              isCrit: false,
+              pierce: false,
+              maxLife: 1.8,
+              color: '#fde047',
+            });
+          }
+          return;
+        case 'army_of_bones':
+          soundEngine.playSkill('ultimate');
+          this.spawnGroundEffect('grave_portal', sx, sy, 0, 0, 0, 105, 2.2, '#4ade80', '#86efac');
+          this.spawnRingEffect(sx, sy, 115, '#4ade80');
+          return;
+        case 'reapers_judgment':
+          soundEngine.playSkill('ultimate');
+          if (e) e.bossScytheTimer = 1.4;
+          this.triggerShake(0.26, 7);
+          this.spawnSlashWave('boss_cleave', ex, ey - 10, ang, 140, Math.PI * 1.6, 1, 0.34, '#f8fafc', '#c084fc');
+          this.spawnProjectile({
+            fromPlayer: false,
+            visualOnly: true,
+            kind: 'dark_wave',
+            x: ex + Math.cos(ang) * 30,
+            y: ey - 8 + Math.sin(ang) * 30,
+            vx: Math.cos(ang) * 390,
+            vy: Math.sin(ang) * 390,
+            angle: ang,
+            radius: 38,
+            damage: 0,
+            isCrit: false,
+            pierce: true,
+            maxLife: 0.95,
+            color: '#c084fc',
+          });
+          return;
+
+        // --- CORRUPTED ZOMBIE ---
+        case 'zombie_basic':
+          soundEngine.playSlash(0.95);
+          this.spawnSlashWave('triple_claw', sx, sy - 8, ang, 100, 1.45, 1, 0.24, '#ecfccb', '#a3e635');
+          return;
+        case 'rotting_claw':
+          soundEngine.playSlash(0.95);
+          this.spawnSlashWave('triple_claw', sx, sy - 8, ang, 106, 1.5, 1, 0.24, '#ecfccb', '#84cc16');
+          this.spawnSlashWave('cross_claw', sx, sy - 8, ang, 112, 1.55, -1, 0.32, '#ecfccb', '#c084fc');
+          return;
+        case 'plague_burst':
+          soundEngine.playSkill('storm');
+          this.spawnGroundEffect('contagion_ring', ex, ey, 0, 0, 0, 115, 0.75, '#a3e635', '#a855f7');
+          this.spawnToxicCloud(ex, ey, 95, 4.0, 0, false);
+          this.spawnRingEffect(ex, ey, 105, '#a3e635');
+          return;
+        case 'flesh_ripper':
+          soundEngine.playSkill('rush');
+          this.spawnSlashWave('cross_claw', ex, ey - 8, ang, 86, 1.45, 1, 0.26, '#ecfccb', '#fb7185');
+          this.spawnGroundEffect('flesh_tear_track', sx, sy + 8, ex, ey + 8, ang, 95, 1.0, '#a3e635', '#fb7185');
+          return;
+        case 'undying_flesh':
+          soundEngine.playSkill('shield');
+          if (e) e.bossBuffTimer = 5.5;
+          this.spawnGroundEffect('contagion_ring', sx, sy, 0, 0, 0, 96, 0.65, '#4ade80', '#a3e635');
+          this.spawnRingEffect(sx, sy, 98, '#22c55e');
+          return;
+        case 'grave_call':
+          soundEngine.playSkill('spear');
+          this.spawnGroundEffect('grave_portal', sx, sy, 0, 0, 0, 95, 2.4, '#a855f7', '#a3e635');
+          this.spawnRingEffect(sx, sy, 98, '#a855f7');
+          return;
+        case 'abomination_form':
+          soundEngine.playSkill('ultimate');
+          if (e) e.bossTransformTimer = 9.0;
+          this.triggerShake(0.26, 7);
+          this.spawnGroundEffect('plague_crater', sx, sy, 0, 0, 0.2, 145, 1.7, '#a3e635', '#c084fc');
+          this.spawnRingEffect(sx, sy, 150, '#84cc16');
+          this.spawnToxicCloud(sx, sy, 95, 4.5, 0, false);
+          return;
+        case 'kingdom_of_the_dead':
+          soundEngine.playSkill('ultimate');
+          this.spawnGroundEffect('kingdom_sigil', ex, ey, 0, 0, 0, 145, 4.0, '#4ade80', '#c084fc');
+          this.spawnRingEffect(ex, ey, 145, '#4ade80');
+          return;
+        case 'deaths_embrace':
+          soundEngine.playSkill('ultimate');
+          this.triggerShake(0.28, 7.5);
+          this.spawnGroundEffect('plague_crater', sx, sy, 0, 0, 0, 165, 2.0, '#a855f7', '#a3e635');
+          this.spawnGroundEffect('contagion_ring', sx, sy, 0, 0, 0, 170, 0.85, '#c084fc', '#4ade80');
+          this.spawnRingEffect(sx, sy, 165, '#a855f7');
+          return;
+
+        // --- CORRUPTED GHOUL ---
+        case 'ghoul_basic':
+          soundEngine.playSlash(1.25);
+          this.spawnSlashWave('feral_slash', sx, sy - 8, ang, 98, 1.45, 1, 0.22, '#fff1f2', '#fb7185');
+          return;
+        case 'rending_claws':
+          soundEngine.playSlash(1.26);
+          this.spawnSlashWave('feral_slash', sx, sy - 8, ang, 102, 1.5, 1, 0.22, '#fff1f2', '#fb7185');
+          this.spawnSlashWave('rending_finale', sx, sy - 8, ang, 112, 1.65, -1, 0.28, '#fff1f2', '#e11d48');
+          this.spawnProjectile({
+            fromPlayer: false,
+            visualOnly: true,
+            kind: 'crimson_rend_wave',
+            x: sx + Math.cos(ang) * 28,
+            y: sy - 8 + Math.sin(ang) * 28,
+            vx: Math.cos(ang) * 430,
+            vy: Math.sin(ang) * 430,
+            angle: ang,
+            radius: 30,
+            damage: 0,
+            isCrit: false,
+            pierce: true,
+            maxLife: 0.55,
+            color: '#f43f5e',
+          });
+          return;
+        case 'feral_pounce':
+          soundEngine.playSkill('rush');
+          this.spawnGroundEffect('predator_crater', ex, ey, 0, 0, ang, 76, 1.1, '#f43f5e', '#fb7185');
+          this.spawnSlashWave('twin_rend', ex, ey - 8, ang, 84, Math.PI * 1.15, 1, 0.24, '#fff1f2', '#e11d48');
+          return;
+        case 'shadow_stalker':
+          soundEngine.playSkill('rush');
+          if (e) e.bossStealthTimer = 1.8;
+          this.spawnGroundEffect('shadow_smoke_ring', sx, sy, 0, 0, 0, 64, 0.5, '#4c0519', '#fb7185');
+          this.spawnGroundEffect('shadow_smoke_ring', ex, ey, 0, 0, 0, 68, 0.5, '#4c0519', '#fb7185');
+          this.spawnSlashWave('shadow_ambush', ex, ey - 8, ang, 86, Math.PI * 1.15, 1, 0.26, '#fff1f2', '#e11d48');
+          return;
+        case 'blood_frenzy':
+          soundEngine.playSkill('storm');
+          if (e) e.bossBuffTimer = 5.0;
+          this.spawnRingEffect(sx, sy, 92, '#fb7185');
+          return;
+        case 'predators_leap':
+          soundEngine.playSkill('rush');
+          this.spawnGroundEffect('predator_crater', ex, ey, 0, 0, ang, 92, 1.25, '#f43f5e', '#fda4af');
+          this.spawnSlashWave('feral_whirl', ex, ey - 8, ang, 102, Math.PI * 1.95, 1, 0.28, '#fff1f2', '#e11d48');
+          return;
+        case 'apex_predator':
+          soundEngine.playSkill('ultimate');
+          if (e) e.bossTransformTimer = 8.5;
+          this.spawnGroundEffect('predator_crater', sx, sy, 0, 0, 0, 125, 1.5, '#f43f5e', '#fda4af');
+          this.spawnSlashWave('feral_whirl', sx, sy - 10, ang, 125, Math.PI * 2, 1, 0.32, '#fff1f2', '#e11d48');
+          this.spawnRingEffect(sx, sy, 130, '#fb7185');
+          return;
+        case 'carnage_unleashed':
+          soundEngine.playSkill('ultimate');
+          this.spawnGroundEffect('carnage_dash_line', sx, sy - 4, ex, ey - 4, ang, 95, 0.45, '#fb7185', '#fff1f2');
+          this.spawnSlashWave('feral_whirl', ex, ey - 8, ang, 130, Math.PI * 1.95, 1, 0.32, '#fff1f2', '#f43f5e');
+          for (let k = 0; k < 12; k++) {
+            const sa = (k * Math.PI * 2) / 12;
+            this.spawnProjectile({
+              fromPlayer: false,
+              visualOnly: true,
+              kind: 'crimson_rend_wave',
+              x: ex + Math.cos(sa) * 26,
+              y: ey + Math.sin(sa) * 26,
+              vx: Math.cos(sa) * 320,
+              vy: Math.sin(sa) * 320,
+              angle: sa,
+              radius: 14,
+              damage: 0,
+              isCrit: false,
+              pierce: false,
+              maxLife: 1.2,
+              color: '#f43f5e',
+            });
+          }
+          return;
+        case 'king_of_the_hunt':
+          soundEngine.playSkill('ultimate');
+          this.spawnGroundEffect('shadow_smoke_ring', sx, sy, 0, 0, 0, 118, 0.65, '#4c0519', '#fb7185');
+          this.spawnSlashWave('shadow_ambush', ex, ey - 8, ang, 92, Math.PI * 1.25, 1, 0.28, '#fff1f2', '#e11d48');
+          this.spawnRingEffect(ex, ey, 110, '#e11d48');
+          return;
+
+        // --- CORRUPTED GHOST ---
+        case 'ghost_basic':
+          soundEngine.playGhostWisp(1.05);
+          for (const off of [-0.25, 0.25]) {
+            const wa = ang + off;
+            this.spawnProjectile({
+              fromPlayer: false,
+              visualOnly: true,
+              kind: 'ghost_wisp',
+              x: sx + Math.cos(wa) * 24,
+              y: sy - 12 + Math.sin(wa) * 24,
+              vx: Math.cos(wa) * 285,
+              vy: Math.sin(wa) * 285,
+              angle: wa,
+              radius: 11,
+              damage: 0,
+              isCrit: false,
+              pierce: false,
+              maxLife: 1.5,
+              color: off < 0 ? '#2dd4bf' : '#818cf8',
+            });
+          }
+          return;
+        case 'spectral_bolt':
+          soundEngine.playGhostWisp(0.92);
+          this.spawnGroundEffect('astral_nova', sx + Math.cos(ang) * 22, sy - 12 + Math.sin(ang) * 22, 0, 0, ang, 38, 0.28, '#2dd4bf', '#818cf8');
+          for (let s = 0; s < 3; s++) {
+            const sa = ang + (s - 1) * 0.28;
+            this.spawnProjectile({
+              fromPlayer: false,
+              visualOnly: true,
+              kind: 'spectral_bolt',
+              x: sx + Math.cos(sa) * 24,
+              y: sy - 10 + Math.sin(sa) * 24,
+              vx: Math.cos(sa) * 320,
+              vy: Math.sin(sa) * 320,
+              angle: sa,
+              radius: 14,
+              damage: 0,
+              isCrit: false,
+              pierce: true,
+              maxLife: 1.6,
+              color: '#2dd4bf',
+            });
+          }
+          return;
+        case 'phantom_dash':
+          soundEngine.playGhostWisp(1.22);
+          if (e) e.bossStealthTimer = 0.65;
+          this.spawnGroundEffect('spectral_mist_node', sx, sy, 0, 0, ang, 54, 1.5, '#2dd4bf', '#818cf8');
+          this.spawnGroundEffect('spectral_mist_node', (sx + ex) * 0.5, (sy + ey) * 0.5, 0, 0, ang, 48, 1.5, '#818cf8', '#2dd4bf');
+          this.spawnGroundEffect('spectral_mist_node', ex, ey, 0, 0, ang, 58, 1.5, '#2dd4bf', '#818cf8');
+          return;
+        case 'soul_drain':
+          soundEngine.playGhostWisp(0.86);
+          this.spawnGroundEffect('astral_nova', sx, sy, 0, 0, 0, 96, 0.6, '#2dd4bf', '#818cf8');
+          this.spawnSiphonBeam(ex, ey - 10, 0.5, '#5eead4');
+          return;
+        case 'wailing_scream':
+          soundEngine.playWail();
+          this.triggerShake(0.18, 4.5);
+          this.spawnGroundEffect('wailing_wave', sx, sy - 6, 0, 0, 0, 125, 0.55, '#5eead4', '#818cf8');
+          this.spawnRingEffect(sx, sy, 125, '#c084fc');
+          return;
+        case 'haunted_possession':
+          soundEngine.playGhostWisp(1.1);
+          this.spawnGroundEffect('possession_burst', ex, ey, 0, 0, 0, 74, 0.55, '#c084fc', '#2dd4bf');
+          this.spawnBurstParticles(ex, ey, '#c084fc', 14, true);
+          return;
+        case 'eternal_nightmare':
+          soundEngine.playSkill('ultimate');
+          if (e) e.bossTransformTimer = 8.5;
+          this.spawnGroundEffect('wailing_wave', sx, sy, 0, 0, 0, 150, 0.7, '#818cf8', '#c084fc');
+          this.spawnGroundEffect('astral_nova', ex, ey, 0, 0, 0, 130, 1.5, '#818cf8', '#2dd4bf');
+          return;
+        case 'spirit_legion':
+          soundEngine.playSkill('ultimate');
+          this.spawnGroundEffect('astral_nova', sx, sy, 0, 0, 0, 125, 0.6, '#2dd4bf', '#818cf8');
+          for (let k = 0; k < 12; k++) {
+            const sa = (k * Math.PI * 2) / 12;
+            this.spawnProjectile({
+              fromPlayer: false,
+              visualOnly: true,
+              kind: 'ghost_wisp',
+              x: sx + Math.cos(sa) * 25,
+              y: sy + Math.sin(sa) * 25,
+              vx: Math.cos(sa) * 260,
+              vy: Math.sin(sa) * 260,
+              angle: sa,
+              radius: 10,
+              damage: 0,
+              isCrit: false,
+              pierce: false,
+              maxLife: 1.9,
+              color: k % 2 === 0 ? '#2dd4bf' : '#c084fc',
+            });
+          }
+          return;
+        case 'deaths_passage':
+          soundEngine.playSkill('ultimate');
+          this.spawnGroundEffect('astral_nova', ex, ey, 0, 0, 0, 135, 1.6, '#c084fc', '#5eead4');
+          this.spawnRingEffect(ex, ey, 135, '#c084fc');
+          return;
+      }
     }
 
     const isBoss = Boolean(evt.isBoss || isBossKind(evt.kind));
@@ -2697,42 +3092,94 @@ export class GameEngine {
   public handleRemoteFloorCleared(floor: number) {
     if (this.bossSpawnedPortals) return;
     this.bossSpawnedPortals = true;
-    this.runOutcome = 'victory';
     this.skillPoints += 1;
     this.boneShards += 60;
-    soundEngine.playSkill('ultimate');
+    soundEngine.playPortalSpawn();
+    this.triggerShake(0.24, 5.5);
 
-    const bossRoom = this.map.rooms.find((r) => r.kind === 'boss');
+    this.spawnFloatingText(
+      this.player.x,
+      this.player.y - 54,
+      'PORTALS AWAKENED! +1 SP · +60 SHARDS',
+      '#fde047',
+      true
+    );
+
+    const bossRoom =
+      this.map.rooms.find((r) => r.kind === 'boss') || this.map.rooms[this.map.rooms.length - 1];
     if (bossRoom) {
       bossRoom.cleared = true;
-      const portalId = `portal_next_${floor}`;
-      if (!this.map.props.some((p) => p.id === portalId)) {
+      const portalY = Math.round(bossRoom.y + bossRoom.h * 0.5 - 38 - 34);
+      const guildPortalX = Math.round(bossRoom.x + bossRoom.w * 0.5 - 120 - 34);
+      const nextPortalX = Math.round(bossRoom.x + bossRoom.w * 0.5 + 120 - 34);
+      const guildPortalId = `portal_guild_${floor}`;
+      const nextPortalId = `portal_next_${floor}`;
+
+      const existingGuild = this.map.props.find((p) => p.id === guildPortalId);
+      if (existingGuild) {
+        existingGuild.spawnTime = this.elapsedTime;
+        existingGuild.chargeProgress = 0;
+      } else {
         this.map.props.push({
-          id: portalId,
-          kind: 'portal_next',
-          x: bossRoom.x + bossRoom.w * 0.5 - 27,
-          y: bossRoom.y + bossRoom.h * 0.5 - 27,
-          w: 54,
-          h: 54,
+          id: guildPortalId,
+          kind: 'portal_guild',
+          x: guildPortalX,
+          y: portalY,
+          w: 68,
+          h: 68,
           solid: false,
-          label: `Graveyard of the Fallen · Floor ${floor + 1}`,
+          label: 'Return to Lobby',
+          spawnTime: this.elapsedTime,
+          chargeProgress: 0,
         });
       }
+
+      const existingNext = this.map.props.find((p) => p.id === nextPortalId);
+      if (existingNext) {
+        existingNext.spawnTime = this.elapsedTime;
+        existingNext.chargeProgress = 0;
+      } else {
+        this.map.props.push({
+          id: nextPortalId,
+          kind: 'portal_next',
+          x: nextPortalX,
+          y: portalY,
+          w: 68,
+          h: 68,
+          solid: false,
+          label: `Next Dungeon · Floor ${floor + 1}`,
+          spawnTime: this.elapsedTime,
+          chargeProgress: 0,
+        });
+      }
+
+      this.spawnRingEffect(guildPortalX + 34, portalY + 34, 92, '#f59e0b');
+      this.spawnBurstParticles(guildPortalX + 34, portalY + 34, '#fde047', 26, true);
+      this.spawnRingEffect(nextPortalX + 34, portalY + 34, 92, '#38bdf8');
+      this.spawnBurstParticles(nextPortalX + 34, portalY + 34, '#38bdf8', 28, true);
     }
     this.emitHudSnapshot();
   }
 
-  public handleRemotePortalWaiting(readyCount: number, requiredCount: number) {
-    this.portalWaitingState = { readyCount, requiredCount };
+  public handleRemotePortalWaiting(
+    readyCount: number,
+    requiredCount: number,
+    portalTarget: 'next' | 'lobby' = 'next'
+  ) {
+    this.portalWaitingState = { readyCount, requiredCount, portalTarget };
     this.emitHudSnapshot();
   }
 
   public handleRemoteNextFloor(floor: number, dungeonMap: WorldMap, enemies: EnemyEntity[]) {
+    this.onPortalWarp?.('next');
+    soundEngine.playPortalWarp(false);
     this.map = dungeonMap;
     this.map.floor = floor;
     this.enemies = enemies.map((e) => ({ ...e }));
     this.runOutcome = null;
     this.bossSpawnedPortals = false;
+    this.pendingPortalAction = null;
+    this.portalTransitionCooldown = 0.9;
     this.portalWaitingState = null;
     this.localIsDowned = false;
     this.localReviveProgress = 0;
@@ -2752,8 +3199,13 @@ export class GameEngine {
       rp.reviveProgress = 0;
     }
 
-    this.spawnFloatingText(this.player.x, this.player.y - 45, `GRAVEYARD OF THE FALLEN · FLOOR ${floor}`, '#fbbf24', true);
-    soundEngine.playSkill('rush');
+    this.spawnFloatingText(
+      this.player.x,
+      this.player.y - 45,
+      `GRAVEYARD OF THE FALLEN · FLOOR ${floor}`,
+      '#fbbf24',
+      true
+    );
     this.onPhaseChange(false);
     this.emitHudSnapshot();
   }
@@ -2769,6 +3221,7 @@ export class GameEngine {
     this.isMultiplayer = false;
     this.remotePlayers.clear();
     this.portalWaitingState = null;
+    this.pendingPortalAction = null;
     this.localIsDowned = false;
     this.localReviveProgress = 0;
     this.player.isDowned = false;
@@ -2778,6 +3231,23 @@ export class GameEngine {
     this.clearPools();
     this.runOutcome = null;
     this.enterGuildHouse();
+  }
+
+  public resetMultiplayerToLobby() {
+    this.onPortalWarp?.('lobby');
+    soundEngine.playPortalWarp(true);
+    this.isMultiplayer = false;
+    this.remotePlayers.clear();
+    this.portalWaitingState = null;
+    this.pendingPortalAction = null;
+    this.localIsDowned = false;
+    this.localReviveProgress = 0;
+    this.player.isDowned = false;
+    this.player.reviveProgress = 0;
+    this.currentRevivingPlayerName = null;
+    this.currentReviveProgress = 0;
+    this.clearPools();
+    this.runOutcome = null;
   }
 
   public getRemotePlayersList(): RemotePlayerRenderState[] {
@@ -6112,24 +6582,113 @@ export class GameEngine {
         return true;
       }
       if (prop.kind === 'portal_next') {
-
-        if (this.isMultiplayer) {
-          multiplayerClient.sendEnterPortal();
-          return true;
-        }
-        this.enterDungeon(this.map.floor + 1);
+        this.triggerPortalTransition(prop);
         return true;
       }
       if (prop.kind === 'portal_guild') {
-        if (this.isMultiplayer) {
-          multiplayerClient.sendEnterPortal();
-          return true;
-        }
-        this.enterGuildHouse();
+        this.triggerPortalTransition(prop);
         return true;
       }
     }
     return false;
+  }
+
+  private triggerPortalTransition(prop: WorldProp) {
+    if (this.localIsDowned || this.portalTransitionCooldown > 0) return;
+    const isLobby = prop.kind === 'portal_guild';
+    const targetKind: 'next' | 'lobby' = isLobby ? 'lobby' : 'next';
+    const cx = prop.x + prop.w * 0.5;
+    const cy = prop.y + prop.h * 0.5;
+
+    prop.chargeProgress = 0;
+    this.portalTransitionCooldown = 1.25;
+    this.triggerShake(0.18, 4.2);
+    this.spawnBurstParticles(cx, cy, isLobby ? '#fde047' : '#38bdf8', 30, true);
+    this.spawnRingEffect(cx, cy, 88, isLobby ? '#f59e0b' : '#38bdf8');
+
+    if (this.isMultiplayer) {
+      soundEngine.playPortalWarp(isLobby);
+      multiplayerClient.sendEnterPortal(targetKind);
+      return;
+    }
+
+    soundEngine.playPortalWarp(isLobby);
+    this.onPortalWarp?.(targetKind);
+    this.pendingPortalAction = { kind: targetKind, timer: 0.18 };
+  }
+
+  private updatePortals(dt: number) {
+    if (this.portalTransitionCooldown > 0) {
+      this.portalTransitionCooldown = Math.max(0, this.portalTransitionCooldown - dt);
+    }
+
+    if (this.pendingPortalAction) {
+      this.pendingPortalAction.timer -= dt;
+      if (this.pendingPortalAction.timer <= 0) {
+        const actionKind = this.pendingPortalAction.kind;
+        this.pendingPortalAction = null;
+        if (actionKind === 'next') {
+          this.enterDungeon(this.map.floor + 1);
+        } else {
+          this.enterGuildHouse();
+        }
+        return;
+      }
+    }
+
+    if (this.map.isGuild) return;
+
+    for (let i = 0; i < this.map.props.length; i++) {
+      const prop = this.map.props[i];
+      if (prop.kind !== 'portal_next' && prop.kind !== 'portal_guild') continue;
+
+      const cx = prop.x + prop.w * 0.5;
+      const cy = prop.y + prop.h * 0.5;
+      const dist = Math.hypot(cx - this.player.x, cy - this.player.y);
+      const portalAge =
+        typeof prop.spawnTime === 'number' && prop.spawnTime > 0
+          ? Math.max(0, this.elapsedTime - prop.spawnTime)
+          : 10;
+
+      // Require 1.05s post-spawn grace so portals appearing near the player never warp prematurely
+      if (
+        !this.localIsDowned &&
+        this.runOutcome === null &&
+        this.portalTransitionCooldown <= 0 &&
+        !this.pendingPortalAction &&
+        portalAge >= 1.05 &&
+        dist <= 34
+      ) {
+        const nextCharge = Math.min(1, (prop.chargeProgress || 0) + dt / 0.65);
+        prop.chargeProgress = nextCharge;
+
+        if (Math.random() < 0.45) {
+          const isNext = prop.kind === 'portal_next';
+          const ang = Math.random() * Math.PI * 2;
+          this.spawnParticle({
+            x: cx + Math.cos(ang) * 24,
+            y: cy + Math.sin(ang) * 16,
+            vx: -Math.cos(ang) * 32,
+            vy: -42 - Math.random() * 28,
+            size: 2.8,
+            endSize: 0,
+            maxAge: 0.36,
+            color: isNext ? '#38bdf8' : '#fde047',
+            glow: true,
+            shape: 'spark',
+            rotation: ang,
+            vRot: 4,
+          });
+        }
+
+        if (nextCharge >= 1) {
+          this.triggerPortalTransition(prop);
+          return;
+        }
+      } else if ((prop.chargeProgress || 0) > 0) {
+        prop.chargeProgress = Math.max(0, (prop.chargeProgress || 0) - dt * 2.2);
+      }
+    }
   }
 
   public stepAndRender(dt: number, ctx: CanvasRenderingContext2D, viewW: number, viewH: number) {
@@ -6137,6 +6696,7 @@ export class GameEngine {
     this.elapsedTime += clampedDt;
 
     this.updatePlayer(clampedDt);
+    this.updatePortals(clampedDt);
     this.updateFloatingSwordAndTrail(clampedDt);
     this.updateToxicClouds(clampedDt);
     this.updateDelayedClawMarks(clampedDt);
@@ -8755,9 +9315,8 @@ export class GameEngine {
   }
 
   private blendAngle(current: number, target: number, factor: number): number {
-    let diff = target - current;
-    while (diff > Math.PI) diff -= Math.PI * 2;
-    while (diff < -Math.PI) diff += Math.PI * 2;
+    const rawDiff = target - current;
+    const diff = Number.isFinite(rawDiff) ? Math.atan2(Math.sin(rawDiff), Math.cos(rawDiff)) : 0;
     return current + diff * factor;
   }
 
@@ -9600,6 +10159,11 @@ export class GameEngine {
       if (e.fearTimer > 0) e.fearTimer = Math.max(0, e.fearTimer - dt);
       if (e.possessedTimer > 0) e.possessedTimer = Math.max(0, e.possessedTimer - dt);
       if (e.staggerTimer > 0) e.staggerTimer = Math.max(0, e.staggerTimer - dt);
+      if (e.bossTransformTimer && e.bossTransformTimer > 0) e.bossTransformTimer = Math.max(0, e.bossTransformTimer - dt);
+      if (e.bossBuffTimer && e.bossBuffTimer > 0) e.bossBuffTimer = Math.max(0, e.bossBuffTimer - dt);
+      if (e.bossStealthTimer && e.bossStealthTimer > 0) e.bossStealthTimer = Math.max(0, e.bossStealthTimer - dt);
+      if (e.bossScytheTimer && e.bossScytheTimer > 0) e.bossScytheTimer = Math.max(0, e.bossScytheTimer - dt);
+      if (e.activeAuraTimer && e.activeAuraTimer > 0) e.activeAuraTimer = Math.max(0, e.activeAuraTimer - dt);
 
       // Tick Zombie's Infectious Touch lingering poison
       if (e.poisonTimer > 0) {
@@ -9760,29 +10324,94 @@ export class GameEngine {
           if (e.windupType === 'slash') {
             e.attackAnimDuration = 0.25;
             e.attackAnimTimer = 0.25;
-            soundEngine.playSlash(1.28);
-            const arcRadius = isBoss ? e.radius + 68 : e.radius + 44;
-            this.spawnSlashWave(
-              isBoss ? 'boss_cleave' : 'enemy_slash',
-              e.x,
-              e.y - 8,
-              e.windupAngle,
-              arcRadius,
-              1.45,
-              1,
-              0.22,
-              '#ffe4e6',
-              isBoss ? '#f43f5e' : '#fb7185'
-            );
-            this.spawnArcBurst(e.x, e.y, e.windupAngle, arcRadius - 8, isBoss ? '#f43f5e' : '#fb7185', 8);
+            e.comboCount = ((e.comboCount || 0) % 3) + 1;
+            const comboDir: 1 | -1 = e.comboCount === 2 ? -1 : 1;
 
-            let diff = angToPlayer - e.windupAngle;
-            while (diff > Math.PI) diff -= Math.PI * 2;
-            while (diff < -Math.PI) diff -= Math.PI * 2;
-            if (dist <= arcRadius + 8 && (Math.abs(diff) <= 0.85 || dist <= e.radius + 24)) {
-              this.damagePlayer(enemyAtk);
-            } else if (this.heroId === 'ghost' && dist <= arcRadius + 60) {
-              this.grantRestlessSpirit();
+            if (e.isLegionBoss && e.legionHeroId === 'skeleton') {
+              // Corrupted Skeleton Basic Attack: Authentic Floating Bone Sword slash!
+              soundEngine.playSlash(1.18);
+              const arcRadius = e.radius + (e.bossTransformTimer && e.bossTransformTimer > 0 ? 86 : 68);
+              this.spawnSlashWave('blade_arc', e.x, e.y - 8, e.windupAngle, arcRadius, 1.5, comboDir, 0.24, '#ffffff', '#67e8f9');
+              this.spawnArcBurst(e.x, e.y, e.windupAngle, arcRadius - 8, '#67e8f9', 9);
+              let diff = angToPlayer - e.windupAngle;
+              while (diff > Math.PI) diff -= Math.PI * 2;
+              while (diff < -Math.PI) diff += Math.PI * 2;
+              if (dist <= arcRadius + 8 && (Math.abs(diff) <= 0.85 || dist <= e.radius + 24)) {
+                const masteryCrit = e.comboCount === 3 ? 1.25 : 1.0; // Bone Mastery 3rd-hit empowerment
+                this.damagePlayer(Math.round(enemyAtk * masteryCrit));
+              }
+            } else if (e.isLegionBoss && e.legionHeroId === 'zombie') {
+              // Corrupted Zombie Basic Attack: Authentic Rotting Claws + Carrion Hunger & Infectious Touch!
+              soundEngine.playSlash(0.95);
+              const arcRadius = e.radius + (e.bossTransformTimer && e.bossTransformTimer > 0 ? 84 : 66);
+              this.spawnSlashWave(
+                e.comboCount === 3 ? 'cross_claw' : 'triple_claw',
+                e.x,
+                e.y - 8,
+                e.windupAngle,
+                arcRadius,
+                1.5,
+                comboDir,
+                0.24,
+                '#ecfccb',
+                e.bossTransformTimer && e.bossTransformTimer > 0 ? '#c084fc' : '#a3e635'
+              );
+              let diff = angToPlayer - e.windupAngle;
+              while (diff > Math.PI) diff -= Math.PI * 2;
+              while (diff < -Math.PI) diff += Math.PI * 2;
+              if (dist <= arcRadius + 8 && (Math.abs(diff) <= 0.85 || dist <= e.radius + 24)) {
+                this.damagePlayer(enemyAtk);
+                // Carrion Hunger Passive: restores vitality on claw hit
+                e.hp = Math.min(e.maxHp, e.hp + Math.round(enemyAtk * 0.45));
+              }
+            } else if (e.isLegionBoss && e.legionHeroId === 'ghoul') {
+              // Corrupted Ghoul Basic Attack: Authentic Dual Feral Claws + Feral Instinct!
+              soundEngine.playSlash(1.25);
+              const arcRadius = e.radius + (e.bossTransformTimer && e.bossTransformTimer > 0 ? 82 : 66);
+              this.spawnSlashWave(
+                e.comboCount === 3 ? 'twin_rend' : 'feral_slash',
+                e.x,
+                e.y - 8,
+                e.windupAngle,
+                arcRadius,
+                1.5,
+                comboDir,
+                0.22,
+                '#fff1f2',
+                '#fb7185'
+              );
+              let diff = angToPlayer - e.windupAngle;
+              while (diff > Math.PI) diff -= Math.PI * 2;
+              while (diff < -Math.PI) diff += Math.PI * 2;
+              if (dist <= arcRadius + 8 && (Math.abs(diff) <= 0.85 || dist <= e.radius + 24)) {
+                const feralBoost = this.player.hp / Math.max(1, this.player.maxHp) <= 0.45 ? 1.2 : 1.0;
+                this.damagePlayer(Math.round(enemyAtk * feralBoost));
+              }
+            } else {
+              soundEngine.playSlash(1.28);
+              const arcRadius = isBoss ? e.radius + 68 : e.radius + 44;
+              this.spawnSlashWave(
+                isBoss ? 'boss_cleave' : 'enemy_slash',
+                e.x,
+                e.y - 8,
+                e.windupAngle,
+                arcRadius,
+                1.45,
+                1,
+                0.22,
+                '#ffe4e6',
+                isBoss ? '#f43f5e' : '#fb7185'
+              );
+              this.spawnArcBurst(e.x, e.y, e.windupAngle, arcRadius - 8, isBoss ? '#f43f5e' : '#fb7185', 8);
+
+              let diff = angToPlayer - e.windupAngle;
+              while (diff > Math.PI) diff -= Math.PI * 2;
+              while (diff < -Math.PI) diff += Math.PI * 2;
+              if (dist <= arcRadius + 8 && (Math.abs(diff) <= 0.85 || dist <= e.radius + 24)) {
+                this.damagePlayer(enemyAtk);
+              } else if (this.heroId === 'ghost' && dist <= arcRadius + 60) {
+                this.grantRestlessSpirit();
+              }
             }
           } else if (e.windupType === 'whirlwind') {
             // 360° Whirlwind attack
@@ -10126,27 +10755,90 @@ export class GameEngine {
               this.damagePlayer(Math.round(enemyAtk * 1.25));
             }
           } else if (e.windupType === 'spell') {
-            // Arcane spell cast
-            e.attackAnimDuration = 0.34;
-            e.attackAnimTimer = 0.34;
-            this.spawnGroundEffect('astral_nova', e.x, e.y, 0, 0, 0, 75, 1.4, '#38bdf8', '#c084fc');
-            for (let s = 0; s < 3; s++) {
-              const sa = e.windupAngle + (s - 1) * 0.45;
-              this.spawnProjectile({
-                fromPlayer: false,
-                kind: 'spectral_bolt',
-                x: e.x + Math.cos(sa) * 22,
-                y: e.y + Math.sin(sa) * 22,
-                vx: Math.cos(sa) * 240,
-                vy: Math.sin(sa) * 240,
-                angle: sa,
-                radius: 8,
-                damage: Math.round(enemyAtk * 0.95),
-                isCrit: false,
-                pierce: false,
-                maxLife: 2.0,
-                color: '#38bdf8',
-              });
+            e.attackAnimDuration = 0.32;
+            e.attackAnimTimer = 0.32;
+            if (e.isLegionBoss && e.legionHeroId === 'ghost') {
+              // Corrupted Ghost Basic Attack: Authentic Ranged Homing Will-o'-Wisps & 3rd-Hit Astral Soul Orb!
+              e.comboCount = ((e.comboCount || 0) % 3) + 1;
+              const lanternX = e.x + Math.cos(e.windupAngle + 0.55) * 28;
+              const lanternY = e.y - 14 + Math.sin(e.windupAngle + 0.55) * 18;
+              const restlessBoost = e.bossBuffTimer && e.bossBuffTimer > 0 ? 1.15 : 1.0;
+              if (e.comboCount < 3) {
+                const bank = e.comboCount === 1 ? -0.32 : 0.32;
+                const wAng = e.windupAngle + bank;
+                soundEngine.playGhostWisp(1.08);
+                this.spawnProjectile({
+                  fromPlayer: false,
+                  kind: 'ghost_wisp',
+                  x: lanternX,
+                  y: lanternY,
+                  vx: Math.cos(wAng) * 285,
+                  vy: Math.sin(wAng) * 285,
+                  angle: wAng,
+                  radius: 11,
+                  damage: Math.round(enemyAtk * 0.95 * restlessBoost),
+                  isCrit: false,
+                  pierce: false,
+                  maxLife: 1.75,
+                  color: e.comboCount === 1 ? '#2dd4bf' : '#818cf8',
+                });
+              } else {
+                soundEngine.playGhostWisp(0.88);
+                this.spawnProjectile({
+                  fromPlayer: false,
+                  kind: 'ghost_soul_orb',
+                  x: lanternX,
+                  y: lanternY,
+                  vx: Math.cos(e.windupAngle) * 260,
+                  vy: Math.sin(e.windupAngle) * 260,
+                  angle: e.windupAngle,
+                  radius: 15,
+                  damage: Math.round(enemyAtk * 1.15 * restlessBoost),
+                  isCrit: false,
+                  pierce: false,
+                  maxLife: 1.85,
+                  color: '#c084fc',
+                });
+                for (const flank of [-0.48, 0.48]) {
+                  const fAng = e.windupAngle + flank;
+                  this.spawnProjectile({
+                    fromPlayer: false,
+                    kind: 'ghost_wisp',
+                    x: lanternX,
+                    y: lanternY,
+                    vx: Math.cos(fAng) * 290,
+                    vy: Math.sin(fAng) * 290,
+                    angle: fAng,
+                    radius: 9,
+                    damage: Math.round(enemyAtk * 0.75 * restlessBoost),
+                    isCrit: false,
+                    pierce: false,
+                    maxLife: 1.65,
+                    color: '#2dd4bf',
+                  });
+                }
+              }
+            } else {
+              // Arcane spell cast
+              this.spawnGroundEffect('astral_nova', e.x, e.y, 0, 0, 0, 75, 1.4, '#38bdf8', '#c084fc');
+              for (let s = 0; s < 3; s++) {
+                const sa = e.windupAngle + (s - 1) * 0.45;
+                this.spawnProjectile({
+                  fromPlayer: false,
+                  kind: 'spectral_bolt',
+                  x: e.x + Math.cos(sa) * 22,
+                  y: e.y + Math.sin(sa) * 22,
+                  vx: Math.cos(sa) * 240,
+                  vy: Math.sin(sa) * 240,
+                  angle: sa,
+                  radius: 8,
+                  damage: Math.round(enemyAtk * 0.95),
+                  isCrit: false,
+                  pierce: false,
+                  maxLife: 2.0,
+                  color: '#38bdf8',
+                });
+              }
             }
           }
 
@@ -10373,36 +11065,58 @@ export class GameEngine {
 
     if (!this.isMultiplayer && !this.map.isGuild && !bossAlive && !this.bossSpawnedPortals) {
       this.bossSpawnedPortals = true;
-      this.runOutcome = 'victory';
       this.skillPoints += 1;
       this.boneShards += 60;
-      soundEngine.playSkill('ultimate');
+      soundEngine.playPortalSpawn();
+      this.triggerShake(0.24, 5.5);
 
-      const bossRoom = this.map.rooms.find((r) => r.kind === 'boss');
+      this.spawnFloatingText(
+        this.player.x,
+        this.player.y - 54,
+        'PORTALS AWAKENED! +1 SP · +60 SHARDS',
+        '#fde047',
+        true
+      );
+
+      const bossRoom =
+        this.map.rooms.find((r) => r.kind === 'boss') || this.map.rooms[this.map.rooms.length - 1];
       if (bossRoom) {
         bossRoom.cleared = true;
+        const portalY = Math.round(bossRoom.y + bossRoom.h * 0.5 - 38 - 34);
+        const guildPortalX = Math.round(bossRoom.x + bossRoom.w * 0.5 - 120 - 34);
+        const nextPortalX = Math.round(bossRoom.x + bossRoom.w * 0.5 + 120 - 34);
+
         this.map.props.push(
-          {
-            id: `portal_next_${this.map.floor}`,
-            kind: 'portal_next',
-            x: bossRoom.x + bossRoom.w * 0.62,
-            y: bossRoom.y + bossRoom.h * 0.5 - 27,
-            w: 54,
-            h: 54,
-            solid: false,
-            label: `Graveyard of the Fallen · Floor ${this.map.floor + 1}`,
-          },
           {
             id: `portal_guild_${this.map.floor}`,
             kind: 'portal_guild',
-            x: bossRoom.x + bossRoom.w * 0.38,
-            y: bossRoom.y + bossRoom.h * 0.5 - 27,
-            w: 54,
-            h: 54,
+            x: guildPortalX,
+            y: portalY,
+            w: 68,
+            h: 68,
             solid: false,
-            label: 'Return to Guild',
+            label: 'Return to Lobby',
+            spawnTime: this.elapsedTime,
+            chargeProgress: 0,
+          },
+          {
+            id: `portal_next_${this.map.floor}`,
+            kind: 'portal_next',
+            x: nextPortalX,
+            y: portalY,
+            w: 68,
+            h: 68,
+            solid: false,
+            label: `Next Dungeon · Floor ${this.map.floor + 1}`,
+            spawnTime: this.elapsedTime,
+            chargeProgress: 0,
           }
         );
+
+        this.spawnRingEffect(guildPortalX + 34, portalY + 34, 92, '#f59e0b');
+        this.spawnBurstParticles(guildPortalX + 34, portalY + 34, '#fde047', 26, true);
+        this.spawnRingEffect(nextPortalX + 34, portalY + 34, 92, '#38bdf8');
+        this.spawnBurstParticles(nextPortalX + 34, portalY + 34, '#38bdf8', 28, true);
       }
       this.emitHudSnapshot();
     }
@@ -10424,12 +11138,30 @@ export class GameEngine {
     }
     const len = Math.hypot(sx, sy) || 1;
     const slowMult = e.slowTimer > 0 ? 0.6 : 1.0;
-    const step = e.speed * slowMult * dt;
-    this.tryMoveEntity(e.x, e.y, (sx / len) * step, (sy / len) * step, e.radius * 0.75, (nx, ny) => {
-      e.x = nx;
-      e.y = ny;
-    });
-    e.walkPhase += dt * 9 * slowMult;
+    const buffSpeedMult =
+      e.isLegionBoss && ((e.bossBuffTimer || 0) > 0 || (e.bossTransformTimer || 0) > 0)
+        ? e.legionHeroId === 'ghoul'
+          ? 1.28
+          : e.legionHeroId === 'ghost'
+            ? 1.22
+            : 1.12
+        : 1.0;
+    const step = e.speed * slowMult * buffSpeedMult * dt;
+    // Ethereal Body Passive: Ghost & Corrupted Ghost naturally phase through interior physical obstacles!
+    const ignoreProps = e.kind === EnemyKind.MINI_GHOST || e.kind === EnemyKind.BOSS_LEGION_GHOST;
+    this.tryMoveEntity(
+      e.x,
+      e.y,
+      (sx / len) * step,
+      (sy / len) * step,
+      e.radius * 0.75,
+      (nx, ny) => {
+        e.x = nx;
+        e.y = ny;
+      },
+      ignoreProps
+    );
+    e.walkPhase += dt * 9 * slowMult * buffSpeedMult;
   }
 
   private stepUndeadLegionBoss(
@@ -10449,6 +11181,7 @@ export class GameEngine {
         ult1: 12.0,
         ult2: 22.0,
         ult3: 32.0,
+        auraTick: 0.4,
       };
     }
     const cd = e.specialCooldowns;
@@ -10458,90 +11191,106 @@ export class GameEngine {
 
     const hero = e.legionHeroId || 'skeleton';
     const hpRatio = e.hp / Math.max(1, e.maxHp);
+    const empoweredMult = e.bossTransformTimer && e.bossTransformTimer > 0 ? 1.2 : 1.0;
+    const effectiveAtk = Math.round(enemyAtk * empoweredMult);
+
+    // Tick active sustained hero skills (Bone Storm, Undying Flesh, Blood Frenzy)
+    if ((e.bossBuffTimer || 0) > 0 && (cd.auraTick ?? 0) <= 0) {
+      if (hero === 'skeleton' && e.activeAuraType === 'bone_storm' && (e.activeAuraTimer || 0) > 0) {
+        cd.auraTick = 0.45;
+        this.spawnSlashWave('feral_whirl', e.x, e.y - 8, this.elapsedTime * 6, 115, Math.PI * 1.9, 1, 0.24, '#ffffff', '#67e8f9');
+        if (dist <= 120) this.damagePlayer(Math.round(effectiveAtk * 0.45));
+      } else if (hero === 'zombie') {
+        cd.auraTick = 1.0;
+        const healAmt = Math.max(25, Math.round(e.maxHp * 0.018));
+        e.hp = Math.min(e.maxHp, e.hp + healAmt);
+        this.spawnRingEffect(e.x, e.y, 68, '#4ade80');
+      } else if (hero === 'ghoul') {
+        cd.auraTick = 0.34;
+        const side: 1 | -1 = Math.random() < 0.5 ? 1 : -1;
+        this.spawnSlashWave('feral_slash', e.x, e.y - 8, angToPlayer + side * 0.14, 96, Math.PI * 0.9, side, 0.22, '#fff1f2', '#fb7185');
+        if (dist <= 104) this.damagePlayer(Math.round(effectiveAtk * 0.48));
+      }
+    }
 
     // Dynamic phase transitions: Enrage at 60% and 30% HP
     if (hpRatio <= 0.3 && (e.bossPhase ?? 1) < 3) {
       e.bossPhase = 3;
       this.triggerShake(0.3, 8);
       soundEngine.playSkill('ultimate');
-      this.spawnFloatingText(e.x, e.y - 50, 'LEGION OVERLORD ENRAGED!', '#ef4444', true);
+      this.spawnFloatingText(e.x, e.y - 50, `${e.name.toUpperCase()} UNLEASHED!`, '#ef4444', true);
       this.spawnRingEffect(e.x, e.y, 140, '#ef4444');
-      e.speed = Math.round(e.speed * 1.25);
+      e.speed = Math.round(e.speed * 1.2);
     } else if (hpRatio <= 0.6 && (e.bossPhase ?? 1) < 2) {
       e.bossPhase = 2;
       this.triggerShake(0.2, 5.5);
       soundEngine.playSkill('shield');
-      this.spawnFloatingText(e.x, e.y - 45, 'LEGION POWERS AWAKENED!', '#f59e0b', true);
-      this.spawnRingEffect(e.x, e.y, 110, '#f59e0b');
+      this.spawnFloatingText(e.x, e.y - 45, `${e.name.toUpperCase()} AWAKENED!`, '#c084fc', true);
+      this.spawnRingEffect(e.x, e.y, 110, '#c084fc');
     }
 
-    // --- ULTIMATE SKILLS ROTATION (Prioritized when ready) ---
+    // --- ULTIMATE SKILLS ROTATION (All 3 Original Hero Ultimates) ---
     if (cd.ult1 <= 0) {
       cd.ult1 = 26;
-      this.executeLegionBossUltimate(e, hero, 1, dist, angToPlayer, enemyAtk);
+      this.executeLegionBossUltimate(e, hero, 1, dist, angToPlayer, effectiveAtk);
       return;
     }
     if (cd.ult2 <= 0) {
       cd.ult2 = 34;
-      this.executeLegionBossUltimate(e, hero, 2, dist, angToPlayer, enemyAtk);
+      this.executeLegionBossUltimate(e, hero, 2, dist, angToPlayer, effectiveAtk);
       return;
     }
     if (cd.ult3 <= 0) {
       cd.ult3 = 42;
-      this.executeLegionBossUltimate(e, hero, 3, dist, angToPlayer, enemyAtk);
+      this.executeLegionBossUltimate(e, hero, 3, dist, angToPlayer, effectiveAtk);
       return;
     }
 
-    // --- NORMAL 5 SKILLS ROTATION ---
-    // Skill 4: Mobility / Gap Closer / Buff (Skeletal Rush, Undying Flesh, Blood Frenzy, Wailing Scream)
-    if (cd.skill4 <= 0 && (dist > 90 || hero === 'zombie' || hero === 'ghoul')) {
+    // --- ALL 5 NORMAL SKILLS ROTATION ---
+    if (cd.skill4 <= 0 && (dist > 90 || hero === 'zombie' || hero === 'ghoul' || (hero === 'ghost' && dist <= 135))) {
       cd.skill4 = hero === 'ghoul' ? 12 : hero === 'zombie' ? 14 : 9;
-      this.executeLegionBossSkill(e, hero, 4, dist, angToPlayer, enemyAtk);
+      this.executeLegionBossSkill(e, hero, 4, dist, angToPlayer, effectiveAtk);
       return;
     }
 
-    // Skill 3: Defensive / Tactical / Crowd Control (Ribcage Shield, Flesh Ripper, Shadow Stalker, Soul Drain)
-    if (cd.skill3 <= 0 && (dist <= 160 || hero === 'ghoul')) {
+    if (cd.skill3 <= 0 && (dist <= 175 || hero === 'ghoul')) {
       cd.skill3 = hero === 'skeleton' ? 11 : 9;
-      this.executeLegionBossSkill(e, hero, 3, dist, angToPlayer, enemyAtk);
+      this.executeLegionBossSkill(e, hero, 3, dist, angToPlayer, effectiveAtk);
       return;
     }
 
-    // Skill 5: Area / Summon / AoE Hazard (Bone Storm, Grave Call, Predator's Leap, Haunted Possession)
-    if (cd.skill5 <= 0 && (dist <= 140 || hero === 'zombie')) {
+    if (cd.skill5 <= 0 && (dist <= 165 || hero === 'zombie' || hero === 'ghost')) {
       cd.skill5 = hero === 'skeleton' ? 12 : 11;
-      this.executeLegionBossSkill(e, hero, 5, dist, angToPlayer, enemyAtk);
+      this.executeLegionBossSkill(e, hero, 5, dist, angToPlayer, effectiveAtk);
       return;
     }
 
-    // Skill 2: Ranged / Mid-Range Piercing / Pounce (Bone Spear, Plague Burst, Feral Pounce, Phantom Dash)
     if (cd.skill2 <= 0) {
       cd.skill2 = hero === 'skeleton' ? 5.5 : 6.5;
-      this.executeLegionBossSkill(e, hero, 2, dist, angToPlayer, enemyAtk);
+      this.executeLegionBossSkill(e, hero, 2, dist, angToPlayer, effectiveAtk);
       return;
     }
 
-    // Skill 1: Primary Signature Slash / Claws / Bolts
-    if (cd.skill1 <= 0 && dist <= 120) {
+    if (cd.skill1 <= 0 && (dist <= 125 || hero === 'ghost')) {
       cd.skill1 = 3.5;
-      this.executeLegionBossSkill(e, hero, 1, dist, angToPlayer, enemyAtk);
+      this.executeLegionBossSkill(e, hero, 1, dist, angToPlayer, effectiveAtk);
       return;
     }
 
-    // Default positioning & standard melee / ranged spacing
-    const preferredDist = hero === 'ghost' ? 140 : 68;
+    // Default positioning & authentic melee / ranged hero spacing
+    const preferredDist = hero === 'ghost' ? 165 : 68;
     if (dist > preferredDist) {
       this.moveEnemyWithSeparation(e, Math.cos(angToPlayer), Math.sin(angToPlayer), dt);
-    } else if (hero === 'ghost' && dist < 85) {
+    } else if (hero === 'ghost' && dist < 95) {
       this.moveEnemyWithSeparation(e, -Math.cos(angToPlayer), -Math.sin(angToPlayer), dt);
     } else {
       e.walkPhase = 0;
     }
 
-    if (e.attackCooldown <= 0 && dist <= preferredDist + 35) {
-      e.windupType = hero === 'ghost' ? 'spell' : hero === 'ghoul' ? 'slash' : 'slash';
-      e.windupDuration = 0.42;
-      e.windupTimer = 0.42;
+    if (e.attackCooldown <= 0 && dist <= (hero === 'ghost' ? 280 : preferredDist + 35)) {
+      e.windupType = hero === 'ghost' ? 'spell' : 'slash';
+      e.windupDuration = hero === 'ghoul' && (e.bossBuffTimer || 0) > 0 ? 0.28 : 0.4;
+      e.windupTimer = e.windupDuration;
       e.windupAngle = angToPlayer;
     }
   }
@@ -10576,192 +11325,245 @@ export class GameEngine {
   ) {
     this.triggerShake(0.25, 7.5);
     soundEngine.playSkill('ultimate');
-    e.attackAnimDuration = 0.36;
-    e.attackAnimTimer = 0.36;
+    e.attackAnimDuration = 0.4;
+    e.attackAnimTimer = 0.4;
 
     if (hero === 'skeleton') {
       if (ultIndex === 1) {
-        // Ultimate 1: Reaper's Judgment – Death Cleave Leap
-        this.spawnFloatingText(e.x, e.y - 52, "[ULT] REAPER'S JUDGMENT!", '#f87171', true);
-        const targetX = this.player.x;
-        const targetY = this.player.y;
+        // Ultimate 1: Reaper's Judgment – Spectral Scythe Cleave + Dark Wave Crescent!
+        e.bossScytheTimer = 1.5;
+        this.spawnFloatingText(e.x, e.y - 52, "[ULT] REAPER'S JUDGMENT!", '#c084fc', true);
         this.placeEnemySafely(
           e,
-          targetX - Math.cos(angToPlayer) * 35,
-          targetY - Math.sin(angToPlayer) * 35
+          this.player.x - Math.cos(angToPlayer) * 42,
+          this.player.y - Math.sin(angToPlayer) * 42
         );
         e.facing = angToPlayer;
-        this.spawnSlashWave('boss_cleave', e.x, e.y - 10, angToPlayer, 135, Math.PI * 1.6, 1, 0.35, '#fecdd3', '#f43f5e');
-        this.spawnRingEffect(e.x, e.y, 130, '#f43f5e');
-        this.spawnGroundEffect('enemy_slam_crack', e.x, e.y, 0, 0, angToPlayer, 130, 1.4, '#fb7185', '#fde047');
-        if (Math.hypot(this.player.x - e.x, this.player.y - e.y) <= 135) {
-          this.damagePlayer(Math.round(enemyAtk * 1.85));
+        this.spawnSlashWave('boss_cleave', e.x, e.y - 10, angToPlayer, 140, Math.PI * 1.6, 1, 0.35, '#f8fafc', '#c084fc');
+        this.spawnArcBurst(e.x, e.y, angToPlayer, 120, '#c084fc', 22);
+        this.spawnProjectile({
+          fromPlayer: false,
+          kind: 'dark_wave',
+          x: e.x + Math.cos(angToPlayer) * 30,
+          y: e.y - 8 + Math.sin(angToPlayer) * 30,
+          vx: Math.cos(angToPlayer) * 390,
+          vy: Math.sin(angToPlayer) * 390,
+          angle: angToPlayer,
+          radius: 36,
+          damage: Math.round(enemyAtk * 1.25),
+          isCrit: false,
+          pierce: true,
+          maxLife: 0.95,
+          color: '#c084fc',
+        });
+        if (Math.hypot(this.player.x - e.x, this.player.y - e.y) <= 138) {
+          this.damagePlayer(Math.round(enemyAtk * 1.75));
         }
       } else if (ultIndex === 2) {
-        // Ultimate 2: Army of Bones – Summons 3 Mini Skeletons
-        this.spawnFloatingText(e.x, e.y - 52, '[ULT] ARMY OF BONES!', '#e2e8f0', true);
-        this.spawnRingEffect(e.x, e.y, 110, '#f8fafc');
-        this.spawnBurstParticles(e.x, e.y, '#f8fafc', 28, true);
+        // Ultimate 2: Army of Bones – Emerald Grave Portal + 3 Skeletal Warriors!
+        this.spawnFloatingText(e.x, e.y - 52, '[ULT] ARMY OF BONES!', '#4ade80', true);
+        this.spawnGroundEffect('grave_portal', e.x, e.y, 0, 0, 0, 105, 2.2, '#4ade80', '#86efac');
+        this.spawnRingEffect(e.x, e.y, 115, '#4ade80');
+        this.spawnBurstParticles(e.x, e.y, '#86efac', 24, true);
         for (let i = 0; i < 3; i++) {
           const sa = angToPlayer + ((i - 1) * Math.PI) / 3;
-          const sx = e.x + Math.cos(sa) * 65;
-          const sy = e.y + Math.sin(sa) * 65;
-          this.spawnLegionBossMinion(EnemyKind.MINI_SKELETON, sx, sy, e.roomId, e.x, e.y);
+          this.spawnLegionBossMinion(
+            EnemyKind.MINI_SKELETON,
+            e.x + Math.cos(sa) * 65,
+            e.y + Math.sin(sa) * 65,
+            e.roomId,
+            e.x,
+            e.y
+          );
         }
       } else {
-        // Ultimate 3: Bone Colossus – Colossal Growth + 10 Radial Shards + Shield
-        this.spawnFloatingText(e.x, e.y - 52, '[ULT] BONE COLOSSUS!', '#fde047', true);
-        e.shieldHp = (e.shieldHp || 0) + 400;
+        // Ultimate 3: Bone Colossus – Giant Crowned Colossus Transformation + Shield + Radial Bone Spears!
+        e.bossTransformTimer = 8.5;
+        e.bossBuffTimer = Math.max(e.bossBuffTimer || 0, 8.5);
+        this.spawnFloatingText(e.x, e.y - 54, '[ULT] BONE COLOSSUS!', '#fde047', true);
+        e.shieldHp = (e.shieldHp || 0) + 420;
         e.maxShieldHp = Math.max(e.maxShieldHp || 0, e.shieldHp);
-        this.spawnRingEffect(e.x, e.y, 160, '#fde047');
-        this.spawnBurstParticles(e.x, e.y, '#fde047', 32, true);
+        this.spawnGroundEffect('enemy_slam_crack', e.x, e.y, 0, 0, 0, 135, 1.5, '#fde047', '#f59e0b');
+        this.spawnRingEffect(e.x, e.y, 160, '#fbbf24');
+        this.spawnBurstParticles(e.x, e.y, '#fde047', 30, true);
         const count = 10;
         for (let k = 0; k < count; k++) {
           const sa = (k * Math.PI * 2) / count;
           this.spawnProjectile({
             fromPlayer: false,
-            kind: 'boss_shard',
+            kind: 'bone_spear',
             x: e.x + Math.cos(sa) * 28,
             y: e.y + Math.sin(sa) * 28,
             vx: Math.cos(sa) * 290,
             vy: Math.sin(sa) * 290,
             angle: sa,
             radius: 11,
-            damage: Math.round(enemyAtk * 1.1),
+            damage: Math.round(enemyAtk * 1.05),
             isCrit: false,
             pierce: false,
-            maxLife: 2.2,
-            color: '#fb7185',
+            maxLife: 2.0,
+            color: '#fde047',
           });
         }
       }
     } else if (hero === 'zombie') {
       if (ultIndex === 1) {
-        // Ultimate 1: Death's Embrace – Inward Corpse Vortex Pull
-        this.spawnFloatingText(e.x, e.y - 52, "[ULT] DEATH'S EMBRACE!", '#a3e635', true);
-        this.spawnGroundEffect('contagion_ring', e.x, e.y, 0, 0, 0, 160, 1.2, '#84cc16', '#c084fc');
-        this.spawnRingEffect(e.x, e.y, 160, '#84cc16');
-        if (dist <= 175) {
+        // Ultimate 1: Death's Embrace – Plague Crater + Inward Life-Siphon Pull!
+        this.spawnFloatingText(e.x, e.y - 52, "[ULT] DEATH'S EMBRACE!", '#c084fc', true);
+        this.spawnGroundEffect('plague_crater', e.x, e.y, 0, 0, 0, 165, 2.0, '#a855f7', '#a3e635');
+        this.spawnGroundEffect('contagion_ring', e.x, e.y, 0, 0, 0, 170, 0.85, '#c084fc', '#4ade80');
+        this.spawnRingEffect(e.x, e.y, 165, '#a855f7');
+        if (dist <= 178) {
           const pullX = (e.x - this.player.x) * 0.45;
           const pullY = (e.y - this.player.y) * 0.45;
           this.tryMoveEntity(this.player.x, this.player.y, pullX, pullY, 16, (nx, ny) => {
             this.player.x = nx;
             this.player.y = ny;
           });
-          this.damagePlayer(Math.round(enemyAtk * 1.4));
+          const drain = Math.round(enemyAtk * 1.4);
+          this.damagePlayer(drain);
+          e.hp = Math.min(e.maxHp, e.hp + drain * 3);
+          this.spawnSiphonBeam(this.player.x, this.player.y - 10, 0.55, '#4ade80');
         }
       } else if (ultIndex === 2) {
-        // Ultimate 2: Kingdom of the Dead – Plague Deluge + 2 Mini Zombies
-        this.spawnFloatingText(e.x, e.y - 52, '[ULT] KINGDOM OF THE DEAD!', '#84cc16', true);
-        this.spawnRingEffect(e.x, e.y, 140, '#a3e635');
-        for (let i = 0; i < 4; i++) {
-          const ca = (i * Math.PI) / 2 + 0.4;
-          const cx = e.x + Math.cos(ca) * 85;
-          const cy = e.y + Math.sin(ca) * 85;
-          this.spawnToxicCloud(cx, cy, 60, 4.5, Math.round(enemyAtk * 0.5), false);
-          this.spawnGroundEffect('plague_crater', cx, cy, 0, 0, 0, 55, 1.4, '#84cc16', '#bef264');
+        // Ultimate 2: Kingdom of the Dead – Rotating Necropolis Sigil + Plague Clouds + Zombie Horde!
+        this.spawnFloatingText(e.x, e.y - 52, '[ULT] KINGDOM OF THE DEAD!', '#86efac', true);
+        this.spawnGroundEffect('kingdom_sigil', e.x, e.y, 0, 0, 0, 148, 4.2, '#4ade80', '#c084fc');
+        this.spawnRingEffect(e.x, e.y, 150, '#4ade80');
+        for (let i = 0; i < 3; i++) {
+          const ca = (i * Math.PI * 2) / 3 + 0.4;
+          const cx = e.x + Math.cos(ca) * 78;
+          const cy = e.y + Math.sin(ca) * 78;
+          this.spawnToxicCloud(cx, cy, 56, 4.2, Math.round(enemyAtk * 0.45), false);
+          this.spawnLegionBossMinion(EnemyKind.MINI_ZOMBIE, cx, cy, e.roomId, e.x, e.y);
         }
-        this.spawnLegionBossMinion(EnemyKind.MINI_ZOMBIE, e.x - 45, e.y + 25, e.roomId, e.x, e.y);
-        this.spawnLegionBossMinion(EnemyKind.MINI_ZOMBIE, e.x + 45, e.y - 25, e.roomId, e.x, e.y);
       } else {
-        // Ultimate 3: Abomination Form – Toxic Hulking Rage
-        this.spawnFloatingText(e.x, e.y - 52, '[ULT] ABOMINATION FORM!', '#4ade80', true);
-        e.hp = Math.min(e.maxHp, e.hp + 350);
-        e.shieldHp = (e.shieldHp || 0) + 400;
+        // Ultimate 3: Abomination Form – Mutates into Horned Abomination Hulk!
+        e.bossTransformTimer = 9.0;
+        this.spawnFloatingText(e.x, e.y - 54, '[ULT] ABOMINATION FORM!', '#a3e635', true);
+        e.hp = Math.min(e.maxHp, e.hp + 340);
+        e.shieldHp = (e.shieldHp || 0) + 420;
         e.maxShieldHp = Math.max(e.maxShieldHp || 0, e.shieldHp);
-        this.spawnRingEffect(e.x, e.y, 150, '#22c55e');
-        this.spawnToxicCloud(e.x, e.y, 90, 5.0, Math.round(enemyAtk * 0.55), false);
-        this.spawnBurstParticles(e.x, e.y, '#4ade80', 30, true);
+        this.spawnGroundEffect('plague_crater', e.x, e.y, 0, 0, 0.2, 145, 1.7, '#a3e635', '#c084fc');
+        this.spawnRingEffect(e.x, e.y, 155, '#84cc16');
+        this.spawnToxicCloud(e.x, e.y, 92, 5.0, Math.round(enemyAtk * 0.5), false);
+        this.spawnBurstParticles(e.x, e.y, '#a3e635', 28, true);
       }
     } else if (hero === 'ghoul') {
       if (ultIndex === 1) {
-        // Ultimate 1: King of the Hunt – Rapid Shadow Pounce Strike
-        this.spawnFloatingText(e.x, e.y - 52, '[ULT] KING OF THE HUNT!', '#f43f5e', true);
+        // Ultimate 1: King of the Hunt – Shadow Smoke Territory + Marked Ambush Pursuit!
+        this.spawnFloatingText(e.x, e.y - 52, '[ULT] KING OF THE HUNT!', '#fda4af', true);
+        this.spawnGroundEffect('shadow_smoke_ring', e.x, e.y, 0, 0, 0, 118, 0.65, '#4c0519', '#fb7185');
         this.placeEnemySafely(
           e,
-          this.player.x - Math.cos(angToPlayer) * 38,
-          this.player.y - Math.sin(angToPlayer) * 38
+          this.player.x - Math.cos(angToPlayer) * 36,
+          this.player.y - Math.sin(angToPlayer) * 36
         );
-        this.spawnSlashWave('twin_rend', e.x, e.y - 8, angToPlayer, 85, Math.PI * 1.5, 1, 0.28, '#ffffff', '#e11d48');
-        this.spawnRingEffect(e.x, e.y, 80, '#f43f5e');
-        if (Math.hypot(this.player.x - e.x, this.player.y - e.y) <= 95) {
-          this.damagePlayer(Math.round(enemyAtk * 1.75));
+        this.spawnSlashWave('shadow_ambush', e.x, e.y - 8, angToPlayer, 92, Math.PI * 1.35, 1, 0.28, '#fff1f2', '#e11d48');
+        this.spawnRingEffect(e.x, e.y, 95, '#e11d48');
+        if (Math.hypot(this.player.x - e.x, this.player.y - e.y) <= 98) {
+          this.damagePlayer(Math.round(enemyAtk * 1.7));
         }
       } else if (ultIndex === 2) {
-        // Ultimate 2: Carnage Unleashed – 360° Blood Blade Barrage
+        // Ultimate 2: Carnage Unleashed – Blitz Dash Line + 360° Crimson Rend Barrage!
+        const startX = e.x;
+        const startY = e.y;
         this.spawnFloatingText(e.x, e.y - 52, '[ULT] CARNAGE UNLEASHED!', '#fb7185', true);
+        this.placeEnemySafely(
+          e,
+          this.player.x + Math.cos(angToPlayer + 0.6) * 52,
+          this.player.y + Math.sin(angToPlayer + 0.6) * 52
+        );
+        this.spawnGroundEffect('carnage_dash_line', startX, startY - 4, e.x, e.y - 4, angToPlayer, 92, 0.4, '#fb7185', '#fff1f2');
         this.spawnSlashWave('feral_whirl', e.x, e.y - 8, angToPlayer, 130, Math.PI * 1.95, 1, 0.32, '#fff1f2', '#f43f5e');
-        this.spawnRingEffect(e.x, e.y, 140, '#e11d48');
+        this.spawnRingEffect(e.x, e.y, 135, '#e11d48');
         for (let k = 0; k < 12; k++) {
           const sa = (k * Math.PI * 2) / 12;
           this.spawnProjectile({
             fromPlayer: false,
-            kind: 'boss_shard',
+            kind: 'crimson_rend_wave',
             x: e.x + Math.cos(sa) * 26,
             y: e.y + Math.sin(sa) * 26,
             vx: Math.cos(sa) * 320,
             vy: Math.sin(sa) * 320,
             angle: sa,
-            radius: 9,
-            damage: Math.round(enemyAtk * 0.95),
+            radius: 13,
+            damage: Math.round(enemyAtk * 0.9),
             isCrit: false,
             pierce: false,
-            maxLife: 1.8,
+            maxLife: 1.6,
             color: '#f43f5e',
           });
         }
       } else {
-        // Ultimate 3: Apex Predator – 2 Mini Ghouls + Apex Roar
-        this.spawnFloatingText(e.x, e.y - 52, '[ULT] APEX PREDATOR!', '#e11d48', true);
-        this.spawnGroundEffect('predator_crater', e.x, e.y, 0, 0, 0, 110, 1.4, '#e11d48', '#fb7185');
-        this.spawnRingEffect(e.x, e.y, 120, '#e11d48');
+        // Ultimate 3: Apex Predator – Dorsal-Spined Apex Transformation + Blood Barrier + Feral Pack!
+        e.bossTransformTimer = 8.5;
+        e.shieldHp = (e.shieldHp || 0) + 340;
+        e.maxShieldHp = Math.max(e.maxShieldHp || 0, e.shieldHp);
+        this.spawnFloatingText(e.x, e.y - 54, '[ULT] APEX PREDATOR!', '#fda4af', true);
+        this.spawnGroundEffect('predator_crater', e.x, e.y, 0, 0, 0, 120, 1.5, '#f43f5e', '#fda4af');
+        this.spawnSlashWave('feral_whirl', e.x, e.y - 10, angToPlayer, 120, Math.PI * 2, 1, 0.32, '#fff1f2', '#e11d48');
+        this.spawnRingEffect(e.x, e.y, 128, '#fb7185');
         this.spawnLegionBossMinion(EnemyKind.MINI_GHOUL, e.x - 40, e.y + 35, e.roomId, e.x, e.y);
         this.spawnLegionBossMinion(EnemyKind.MINI_GHOUL, e.x + 40, e.y - 35, e.roomId, e.x, e.y);
       }
     } else {
-      // ghost
+      // Corrupted Ghost Ultimates
       if (ultIndex === 1) {
-        // Ultimate 1: Eternal Nightmare – Void Terror Vortex + Spectral Summons
-        this.spawnFloatingText(e.x, e.y - 52, '[ULT] ETERNAL NIGHTMARE!', '#818cf8', true);
+        // Ultimate 1: Eternal Nightmare – Abyssal Nightmare Transformation + Darkness Wave + Spectral Apparitions!
+        e.bossTransformTimer = 8.5;
+        this.spawnFloatingText(e.x, e.y - 52, '[ULT] ETERNAL NIGHTMARE!', '#c084fc', true);
+        this.spawnGroundEffect('wailing_wave', e.x, e.y, 0, 0, 0, 155, 0.7, '#818cf8', '#c084fc');
         this.spawnGroundEffect('astral_nova', this.player.x, this.player.y, 0, 0, 0, 125, 1.6, '#818cf8', '#2dd4bf');
-        this.spawnRingEffect(this.player.x, this.player.y, 120, '#818cf8');
-        this.spawnLegionBossMinion(EnemyKind.MINI_GHOST, e.x - 45, e.y + 30, e.roomId, e.x, e.y);
+        this.spawnRingEffect(this.player.x, this.player.y, 125, '#818cf8');
+        this.spawnLegionBossMinion(EnemyKind.MINI_GHOST, e.x - 48, e.y + 30, e.roomId, e.x, e.y);
+        this.spawnLegionBossMinion(EnemyKind.MINI_GHOST, e.x + 48, e.y - 30, e.roomId, e.x, e.y);
         if (dist <= 135) {
-          this.damagePlayer(Math.round(enemyAtk * 1.5));
+          this.damagePlayer(Math.round(enemyAtk * 1.45));
         }
       } else if (ultIndex === 2) {
-        // Ultimate 2: Spirit Legion – 16 Homing Wraith Spiral
-        this.spawnFloatingText(e.x, e.y - 52, '[ULT] SPIRIT LEGION!', '#38bdf8', true);
-        this.spawnRingEffect(e.x, e.y, 130, '#38bdf8');
-        for (let k = 0; k < 16; k++) {
-          const sa = (k * Math.PI * 2) / 16;
+        // Ultimate 2: Spirit Legion – Legion of Homing Wandering Spirits!
+        this.spawnFloatingText(e.x, e.y - 52, '[ULT] SPIRIT LEGION!', '#5eead4', true);
+        this.spawnGroundEffect('astral_nova', e.x, e.y, 0, 0, 0, 130, 0.65, '#2dd4bf', '#818cf8');
+        this.spawnRingEffect(e.x, e.y, 135, '#2dd4bf');
+        for (let k = 0; k < 12; k++) {
+          const sa = (k * Math.PI * 2) / 12;
           this.spawnProjectile({
             fromPlayer: false,
-            kind: 'spectral_bolt',
-            x: e.x + Math.cos(sa) * 25,
-            y: e.y + Math.sin(sa) * 25,
-            vx: Math.cos(sa) * 260,
-            vy: Math.sin(sa) * 260,
+            kind: 'ghost_wisp',
+            x: e.x + Math.cos(sa) * 28,
+            y: e.y - 10 + Math.sin(sa) * 28,
+            vx: Math.cos(sa) * 245,
+            vy: Math.sin(sa) * 245,
             angle: sa,
-            radius: 9,
-            damage: Math.round(enemyAtk * 0.85),
+            radius: 10,
+            damage: Math.round(enemyAtk * 0.8),
             isCrit: false,
             pierce: false,
-            maxLife: 2.2,
-            color: '#38bdf8',
+            maxLife: 2.1,
+            color: k % 2 === 0 ? '#2dd4bf' : '#c084fc',
           });
         }
       } else {
-        // Ultimate 3: Death's Passage – Dimensional Blink & Rift
+        // Ultimate 3: Death's Passage – Massive Spectral Rift Pull & Detonation!
         this.spawnFloatingText(e.x, e.y - 52, "[ULT] DEATH'S PASSAGE!", '#c084fc', true);
-        this.spawnGroundEffect('astral_nova', e.x, e.y, 0, 0, 0, 95, 1.5, '#c084fc', '#5eead4');
-        const endX = this.player.x + Math.cos(angToPlayer + Math.PI) * 75;
-        const endY = this.player.y + Math.sin(angToPlayer + Math.PI) * 75;
-        this.placeEnemySafely(e, endX, endY, true);
-        this.spawnSlashWave('boss_cleave', e.x, e.y - 8, angToPlayer, 115, Math.PI * 1.8, 1, 0.3, '#f5d0fe', '#a855f7');
-        this.spawnRingEffect(e.x, e.y, 115, '#c084fc');
-        if (Math.hypot(this.player.x - e.x, this.player.y - e.y) <= 120) {
-          this.damagePlayer(Math.round(enemyAtk * 1.6));
+        const riftX = this.player.x;
+        const riftY = this.player.y;
+        this.spawnGroundEffect('astral_nova', riftX, riftY, 0, 0, 0, 145, 1.65, '#c084fc', '#5eead4');
+        this.spawnRingEffect(riftX, riftY, 145, '#c084fc');
+        const pullAng = Math.atan2(riftY - this.player.y, riftX - this.player.x);
+        this.placeEnemySafely(
+          e,
+          riftX + Math.cos(angToPlayer + Math.PI) * 95,
+          riftY + Math.sin(angToPlayer + Math.PI) * 95,
+          true
+        );
+        if (Math.hypot(this.player.x - riftX, this.player.y - riftY) <= 145) {
+          this.tryMoveEntity(this.player.x, this.player.y, Math.cos(pullAng) * 32, Math.sin(pullAng) * 32, 16, (nx, ny) => {
+            this.player.x = nx;
+            this.player.y = ny;
+          });
+          this.damagePlayer(Math.round(enemyAtk * 1.55));
         }
       }
     }
@@ -10780,74 +11582,92 @@ export class GameEngine {
     if (hero === 'skeleton') {
       if (skillIndex === 1) {
         // Skill 1: Bone Slash
-        this.spawnFloatingText(e.x, e.y - 44, 'BONE SLASH!', '#fda4af', false);
-        this.spawnSlashWave('boss_cleave', e.x, e.y - 8, angToPlayer, 95, 1.5, 1, 0.24, '#ffffff', '#fb7185');
-        soundEngine.playSlash(1.2);
-        if (dist <= 105) this.damagePlayer(Math.round(enemyAtk * 1.25));
+        this.spawnFloatingText(e.x, e.y - 44, 'BONE SLASH!', '#67e8f9', false);
+        this.spawnSlashWave('blade_arc', e.x, e.y - 8, angToPlayer, 112, 1.6, 1, 0.24, '#ffffff', '#67e8f9');
+        this.spawnArcBurst(e.x, e.y, angToPlayer, 92, '#67e8f9', 14);
+        soundEngine.playSlash(1.22);
+        if (dist <= 112) this.damagePlayer(Math.round(enemyAtk * 1.25));
       } else if (skillIndex === 2) {
         // Skill 2: Bone Spear
-        this.spawnFloatingText(e.x, e.y - 44, 'BONE SPEAR!', '#f8fafc', false);
-        soundEngine.playSlash(1.4);
+        this.spawnFloatingText(e.x, e.y - 44, 'BONE SPEAR!', '#67e8f9', false);
+        soundEngine.playSkill('spear');
         this.spawnProjectile({
           fromPlayer: false,
-          kind: 'boss_shard',
-          x: e.x + Math.cos(angToPlayer) * 24,
-          y: e.y + Math.sin(angToPlayer) * 24,
-          vx: Math.cos(angToPlayer) * 360,
-          vy: Math.sin(angToPlayer) * 360,
+          kind: 'bone_spear',
+          x: e.x + Math.cos(angToPlayer) * 26,
+          y: e.y - 8 + Math.sin(angToPlayer) * 26,
+          vx: Math.cos(angToPlayer) * 410,
+          vy: Math.sin(angToPlayer) * 410,
           angle: angToPlayer,
-          radius: 10,
+          radius: 13,
           damage: Math.round(enemyAtk * 1.35),
           isCrit: false,
           pierce: true,
-          maxLife: 1.8,
-          color: '#f8fafc',
+          maxLife: 1.6,
+          color: '#67e8f9',
         });
       } else if (skillIndex === 3) {
         // Skill 3: Ribcage Shield
         soundEngine.playSkill('shield');
-        e.shieldHp = (e.shieldHp || 0) + 250;
+        e.bossBuffTimer = 6.0;
+        e.shieldHp = (e.shieldHp || 0) + 280;
         e.maxShieldHp = Math.max(e.maxShieldHp || 0, e.shieldHp);
-        this.spawnRingEffect(e.x, e.y, 85, '#fde68a');
-        this.spawnFloatingText(e.x, e.y - 40, 'RIBCAGE SHIELD +250', '#fde68a', false);
+        this.spawnRingEffect(e.x, e.y, 92, '#fde68a');
+        this.spawnFloatingText(e.x, e.y - 40, 'RIBCAGE SHIELD!', '#fde68a', false);
+        if (dist <= 95) {
+          this.damagePlayer(Math.round(enemyAtk * 0.85));
+          this.tryMoveEntity(this.player.x, this.player.y, Math.cos(angToPlayer) * 34, Math.sin(angToPlayer) * 34, 16, (nx, ny) => {
+            this.player.x = nx;
+            this.player.y = ny;
+          });
+        }
       } else if (skillIndex === 4) {
         // Skill 4: Skeletal Rush
-        this.spawnFloatingText(e.x, e.y - 44, 'SKELETAL RUSH!', '#fb923c', false);
+        this.spawnFloatingText(e.x, e.y - 44, 'SKELETAL RUSH!', '#67e8f9', false);
         soundEngine.playSkill('rush');
+        const startX = e.x;
+        const startY = e.y;
         const step = Math.min(dist, 175);
         this.placeEnemySafely(
           e,
           e.x + Math.cos(angToPlayer) * step,
           e.y + Math.sin(angToPlayer) * step
         );
-        this.spawnSlashWave('boss_cleave', e.x, e.y - 8, angToPlayer, 80, 1.4, 1, 0.22, '#ffe4e6', '#fb7185');
-        if (Math.hypot(this.player.x - e.x, this.player.y - e.y) <= 85) this.damagePlayer(Math.round(enemyAtk * 1.2));
+        this.spawnGroundEffect('flesh_tear_track', startX, startY + 8, e.x, e.y + 8, angToPlayer, 84, 0.8, '#67e8f9', '#f8fafc');
+        this.spawnSlashWave('blade_arc', e.x, e.y - 8, angToPlayer, 88, 1.45, 1, 0.22, '#ffffff', '#67e8f9');
+        if (Math.hypot(this.player.x - e.x, this.player.y - e.y) <= 88) this.damagePlayer(Math.round(enemyAtk * 1.2));
       } else {
         // Skill 5: Bone Storm
-        this.spawnFloatingText(e.x, e.y - 44, 'BONE STORM!', '#fb7185', false);
-        soundEngine.playSlash(1.1);
-        this.spawnSlashWave('feral_whirl', e.x, e.y - 8, angToPlayer, 110, Math.PI * 1.95, 1, 0.28, '#ffffff', '#fb7185');
-        this.spawnRingEffect(e.x, e.y, 110, '#fb7185');
-        if (dist <= 118) this.damagePlayer(Math.round(enemyAtk * 1.3));
+        e.bossBuffTimer = 4.5;
+        e.activeAuraType = 'bone_storm';
+        e.activeAuraTimer = 4.5;
+        this.spawnFloatingText(e.x, e.y - 44, 'BONE STORM!', '#67e8f9', false);
+        soundEngine.playSkill('storm');
+        this.spawnSlashWave('feral_whirl', e.x, e.y - 8, angToPlayer, 118, Math.PI * 1.95, 1, 0.28, '#ffffff', '#67e8f9');
+        this.spawnRingEffect(e.x, e.y, 118, '#67e8f9');
+        if (dist <= 120) this.damagePlayer(Math.round(enemyAtk * 1.2));
       }
     } else if (hero === 'zombie') {
       if (skillIndex === 1) {
         // Skill 1: Rotting Claw
-        this.spawnFloatingText(e.x, e.y - 44, 'ROTTING CLAW!', '#bef264', false);
-        soundEngine.playSlash(1.15);
-        this.spawnSlashWave('triple_claw', e.x, e.y - 8, angToPlayer, 85, 1.4, 1, 0.24, '#bef264', '#84cc16');
-        if (dist <= 92) this.damagePlayer(Math.round(enemyAtk * 1.2));
+        this.spawnFloatingText(e.x, e.y - 44, 'ROTTING CLAW!', '#a3e635', false);
+        soundEngine.playSlash(0.95);
+        this.spawnSlashWave('triple_claw', e.x, e.y - 8, angToPlayer, 96, 1.45, 1, 0.24, '#ecfccb', '#84cc16');
+        this.spawnSlashWave('cross_claw', e.x, e.y - 8, angToPlayer, 102, 1.5, -1, 0.3, '#ecfccb', '#c084fc');
+        if (dist <= 104) this.damagePlayer(Math.round(enemyAtk * 1.2));
       } else if (skillIndex === 2) {
         // Skill 2: Plague Burst
         this.spawnFloatingText(e.x, e.y - 44, 'PLAGUE BURST!', '#a3e635', false);
-        const px = e.x + Math.cos(angToPlayer) * Math.min(dist, 160);
-        const py = e.y + Math.sin(angToPlayer) * Math.min(dist, 160);
-        this.spawnGroundEffect('plague_crater', px, py, 0, 0, 0, 55, 1.3, '#84cc16', '#bef264');
-        this.spawnToxicCloud(px, py, 58, 4.0, Math.round(enemyAtk * 0.45), false);
-        if (Math.hypot(this.player.x - px, this.player.y - py) <= 60) this.damagePlayer(Math.round(enemyAtk * 1.1));
+        soundEngine.playSkill('storm');
+        const px = dist <= 115 ? e.x : e.x + Math.cos(angToPlayer) * Math.min(dist, 150);
+        const py = dist <= 115 ? e.y : e.y + Math.sin(angToPlayer) * Math.min(dist, 150);
+        this.spawnGroundEffect('contagion_ring', px, py, 0, 0, 0, 96, 0.75, '#a3e635', '#a855f7');
+        this.spawnToxicCloud(px, py, 82, 4.2, Math.round(enemyAtk * 0.45), false);
+        this.spawnRingEffect(px, py, 88, '#a3e635');
+        if (Math.hypot(this.player.x - px, this.player.y - py) <= 86) this.damagePlayer(Math.round(enemyAtk * 1.1));
       } else if (skillIndex === 3) {
         // Skill 3: Flesh Ripper
-        this.spawnFloatingText(e.x, e.y - 44, 'FLESH RIPPER!', '#4ade80', false);
+        this.spawnFloatingText(e.x, e.y - 44, 'FLESH RIPPER!', '#fb7185', false);
         soundEngine.playSkill('rush');
         const startX = e.x;
         const startY = e.y;
@@ -10857,144 +11677,187 @@ export class GameEngine {
           e.x + Math.cos(angToPlayer) * step,
           e.y + Math.sin(angToPlayer) * step
         );
-        this.spawnGroundEffect('flesh_tear_track', startX, startY, e.x, e.y, angToPlayer, 95, 0.9, '#fb7185', '#a3e635');
-        e.hp = Math.min(e.maxHp, e.hp + Math.round(e.maxHp * 0.08));
+        this.spawnSlashWave('cross_claw', e.x, e.y - 8, angToPlayer, 84, 1.4, 1, 0.25, '#ecfccb', '#fb7185');
+        this.spawnGroundEffect('flesh_tear_track', startX, startY, e.x, e.y, angToPlayer, 95, 0.9, '#a3e635', '#fb7185');
+        e.hp = Math.min(e.maxHp, e.hp + Math.round(e.maxHp * 0.06));
         this.spawnSiphonBeam(e.x, e.y - 12, 0.35, '#4ade80');
-        if (Math.hypot(this.player.x - e.x, this.player.y - e.y) <= 85) this.damagePlayer(Math.round(enemyAtk * 1.25));
+        if (Math.hypot(this.player.x - e.x, this.player.y - e.y) <= 88) this.damagePlayer(Math.round(enemyAtk * 1.25));
       } else if (skillIndex === 4) {
         // Skill 4: Undying Flesh
         soundEngine.playSkill('shield');
-        e.hp = Math.min(e.maxHp, e.hp + 240);
-        this.spawnRingEffect(e.x, e.y, 75, '#4ade80');
-        this.spawnFloatingText(e.x, e.y - 40, 'UNDYING FLESH +240', '#4ade80', false);
+        e.bossBuffTimer = 5.5;
+        e.hp = Math.min(e.maxHp, e.hp + 200);
+        this.spawnGroundEffect('contagion_ring', e.x, e.y, 0, 0, 0, 96, 0.65, '#4ade80', '#a3e635');
+        this.spawnRingEffect(e.x, e.y, 92, '#22c55e');
+        this.spawnFloatingText(e.x, e.y - 40, 'UNDYING FLESH!', '#4ade80', false);
       } else {
         // Skill 5: Grave Call
-        this.spawnFloatingText(e.x, e.y - 44, 'GRAVE CALL!', '#84cc16', false);
-        soundEngine.playSkill('shield');
-        this.spawnRingEffect(e.x, e.y, 80, '#84cc16');
-        this.spawnLegionBossMinion(EnemyKind.MINI_ZOMBIE, e.x + 35, e.y + 20, e.roomId, e.x, e.y);
-        this.spawnLegionBossMinion(EnemyKind.MINI_ZOMBIE, e.x - 35, e.y - 20, e.roomId, e.x, e.y);
+        this.spawnFloatingText(e.x, e.y - 44, 'GRAVE CALL!', '#a855f7', false);
+        soundEngine.playSkill('spear');
+        this.spawnGroundEffect('grave_portal', e.x, e.y, 0, 0, 0, 92, 2.4, '#a855f7', '#a3e635');
+        this.spawnRingEffect(e.x, e.y, 92, '#a855f7');
+        this.spawnLegionBossMinion(EnemyKind.MINI_ZOMBIE, e.x + 38, e.y + 22, e.roomId, e.x, e.y);
+        this.spawnLegionBossMinion(EnemyKind.MINI_ZOMBIE, e.x - 38, e.y - 22, e.roomId, e.x, e.y);
       }
     } else if (hero === 'ghoul') {
       if (skillIndex === 1) {
-        // Skill 1: Rending Claws
-        this.spawnFloatingText(e.x, e.y - 44, 'RENDING CLAWS!', '#fda4af', false);
-        soundEngine.playSlash(1.35);
-        this.spawnSlashWave('twin_rend', e.x, e.y - 8, angToPlayer, 80, 1.4, 1, 0.22, '#fff1f2', '#f43f5e');
-        if (dist <= 88) this.damagePlayer(Math.round(enemyAtk * 1.3));
+        // Skill 1: Rending Claws + Crimson Crescent Finale!
+        this.spawnFloatingText(e.x, e.y - 44, 'RENDING CLAWS!', '#fb7185', false);
+        soundEngine.playSlash(1.26);
+        this.spawnSlashWave('feral_slash', e.x, e.y - 8, angToPlayer, 96, 1.45, 1, 0.22, '#fff1f2', '#fb7185');
+        this.spawnSlashWave('rending_finale', e.x, e.y - 8, angToPlayer, 106, 1.6, -1, 0.28, '#fff1f2', '#e11d48');
+        this.spawnProjectile({
+          fromPlayer: false,
+          kind: 'crimson_rend_wave',
+          x: e.x + Math.cos(angToPlayer) * 26,
+          y: e.y - 8 + Math.sin(angToPlayer) * 26,
+          vx: Math.cos(angToPlayer) * 410,
+          vy: Math.sin(angToPlayer) * 410,
+          angle: angToPlayer,
+          radius: 26,
+          damage: Math.round(enemyAtk * 0.9),
+          isCrit: false,
+          pierce: true,
+          maxLife: 0.55,
+          color: '#f43f5e',
+        });
+        if (dist <= 104) this.damagePlayer(Math.round(enemyAtk * 1.25));
       } else if (skillIndex === 2) {
         // Skill 2: Feral Pounce
         this.spawnFloatingText(e.x, e.y - 44, 'FERAL POUNCE!', '#f43f5e', false);
         soundEngine.playSkill('rush');
         this.placeEnemySafely(
           e,
-          this.player.x - Math.cos(angToPlayer) * 24,
-          this.player.y - Math.sin(angToPlayer) * 24
+          this.player.x - Math.cos(angToPlayer) * 28,
+          this.player.y - Math.sin(angToPlayer) * 28
         );
         this.triggerShake(0.18, 5.0);
-        this.spawnGroundEffect('predator_crater', e.x, e.y, 0, 0, 0, 65, 1.2, '#f43f5e', '#fb7185');
-        this.spawnSlashWave('twin_rend', e.x, e.y - 6, angToPlayer, 75, 1.4, 1, 0.24, '#ffffff', '#e11d48');
-        if (Math.hypot(this.player.x - e.x, this.player.y - e.y) <= 85) {
-          this.damagePlayer(Math.round(enemyAtk * 1.45));
+        this.spawnGroundEffect('predator_crater', e.x, e.y, 0, 0, 0, 72, 1.2, '#f43f5e', '#fb7185');
+        this.spawnSlashWave('twin_rend', e.x, e.y - 6, angToPlayer, 80, 1.4, 1, 0.24, '#fff1f2', '#e11d48');
+        if (Math.hypot(this.player.x - e.x, this.player.y - e.y) <= 86) {
+          this.damagePlayer(Math.round(enemyAtk * 1.4));
         }
       } else if (skillIndex === 3) {
-        // Skill 3: Shadow Stalker (Ambush Behind Player)
-        this.spawnFloatingText(e.x, e.y - 44, 'SHADOW STALKER!', '#e11d48', false);
+        // Skill 3: Shadow Stalker (Shadow Vanish Shroud + Ambush Behind Player)
+        e.bossStealthTimer = 1.8;
+        this.spawnGroundEffect('shadow_smoke_ring', e.x, e.y, 0, 0, 0, 64, 0.5, '#4c0519', '#fb7185');
         soundEngine.playSkill('rush');
         this.placeEnemySafely(
           e,
           this.player.x + Math.cos(this.player.facing + Math.PI) * 44,
           this.player.y + Math.sin(this.player.facing + Math.PI) * 44
         );
+        this.spawnFloatingText(e.x, e.y - 44, 'SHADOW STALKER!', '#fda4af', false);
+        this.spawnGroundEffect('shadow_smoke_ring', e.x, e.y, 0, 0, 0, 68, 0.5, '#4c0519', '#fb7185');
         const stabAng = Math.atan2(this.player.y - e.y, this.player.x - e.x);
-        this.spawnSlashWave('twin_rend', e.x, e.y - 8, stabAng, 75, 1.3, 1, 0.22, '#ffffff', '#e11d48');
-        if (Math.hypot(this.player.x - e.x, this.player.y - e.y) <= 85) {
-          this.damagePlayer(Math.round(enemyAtk * 1.5));
+        e.facing = stabAng;
+        this.spawnSlashWave('shadow_ambush', e.x, e.y - 8, stabAng, 84, Math.PI * 1.15, 1, 0.25, '#fff1f2', '#e11d48');
+        if (Math.hypot(this.player.x - e.x, this.player.y - e.y) <= 86) {
+          this.damagePlayer(Math.round(enemyAtk * 1.45));
         }
       } else if (skillIndex === 4) {
         // Skill 4: Blood Frenzy
-        soundEngine.playSkill('ultimate');
-        this.spawnFloatingText(e.x, e.y - 40, 'BLOOD FRENZY!', '#f43f5e', true);
-        this.spawnRingEffect(e.x, e.y, 80, '#f43f5e');
-        e.attackCooldown = 0.2;
+        e.bossBuffTimer = 5.0;
+        soundEngine.playSkill('storm');
+        this.spawnFloatingText(e.x, e.y - 40, 'BLOOD FRENZY!', '#fb7185', true);
+        this.spawnRingEffect(e.x, e.y, 90, '#fb7185');
+        e.attackCooldown = 0.15;
       } else {
-        // Skill 5: Predator's Leap
+        // Skill 5: Predator's Leap + 360° Feral Whirl
         this.spawnFloatingText(e.x, e.y - 44, "PREDATOR'S LEAP!", '#fb7185', false);
         soundEngine.playSkill('rush');
         const lx = this.player.x + (Math.random() - 0.5) * 35;
         const ly = this.player.y + (Math.random() - 0.5) * 35;
         this.placeEnemySafely(e, lx, ly);
         this.triggerShake(0.2, 5.5);
-        this.spawnGroundEffect('predator_crater', e.x, e.y, 0, 0, 0, 75, 1.3, '#f43f5e', '#fb7185');
-        this.spawnSlashWave('feral_whirl', e.x, e.y - 8, angToPlayer, 90, Math.PI * 1.95, 1, 0.26, '#fff1f2', '#f43f5e');
-        if (Math.hypot(this.player.x - e.x, this.player.y - e.y) <= 90) this.damagePlayer(Math.round(enemyAtk * 1.35));
+        this.spawnGroundEffect('predator_crater', e.x, e.y, 0, 0, 0, 84, 1.3, '#f43f5e', '#fda4af');
+        this.spawnSlashWave('feral_whirl', e.x, e.y - 8, angToPlayer, 98, Math.PI * 1.95, 1, 0.28, '#fff1f2', '#e11d48');
+        if (Math.hypot(this.player.x - e.x, this.player.y - e.y) <= 95) this.damagePlayer(Math.round(enemyAtk * 1.35));
       }
     } else {
-      // ghost
+      // Corrupted Ghost Skills
       if (skillIndex === 1) {
-        // Skill 1: Spectral Bolt
-        this.spawnFloatingText(e.x, e.y - 44, 'SPECTRAL BOLT!', '#7dd3fc', false);
-        soundEngine.playSlash(1.4);
+        // Skill 1: Spectral Bolt (Piercing Spiritual Energy Lance)
+        this.spawnFloatingText(e.x, e.y - 44, 'SPECTRAL BOLT!', '#2dd4bf', false);
+        soundEngine.playGhostWisp(0.92);
+        const launchX = e.x + Math.cos(angToPlayer) * 24;
+        const launchY = e.y - 12 + Math.sin(angToPlayer) * 24;
+        this.spawnGroundEffect('astral_nova', launchX, launchY, 0, 0, angToPlayer, 36, 0.26, '#2dd4bf', '#818cf8');
         for (let s = 0; s < 3; s++) {
-          const sa = angToPlayer + (s - 1) * 0.35;
+          const sa = angToPlayer + (s - 1) * 0.28;
           this.spawnProjectile({
             fromPlayer: false,
             kind: 'spectral_bolt',
-            x: e.x + Math.cos(sa) * 22,
-            y: e.y + Math.sin(sa) * 22,
-            vx: Math.cos(sa) * 280,
-            vy: Math.sin(sa) * 280,
+            x: launchX,
+            y: launchY,
+            vx: Math.cos(sa) * 320,
+            vy: Math.sin(sa) * 320,
             angle: sa,
-            radius: 8,
+            radius: 12,
             damage: Math.round(enemyAtk * 1.05),
             isCrit: false,
-            pierce: false,
-            maxLife: 1.8,
-            color: '#38bdf8',
+            pierce: true,
+            maxLife: 1.75,
+            color: '#2dd4bf',
           });
         }
       } else if (skillIndex === 2) {
-        // Skill 2: Phantom Dash
+        // Skill 2: Phantom Dash (Transforms into billowing spectral mist & leaves spectral mist nodes!)
+        e.bossStealthTimer = 0.65;
+        e.bossBuffTimer = Math.max(e.bossBuffTimer || 0, 4.5);
         this.spawnFloatingText(e.x, e.y - 44, 'PHANTOM DASH!', '#5eead4', false);
-        soundEngine.playSkill('rush');
-        const blinkDist = 140;
-        const blinkAng = angToPlayer + Math.PI * (Math.random() < 0.5 ? 0.6 : -0.6);
+        soundEngine.playGhostWisp(1.22);
+        const startX = e.x;
+        const startY = e.y;
+        const blinkDist = 145;
+        const blinkAng = angToPlayer + Math.PI * (Math.random() < 0.5 ? 0.55 : -0.55);
         this.placeEnemySafely(
           e,
           e.x + Math.cos(blinkAng) * blinkDist,
           e.y + Math.sin(blinkAng) * blinkDist,
           true
         );
-        this.spawnGroundEffect('astral_nova', e.x, e.y, 0, 0, 0, 65, 1.2, '#38bdf8', '#c084fc');
+        this.spawnGroundEffect('spectral_mist_node', startX, startY, 0, 0, blinkAng, 52, 1.6, '#2dd4bf', '#818cf8');
+        this.spawnGroundEffect('spectral_mist_node', (startX + e.x) * 0.5, (startY + e.y) * 0.5, 0, 0, blinkAng, 46, 1.6, '#818cf8', '#2dd4bf');
+        this.spawnGroundEffect('spectral_mist_node', e.x, e.y, 0, 0, blinkAng, 56, 1.6, '#2dd4bf', '#818cf8');
       } else if (skillIndex === 3) {
-        // Skill 3: Soul Drain
-        this.spawnSiphonBeam(e.x, e.y - 10, 0.45, '#818cf8');
-        e.hp = Math.min(e.maxHp, e.hp + 150);
-        this.spawnFloatingText(e.x, e.y - 36, 'SOUL DRAIN +150', '#818cf8', false);
-        if (dist <= 185) this.damagePlayer(Math.round(enemyAtk * 1.15));
+        // Skill 3: Soul Drain (Ethereal life-draining tendrils!)
+        soundEngine.playGhostWisp(0.86);
+        this.spawnGroundEffect('astral_nova', e.x, e.y, 0, 0, 0, 95, 0.55, '#2dd4bf', '#818cf8');
+        this.spawnSiphonBeam(this.player.x, this.player.y - 10, 0.5, '#5eead4');
+        e.hp = Math.min(e.maxHp, e.hp + 165);
+        this.spawnFloatingText(e.x, e.y - 40, 'SOUL DRAIN +165', '#5eead4', false);
+        if (dist <= 190) this.damagePlayer(Math.round(enemyAtk * 1.15));
       } else if (skillIndex === 4) {
-        // Skill 4: Wailing Scream
-        this.spawnFloatingText(e.x, e.y - 44, 'WAILING SCREAM!', '#c084fc', false);
+        // Skill 4: Wailing Scream (Supernatural terror wave pushing player back!)
+        this.spawnFloatingText(e.x, e.y - 44, 'WAILING SCREAM!', '#5eead4', false);
         soundEngine.playWail();
         this.triggerShake(0.18, 4.5);
-        this.spawnGroundEffect('wailing_wave', e.x, e.y, 0, 0, 0, 110, 0.5, '#c084fc', '#5eead4');
-        this.spawnRingEffect(e.x, e.y, 110, '#c084fc');
-        if (dist <= 120) {
+        this.spawnGroundEffect('wailing_wave', e.x, e.y - 6, 0, 0, 0, 125, 0.55, '#5eead4', '#818cf8');
+        this.spawnRingEffect(e.x, e.y, 125, '#c084fc');
+        if (dist <= 130) {
           this.damagePlayer(Math.round(enemyAtk * 1.15));
-          const pushX = Math.cos(angToPlayer) * 60;
-          const pushY = Math.sin(angToPlayer) * 60;
+          const pushX = Math.cos(angToPlayer) * 65;
+          const pushY = Math.sin(angToPlayer) * 65;
           this.tryMoveEntity(this.player.x, this.player.y, pushX, pushY, 16, (nx, ny) => {
             this.player.x = nx;
             this.player.y = ny;
           });
         }
       } else {
-        // Skill 5: Haunted Possession Hex
-        this.spawnFloatingText(e.x, e.y - 44, 'HAUNTED POSSESSION!', '#e879f9', false);
-        soundEngine.playSkill('shield');
-        this.spawnGroundEffect('astral_nova', this.player.x, this.player.y, 0, 0, 0, 70, 1.3, '#c084fc', '#38bdf8');
-        this.spawnBurstParticles(this.player.x, this.player.y, '#c084fc', 12, true);
-        if (dist <= 220) this.damagePlayer(Math.round(enemyAtk * 1.25));
+        // Skill 5: Haunted Possession (Disrupts player movement & detonates spiritual burst!)
+        this.spawnFloatingText(e.x, e.y - 44, 'HAUNTED POSSESSION!', '#c084fc', false);
+        soundEngine.playGhostWisp(1.1);
+        this.spawnGroundEffect('possession_burst', this.player.x, this.player.y, 0, 0, 0, 74, 0.55, '#c084fc', '#2dd4bf');
+        this.spawnBurstParticles(this.player.x, this.player.y, '#c084fc', 14, true);
+        if (dist <= 225) {
+          const joltAng = this.elapsedTime * 7;
+          this.tryMoveEntity(this.player.x, this.player.y, Math.cos(joltAng) * 38, Math.sin(joltAng) * 38, 16, (nx, ny) => {
+            this.player.x = nx;
+            this.player.y = ny;
+          });
+          this.damagePlayer(Math.round(enemyAtk * 1.25));
+        }
       }
     }
   }
@@ -11007,6 +11870,15 @@ export class GameEngine {
     fallbackX = x,
     fallbackY = y
   ) {
+    let activeMinionsInRoom = 0;
+    for (let i = 0; i < this.enemies.length; i++) {
+      const existing = this.enemies[i];
+      if (existing.hp > 0 && existing.roomId === roomId && !isBossKind(existing.kind)) {
+        activeMinionsInRoom++;
+      }
+    }
+    if (activeMinionsInRoom >= 6) return;
+
     const isSkeleton = kind === EnemyKind.MINI_SKELETON;
     const isZombie = kind === EnemyKind.MINI_ZOMBIE;
     const isGhoul = kind === EnemyKind.MINI_GHOUL;
@@ -11181,46 +12053,59 @@ export class GameEngine {
         p.kind === 'homing_feather' ||
         p.kind === 'celestial_feather'
       ) {
-        let target: EnemyEntity | null = null;
-        if (p.targetEnemyId !== undefined && p.targetEnemyId >= 0) {
-          for (const e of this.enemies) {
-            if (e.id === p.targetEnemyId && e.hp > 0) {
-              target = e;
-              break;
-            }
+        if (!p.fromPlayer) {
+          // Corrupted Ghost Ranged Homing Basic Attacks & Spirit Legion wisps smoothly curve toward player!
+          if (!this.localIsDowned && this.player.possessingTimer <= 0) {
+            const desired = Math.atan2(this.player.y - 8 - p.y, this.player.x - p.x);
+            let diff = desired - p.angle;
+            while (diff > Math.PI) diff -= Math.PI * 2;
+            while (diff < -Math.PI) diff += Math.PI * 2;
+            p.angle += diff * Math.min(1, dt * 3.2);
+            const spd = Math.hypot(p.vx, p.vy);
+            p.vx = Math.cos(p.angle) * spd;
+            p.vy = Math.sin(p.angle) * spd;
           }
-        }
-        if (!target) {
-          // If hunter's mark target is active, prioritize it
-          if (this.player.huntersMarkTargetId) {
+        } else {
+          let target: EnemyEntity | null = null;
+          if (p.targetEnemyId !== undefined && p.targetEnemyId >= 0) {
             for (const e of this.enemies) {
-              if (e.id === this.player.huntersMarkTargetId && e.hp > 0) {
+              if (e.id === p.targetEnemyId && e.hp > 0) {
                 target = e;
-                p.targetEnemyId = target.id;
                 break;
               }
             }
           }
-        }
-        if (!target) {
-          target = this.findNearestEnemyFrom(p.x, p.y, 440);
-          if (target) p.targetEnemyId = target.id;
-        }
-        if (target) {
-          const desired = Math.atan2(target.y - 8 - p.y, target.x - p.x);
-          let diff = desired - p.angle;
-          while (diff > Math.PI) diff -= Math.PI * 2;
-          while (diff < -Math.PI) diff += Math.PI * 2;
-          const turnRate =
-            p.kind === 'homing_feather' || p.kind === 'celestial_feather'
-              ? 13.5
-              : p.kind === 'homing_splinter'
-                ? 9
-                : 11.8;
-          p.angle += diff * Math.min(1, dt * turnRate);
-          const spd = Math.hypot(p.vx, p.vy);
-          p.vx = Math.cos(p.angle) * spd;
-          p.vy = Math.sin(p.angle) * spd;
+          if (!target) {
+            if (this.player.huntersMarkTargetId) {
+              for (const e of this.enemies) {
+                if (e.id === this.player.huntersMarkTargetId && e.hp > 0) {
+                  target = e;
+                  p.targetEnemyId = target.id;
+                  break;
+                }
+              }
+            }
+          }
+          if (!target) {
+            target = this.findNearestEnemyFrom(p.x, p.y, 440);
+            if (target) p.targetEnemyId = target.id;
+          }
+          if (target) {
+            const desired = Math.atan2(target.y - 8 - p.y, target.x - p.x);
+            let diff = desired - p.angle;
+            while (diff > Math.PI) diff -= Math.PI * 2;
+            while (diff < -Math.PI) diff += Math.PI * 2;
+            const turnRate =
+              p.kind === 'homing_feather' || p.kind === 'celestial_feather'
+                ? 13.5
+                : p.kind === 'homing_splinter'
+                  ? 9
+                  : 11.8;
+            p.angle += diff * Math.min(1, dt * turnRate);
+            const spd = Math.hypot(p.vx, p.vy);
+            p.vx = Math.cos(p.angle) * spd;
+            p.vy = Math.sin(p.angle) * spd;
+          }
         }
       }
 
@@ -11703,6 +12588,19 @@ export class GameEngine {
         if (Math.random() < 0.28) {
           this.spawnFloatingText(e.x, e.y - e.radius - 28, 'PREDATOR INSTINCT!', '#fbbf24', false);
         }
+      }
+    }
+
+    // Corrupted Undead Legion Boss Passives:
+    // - Corrupted Ghost: Ethereal Body + Restless Spirit (chance to phase-resist physical blows & intensify spirit motes!)
+    // - Corrupted Skeleton: Eternal Framework (reinforced skeletal resilience while shielded!)
+    if (e.isLegionBoss) {
+      if (e.legionHeroId === 'ghost' && Math.random() < 0.16) {
+        adjustedDmg = Math.max(1, Math.round(adjustedDmg * 0.45));
+        e.bossBuffTimer = Math.max(e.bossBuffTimer || 0, 4.5);
+        this.spawnFloatingText(e.x, e.y - e.radius - 26, 'ETHEREAL PHASE!', '#5eead4', false);
+      } else if (e.legionHeroId === 'skeleton' && (e.shieldHp || 0) > 0) {
+        adjustedDmg = Math.max(1, Math.round(adjustedDmg * 0.88));
       }
     }
 

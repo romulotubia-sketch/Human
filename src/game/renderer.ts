@@ -158,10 +158,18 @@ export function renderGameWorld(
   // 1. Floor & Walls
   drawWorldFloorsAndWalls(ctx, map, cullLeft, cullRight, cullTop, cullBottom, time);
 
-  // 2. Floor Props
+  // 2. Floor Props (with generous offscreen padding so portal auras never pop)
   for (let i = 0; i < map.props.length; i++) {
     const prop = map.props[i];
     if (!prop.solid) {
+      if (
+        prop.x + prop.w < cullLeft - 90 ||
+        prop.x > cullRight + 90 ||
+        prop.y + prop.h < cullTop - 90 ||
+        prop.y > cullBottom + 90
+      ) {
+        continue;
+      }
       drawProp(ctx, prop, time);
     }
   }
@@ -682,7 +690,7 @@ function drawToxicCloud(ctx: CanvasRenderingContext2D, cloud: ToxicCloudZone, ti
       ctx.strokeStyle = '#ecfccb';
       ctx.lineWidth = 1.3;
       ctx.beginPath();
-      ctx.arc(bx, by, br * 1.9, 0, Math.PI * 2);
+      ctx.arc(bx, by, Math.max(0.5, br * 1.9), 0, Math.PI * 2);
       ctx.stroke();
     }
   }
@@ -2366,29 +2374,7 @@ function drawProp(ctx: CanvasRenderingContext2D, prop: WorldProp, time: number) 
       drawWorldLabel(ctx, x + w / 2, y - 12, 'Reliquary Chest', '#fde047');
     }
   } else if (kind === 'portal_next' || kind === 'portal_guild') {
-    const cx = x + w / 2;
-    const cy = y + h / 2;
-    const isNext = kind === 'portal_next';
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.rotate(time * (isNext ? 1.8 : -1.4));
-    ctx.strokeStyle = isNext ? '#38bdf8' : '#fbbf24';
-    ctx.lineWidth = 3.5;
-    ctx.beginPath();
-    ctx.arc(0, 0, 24, 0, Math.PI * 1.65);
-    ctx.stroke();
-    ctx.fillStyle = isNext ? 'rgba(56, 189, 248, 0.25)' : 'rgba(251, 191, 36, 0.25)';
-    ctx.beginPath();
-    ctx.arc(0, 0, 18, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-    drawWorldLabel(
-      ctx,
-      cx,
-      y - 12,
-      prop.label || (isNext ? 'Next Graveyard Floor' : 'Guild Portal'),
-      isNext ? '#7dd3fc' : '#fde68a'
-    );
+    drawPortalProp(ctx, prop, time);
   } else if (kind === 'blessing_statue') {
     const cx = x + w / 2;
     const cy = y + h / 2;
@@ -2524,6 +2510,369 @@ function drawProp(ctx: CanvasRenderingContext2D, prop: WorldProp, time: number) 
       isBlessed ? '#a8a29e' : '#fde047'
     );
   }
+}
+
+function drawPortalRunestone(
+  ctx: CanvasRenderingContext2D,
+  sx: number,
+  sy: number,
+  scale: number,
+  runeColor: string,
+  pulse: number
+) {
+  ctx.save();
+  ctx.translate(sx, sy);
+  ctx.scale(scale, scale);
+
+  // Carved obsidian/slate floating monolith
+  ctx.fillStyle = '#1e293b';
+  ctx.strokeStyle = '#0f172a';
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.moveTo(0, -10);
+  ctx.lineTo(6.2, -3.5);
+  ctx.lineTo(4.8, 8.5);
+  ctx.lineTo(-4.8, 8.5);
+  ctx.lineTo(-6.2, -3.5);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // Top highlight facet
+  ctx.fillStyle = '#334155';
+  ctx.beginPath();
+  ctx.moveTo(0, -10);
+  ctx.lineTo(6.2, -3.5);
+  ctx.lineTo(0, -1);
+  ctx.lineTo(-6.2, -3.5);
+  ctx.closePath();
+  ctx.fill();
+
+  // Glowing etched arcane rune
+  ctx.strokeStyle = runeColor;
+  ctx.lineWidth = 1.5;
+  ctx.globalAlpha = 0.72 + pulse * 0.28;
+  ctx.beginPath();
+  ctx.moveTo(0, -5.5);
+  ctx.lineTo(0, 5.2);
+  ctx.moveTo(-2.8, -1.6);
+  ctx.lineTo(2.8, 1.4);
+  ctx.moveTo(2.6, -2.2);
+  ctx.lineTo(-2.4, 2.2);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function drawPortalProp(ctx: CanvasRenderingContext2D, prop: WorldProp, time: number) {
+  const cx = prop.x + prop.w * 0.5;
+  const cy = prop.y + prop.h * 0.5;
+  const isNext = prop.kind === 'portal_next';
+  const charge = Math.max(0, Math.min(1, prop.chargeProgress || 0));
+
+  // Birth awakening choreography (0 -> 0.95s after boss defeat)
+  const hasSpawn = typeof prop.spawnTime === 'number' && prop.spawnTime > 0;
+  const age = hasSpawn ? Math.max(0, time - (prop.spawnTime as number)) : 10;
+  const sealRaw = Math.min(1, age / 0.52);
+  const sealEase = 1 - Math.pow(1 - sealRaw, 3);
+  const riftRaw = age < 0.12 ? 0 : Math.min(1, (age - 0.12) / 0.65);
+  const riftBack =
+    riftRaw >= 1
+      ? 1
+      : 1 + 1.45 * Math.pow(riftRaw - 1, 3) + 0.45 * Math.pow(riftRaw - 1, 2);
+  const stoneRise = age < 0.22 ? 0 : 1 - Math.pow(1 - Math.min(1, (age - 0.22) / 0.65), 3);
+
+  // Cohesive theme palettes: Abyssal Eldritch Rift (Next Dungeon) vs Sanctuary Hearth-Gate (Lobby)
+  const primary = isNext ? '#38bdf8' : '#f59e0b';
+  const secondary = isNext ? '#a855f7' : '#fb7185';
+  const rimGlow = isNext ? '#e0f2fe' : '#fef08a';
+  const coreDark = isNext ? '#070b1e' : '#1c0c04';
+  const coreMid = isNext ? '#1e1b4b' : '#78350f';
+  const labelColor = isNext ? '#7dd3fc' : '#fde68a';
+
+  const spinDir = isNext ? 1 : -1;
+  const speedBoost = 1 + charge * 0.9;
+  const phase = time * speedBoost;
+  const pulse = 0.5 + 0.5 * Math.sin(time * 4.2 + (isNext ? 0 : 1.7));
+
+  const baseY = cy + 16;
+  const sealRx = Math.max(4, (44 + charge * 5) * sealEase);
+
+  // 1. Perspective Arcane Floor Seal & Ground Illumination
+  ctx.save();
+  ctx.translate(cx, baseY);
+  ctx.scale(1, 0.56);
+
+  // Soft ambient floor shadow under the dimensional anchor
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.46)';
+  ctx.beginPath();
+  ctx.arc(0, 4, Math.max(2, sealRx * 1.08), 0, Math.PI * 2);
+  ctx.fill();
+
+  // Additive ground light pool
+  ctx.globalCompositeOperation = 'lighter';
+  const floorGrad = ctx.createRadialGradient(0, 0, 2, 0, 0, Math.max(4, sealRx * 1.38));
+  floorGrad.addColorStop(0, isNext ? 'rgba(56, 189, 248, 0.44)' : 'rgba(245, 158, 11, 0.44)');
+  floorGrad.addColorStop(0.55, isNext ? 'rgba(168, 85, 247, 0.22)' : 'rgba(251, 113, 133, 0.2)');
+  floorGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = floorGrad;
+  ctx.beginPath();
+  ctx.arc(0, 0, Math.max(4, sealRx * 1.38), 0, Math.PI * 2);
+  ctx.fill();
+
+  // Periodic outward floor shockwave ripple
+  const rippleCycle = (time * 0.68 + (isNext ? 0 : 0.5)) % 1;
+  const rippleRad = Math.max(2, sealRx * (0.45 + rippleCycle * 0.88));
+  ctx.strokeStyle = primary;
+  ctx.globalAlpha = (1 - rippleCycle) * 0.52 * sealEase;
+  ctx.lineWidth = 2.0;
+  ctx.beginPath();
+  ctx.arc(0, 0, rippleRad, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Awakening shockwave burst during birth
+  if (age < 0.85) {
+    const birthP = age / 0.85;
+    const birthR = Math.max(2, 16 + birthP * 86);
+    ctx.strokeStyle = rimGlow;
+    ctx.globalAlpha = (1 - birthP) * 0.85;
+    ctx.lineWidth = 3.2 * (1 - birthP * 0.6);
+    ctx.beginPath();
+    ctx.arc(0, 0, birthR, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // Outer rotating runic circle
+  ctx.save();
+  ctx.rotate(phase * 0.72 * spinDir);
+  ctx.globalAlpha = (0.68 + pulse * 0.22) * sealEase;
+  ctx.strokeStyle = primary;
+  ctx.lineWidth = 2.1;
+  ctx.beginPath();
+  ctx.arc(0, 0, sealRx, 0, Math.PI * 2 * sealRaw);
+  ctx.stroke();
+
+  // 8 Arcane rune notches around outer ring
+  if (sealRaw > 0.35) {
+    ctx.lineWidth = 1.8;
+    ctx.strokeStyle = rimGlow;
+    for (let i = 0; i < 8; i++) {
+      const a = (i * Math.PI) / 4;
+      const c = Math.cos(a);
+      const s = Math.sin(a);
+      ctx.beginPath();
+      ctx.moveTo(c * (sealRx - 5), s * (sealRx - 5));
+      ctx.lineTo(c * (sealRx + 3.5), s * (sealRx + 3.5));
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+
+  // Inner counter-rotating sacred star seal
+  if (sealRaw > 0.2) {
+    ctx.save();
+    ctx.rotate(-phase * 1.15 * spinDir);
+    const innerR = Math.max(2, sealRx * 0.72);
+    ctx.globalAlpha = 0.58 * sealEase;
+    ctx.strokeStyle = secondary;
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.arc(0, 0, innerR, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Inscribed 6-point arcane star (two interlaced triangles)
+    ctx.globalAlpha = 0.45 * sealEase;
+    ctx.strokeStyle = primary;
+    for (let tri = 0; tri < 2; tri++) {
+      const offset = tri * (Math.PI / 3);
+      ctx.beginPath();
+      for (let v = 0; v < 3; v++) {
+        const va = offset + (v * Math.PI * 2) / 3;
+        const vx = Math.cos(va) * innerR;
+        const vy = Math.sin(va) * innerR;
+        if (v === 0) ctx.moveTo(vx, vy);
+        else ctx.lineTo(vx, vy);
+      }
+      ctx.closePath();
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // Step-In Warp Resonance Progress Ring
+  if (charge > 0.01) {
+    ctx.globalAlpha = 0.95;
+    ctx.strokeStyle = rimGlow;
+    ctx.lineWidth = 4.2;
+    ctx.beginPath();
+    ctx.arc(0, 0, sealRx + 6, -Math.PI * 0.5, -Math.PI * 0.5 + Math.PI * 2 * charge);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+
+  // 2. Back-Half Orbiting Carved Runestones (2.5D behind vortex)
+  const orbitRx = 38 + charge * 4;
+  const orbitRy = 15;
+  if (stoneRise > 0.02) {
+    for (let i = 0; i < 4; i++) {
+      const oa = time * 1.25 * spinDir + (i * Math.PI) / 2;
+      if (Math.sin(oa) < 0) {
+        const sx = cx + Math.cos(oa) * orbitRx * stoneRise;
+        const bob = Math.sin(time * 3.4 + i * 1.6) * 4.5;
+        const sy = baseY - 18 * stoneRise + Math.sin(oa) * orbitRy + bob;
+        drawPortalRunestone(ctx, sx, sy, 0.86 * stoneRise, primary, pulse);
+      }
+    }
+  }
+
+  // 3. Standing Elliptical Dimensional Vortex Aperture
+  const vortexCx = cx;
+  const vortexCy = cy - 8 + Math.sin(time * 2.6) * 2.2;
+  const apertureH = Math.max(4, 36 * Math.min(1, age / 0.35));
+  const apertureW = Math.max(2.2, (25 + charge * 3.5) * Math.max(0.06, riftBack));
+
+  ctx.save();
+  ctx.translate(vortexCx, vortexCy);
+
+  // Outer volumetric aura halo
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const auraR = Math.max(6, apertureH * 1.48);
+  const auraGrad = ctx.createRadialGradient(0, 0, 2, 0, 0, auraR);
+  auraGrad.addColorStop(0, isNext ? 'rgba(56, 189, 248, 0.42)' : 'rgba(251, 191, 36, 0.42)');
+  auraGrad.addColorStop(0.5, isNext ? 'rgba(168, 85, 247, 0.2)' : 'rgba(245, 158, 11, 0.2)');
+  auraGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = auraGrad;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, Math.max(4, apertureW * 1.65), auraR, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // Deep Event-Horizon Core (elliptical clip/scale space)
+  ctx.save();
+  ctx.scale(apertureW / apertureH, 1);
+
+  const coreGrad = ctx.createRadialGradient(0, 0, 1, 0, 0, apertureH);
+  coreGrad.addColorStop(0, coreDark);
+  coreGrad.addColorStop(0.52, coreMid);
+  coreGrad.addColorStop(0.86, secondary);
+  coreGrad.addColorStop(1, primary);
+  ctx.fillStyle = coreGrad;
+  ctx.beginPath();
+  ctx.arc(0, 0, apertureH, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 6 Rotating Curved Vortex Spiral Ribbons pulling into the event horizon
+  if (riftRaw > 0.15) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const armSpin = phase * 2.35 * spinDir;
+    for (let a = 0; a < 6; a++) {
+      const baseAng = armSpin + (a * Math.PI) / 3;
+      const outerX = Math.cos(baseAng) * (apertureH * 0.94);
+      const outerY = Math.sin(baseAng) * (apertureH * 0.94);
+      const ctrlAng = baseAng + 0.92 * spinDir;
+      const ctrlX = Math.cos(ctrlAng) * (apertureH * 0.54);
+      const ctrlY = Math.sin(ctrlAng) * (apertureH * 0.54);
+      const innerAng = baseAng + 1.85 * spinDir;
+      const innerX = Math.cos(innerAng) * (apertureH * 0.12);
+      const innerY = Math.sin(innerAng) * (apertureH * 0.12);
+
+      ctx.strokeStyle = a % 2 === 0 ? primary : secondary;
+      ctx.globalAlpha = 0.56 + 0.24 * Math.sin(time * 5 + a);
+      ctx.lineWidth = a % 2 === 0 ? 3.0 : 2.1;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(outerX, outerY);
+      ctx.quadraticCurveTo(ctrlX, ctrlY, innerX, innerY);
+      ctx.stroke();
+    }
+
+    // Inner counter-swirling starlight ring
+    ctx.strokeStyle = rimGlow;
+    ctx.globalAlpha = 0.65 + pulse * 0.25;
+    ctx.lineWidth = 1.9;
+    ctx.beginPath();
+    ctx.arc(
+      0,
+      0,
+      Math.max(1.5, apertureH * (0.34 + 0.05 * Math.sin(time * 6))),
+      -armSpin * 1.3,
+      -armSpin * 1.3 + Math.PI * 1.35
+    );
+    ctx.stroke();
+
+    // Central singularity star-flash
+    const singR = Math.max(1.5, (5.5 + pulse * 3.5 + charge * 4) * riftRaw);
+    ctx.fillStyle = rimGlow;
+    ctx.globalAlpha = 0.85;
+    ctx.beginPath();
+    ctx.arc(0, 0, singR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Luminous Dimensional Gateway Rim + Crackling Energy Arcs
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.strokeStyle = primary;
+  ctx.globalAlpha = 0.9;
+  ctx.lineWidth = 3.2;
+  ctx.beginPath();
+  ctx.arc(0, 0, apertureH, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.strokeStyle = rimGlow;
+  ctx.globalAlpha = 0.88;
+  ctx.lineWidth = 1.6;
+  for (let r = 0; r < 3; r++) {
+    const arcStart = phase * 2.9 * spinDir + (r * Math.PI * 2) / 3;
+    ctx.beginPath();
+    ctx.arc(0, 0, apertureH + 1.5, arcStart, arcStart + 0.72);
+    ctx.stroke();
+  }
+
+  ctx.restore(); // end elliptical scale
+  ctx.restore(); // end vortex translate
+
+  // 4. Deterministic Zero-Allocation Rising Dimensional Motes
+  if (sealEase > 0.3) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (let m = 0; m < 10; m++) {
+      const mPhase = (time * (0.58 + (m % 3) * 0.14) + m * 0.618034) % 1;
+      const mAngle = mPhase * Math.PI * 3.2 * spinDir + m * 1.9;
+      const spread = (1 - mPhase * 0.45) * 32 * sealEase;
+      const mx = cx + Math.cos(mAngle) * spread;
+      const my = baseY + 4 - mPhase * 76;
+      const mSize = Math.max(0.8, (1 - mPhase) * (m % 2 === 0 ? 3.2 : 2.3));
+
+      ctx.globalAlpha = Math.sin(mPhase * Math.PI) * 0.92;
+      ctx.fillStyle = m % 3 === 0 ? rimGlow : m % 2 === 0 ? primary : secondary;
+      ctx.beginPath();
+      ctx.arc(mx, my, mSize, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // 5. Front-Half Orbiting Carved Runestones (2.5D in front of vortex)
+  if (stoneRise > 0.02) {
+    for (let i = 0; i < 4; i++) {
+      const oa = time * 1.25 * spinDir + (i * Math.PI) / 2;
+      if (Math.sin(oa) >= 0) {
+        const sx = cx + Math.cos(oa) * orbitRx * stoneRise;
+        const bob = Math.sin(time * 3.4 + i * 1.6) * 4.5;
+        const sy = baseY - 18 * stoneRise + Math.sin(oa) * orbitRy + bob;
+        drawPortalRunestone(ctx, sx, sy, 1.02 * stoneRise, rimGlow, pulse);
+      }
+    }
+  }
+
+  // 6. Floating Destination Label above the Portal
+  const labelText = prop.label || (isNext ? 'Next Dungeon' : 'Return to Lobby');
+  const labelY = cy - 54 + Math.sin(time * 2.6) * 2;
+  drawWorldLabel(ctx, cx, labelY, labelText, labelColor);
 }
 
 
@@ -4987,39 +5336,44 @@ function drawSingleTigerkinClaw(
   ctx.restore();
 }
 
-function drawFloatingGhostLantern(
+function drawGhostSoulLanternAt(
   ctx: CanvasRenderingContext2D,
-  player: PlayerRenderState,
+  x: number,
+  y: number,
+  swayAngle: number,
+  scale: number,
+  glowColor: string,
+  glowIntensity: number,
+  isNightmare: boolean,
   time: number
 ) {
   ctx.save();
-  ctx.translate(player.swordX, player.swordY - player.airborneHeight);
+  ctx.translate(x, y);
 
   // Soft ectoplasm floor glow under floating lantern
   ctx.fillStyle = 'rgba(94, 234, 212, 0.16)';
   ctx.beginPath();
-  ctx.ellipse(0, 24, 9 * player.swordScale, 3.8, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, 24, 9 * scale, 3.8, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  const sway = Math.sin(time * 4.2) * 0.12 + player.swordAngle * 0.35;
+  const sway = Math.sin(time * 4.2) * 0.12 + swayAngle * 0.35;
   ctx.rotate(sway);
-  ctx.scale(player.swordScale, player.swordScale);
+  ctx.scale(scale, scale);
 
-  const isNightmare = player.nightmareTimer > 0;
   const flameOuter = isNightmare ? '#c084fc' : '#2dd4bf';
   const flameInner = '#e0e7ff';
 
   // GPU-friendly additive astral halo around lantern
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
-  ctx.globalAlpha = Math.min(0.68, 0.28 + player.swordGlowIntensity * 0.32);
-  ctx.fillStyle = player.swordGlowColor;
+  ctx.globalAlpha = Math.min(0.68, 0.28 + glowIntensity * 0.32);
+  ctx.fillStyle = glowColor;
   ctx.beginPath();
   ctx.arc(0, 2, 18, 0, Math.PI * 2);
   ctx.fill();
 
   // Channeling rune ring when casting or firing homing wisps!
-  if (player.swordGlowIntensity > 0.45) {
+  if (glowIntensity > 0.45) {
     ctx.strokeStyle = '#5eead4';
     ctx.lineWidth = 1.6;
     ctx.beginPath();
@@ -5107,6 +5461,24 @@ function drawFloatingGhostLantern(
   ctx.restore();
 
   ctx.restore();
+}
+
+function drawFloatingGhostLantern(
+  ctx: CanvasRenderingContext2D,
+  player: PlayerRenderState,
+  time: number
+) {
+  drawGhostSoulLanternAt(
+    ctx,
+    player.swordX,
+    player.swordY - player.airborneHeight,
+    player.swordAngle,
+    player.swordScale,
+    player.swordGlowColor,
+    player.swordGlowIntensity,
+    player.nightmareTimer > 0,
+    time
+  );
 }
 
 /**
@@ -6638,39 +7010,41 @@ function drawEnemy(ctx: CanvasRenderingContext2D, e: EnemyEntity, time: number, 
     scarfColor = '#581c87';
     crown = '#f59e0b';
   } else if (isMiniHeroKind(e.kind)) {
-    scale = 0.72;
-    if (e.kind === EnemyKind.MINI_ZOMBIE) {
-      eyeColor = '#84cc16';
-      scarfColor = '#14532d';
+    scale = 0.74;
+    // Exact original Undead Legion hero colors
+    if (e.kind === EnemyKind.MINI_SKELETON) {
+      eyeColor = '#67e8f9';
+      scarfColor = '#9a3412';
+    } else if (e.kind === EnemyKind.MINI_ZOMBIE) {
+      eyeColor = '#d9f99d';
+      scarfColor = '#581c87';
     } else if (e.kind === EnemyKind.MINI_GHOUL) {
       eyeColor = '#f43f5e';
       scarfColor = '#881337';
-    } else if (e.kind === EnemyKind.MINI_GHOST) {
-      eyeColor = '#38bdf8';
-      scarfColor = '#1e1b4b';
     } else {
-      eyeColor = '#fb923c';
-      scarfColor = '#7c2d12';
+      eyeColor = '#5eead4';
+      scarfColor = '#312e81';
     }
   } else if (isUndeadLegionBoss(e.kind)) {
-    scale = 2.0;
-    crown = '#fbbf24';
-    if (e.kind === EnemyKind.BOSS_LEGION_ZOMBIE) {
-      eyeColor = '#a3e635';
-      scarfColor = '#14532d';
-      scale = 2.15;
+    const isBossTransformed = (e.bossTransformTimer || 0) > 0;
+    scale = isBossTransformed ? 2.15 : 1.78;
+    // Exact original Undead Legion hero appearance (crown/transformation only active during Ultimate!)
+    if (e.kind === EnemyKind.BOSS_LEGION_SKELETON) {
+      eyeColor = isBossTransformed ? '#fde047' : '#67e8f9';
+      scarfColor = '#9a3412';
+      crown = isBossTransformed ? '#fbbf24' : null;
+    } else if (e.kind === EnemyKind.BOSS_LEGION_ZOMBIE) {
+      eyeColor = '#d9f99d';
+      scarfColor = '#581c87';
+      crown = null;
     } else if (e.kind === EnemyKind.BOSS_LEGION_GHOUL) {
-      eyeColor = '#ef4444';
-      scarfColor = '#4c0519';
-      scale = 1.95;
-    } else if (e.kind === EnemyKind.BOSS_LEGION_GHOST) {
-      eyeColor = '#67e8f9';
-      scarfColor = '#1e1b4b';
-      scale = 1.92;
+      eyeColor = '#f43f5e';
+      scarfColor = '#881337';
+      crown = null;
     } else {
-      eyeColor = '#f97316';
-      scarfColor = '#450a0a';
-      scale = 2.05;
+      eyeColor = '#5eead4';
+      scarfColor = '#312e81';
+      crown = null;
     }
   }
 
@@ -6766,23 +7140,27 @@ function drawEnemy(ctx: CanvasRenderingContext2D, e: EnemyEntity, time: number, 
 
   const fearShakeX = e.fearTimer > 0 ? Math.sin(time * 42 + e.id) * 2.2 : 0;
 
-  // Undead Legion Boss Floor Runes & Dark Aura
+  const isBossTransformed = isUndeadLegionBoss(e.kind) && (e.bossTransformTimer || 0) > 0;
+  const isBossBuffed = isUndeadLegionBoss(e.kind) && (e.bossBuffTimer || 0) > 0;
+  const bossStealthTimer = isUndeadLegionBoss(e.kind) ? e.bossStealthTimer || 0 : 0;
+
+  // Undead Legion Boss Corrupted Floor Sigil & Authentic Hero Transformation / Buff Floor Auras
   if (isUndeadLegionBoss(e.kind)) {
     ctx.save();
     ctx.translate(drawX, drawY + 14 * scale);
     ctx.rotate(time * 0.9);
     ctx.globalCompositeOperation = 'lighter';
-    const bossGlow = 0.45 + Math.sin(time * 4.5) * 0.25;
+    const bossGlow = 0.42 + Math.sin(time * 4.5) * 0.22;
     ctx.strokeStyle =
       e.kind === EnemyKind.BOSS_LEGION_ZOMBIE
         ? `rgba(132, 204, 22, ${bossGlow})`
         : e.kind === EnemyKind.BOSS_LEGION_GHOUL
-          ? `rgba(239, 68, 68, ${bossGlow})`
+          ? `rgba(244, 63, 94, ${bossGlow})`
           : e.kind === EnemyKind.BOSS_LEGION_GHOST
-            ? `rgba(56, 189, 248, ${bossGlow})`
-            : `rgba(249, 115, 22, ${bossGlow})`;
-    ctx.lineWidth = 2.8;
-    const br = 36 * scale;
+            ? `rgba(94, 234, 212, ${bossGlow})`
+            : `rgba(103, 232, 249, ${bossGlow})`;
+    ctx.lineWidth = 2.6;
+    const br = 30 * scale;
     ctx.beginPath();
     ctx.arc(0, 0, br, 0, Math.PI * 2);
     ctx.stroke();
@@ -6799,6 +7177,82 @@ function drawEnemy(ctx: CanvasRenderingContext2D, e: EnemyEntity, time: number, 
       ctx.stroke();
     }
     ctx.restore();
+
+    // Original Hero Transformation Floor Auras (Bone Colossus, Abomination Form, Apex Predator)
+    if (isBossTransformed) {
+      ctx.save();
+      ctx.translate(drawX, drawY + 8 * scale);
+      ctx.scale(scale, scale);
+      ctx.globalCompositeOperation = 'lighter';
+      if (e.kind === EnemyKind.BOSS_LEGION_GHOUL) {
+        ctx.fillStyle = 'rgba(225, 29, 72, 0.24)';
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 44 + Math.sin(time * 12) * 4, 19, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#f43f5e';
+        ctx.lineWidth = 2.6;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 38, 16, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      } else if (e.kind === EnemyKind.BOSS_LEGION_ZOMBIE) {
+        ctx.fillStyle = 'rgba(132, 204, 22, 0.22)';
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 44 + Math.sin(time * 9) * 4, 20, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#a3e635';
+        ctx.lineWidth = 2.8;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 38, 17, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      } else if (e.kind === EnemyKind.BOSS_LEGION_SKELETON) {
+        ctx.strokeStyle = 'rgba(251, 191, 36, 0.65)';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 35, 16, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    // Ghoul Blood Frenzy Floor Pulse & Rising Embers
+    if (e.kind === EnemyKind.BOSS_LEGION_GHOUL && isBossBuffed) {
+      ctx.save();
+      ctx.translate(drawX, drawY + 7 * scale);
+      ctx.globalCompositeOperation = 'lighter';
+      const pulse = 0.5 + Math.sin(time * 7.5) * 0.25;
+      ctx.fillStyle = `rgba(244, 63, 94, ${0.16 + pulse * 0.08})`;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, (30 + pulse * 4) * scale, 13 * scale, 0, 0, Math.PI * 2);
+      ctx.fill();
+      for (let m = 0; m < 3; m++) {
+        const cyc = (time * 1.4 + m * 0.33) % 1;
+        const mx = Math.cos(m * 2.1 + time * 2.4) * (20 * scale);
+        const my = -cyc * (34 * scale);
+        ctx.globalAlpha = Math.sin(cyc * Math.PI) * 0.72;
+        ctx.fillStyle = m === 0 ? '#ffe4e6' : '#fb7185';
+        ctx.beginPath();
+        ctx.arc(mx, my, 2.8, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    // Zombie Undying Flesh Regeneration Floor Ring
+    if (e.kind === EnemyKind.BOSS_LEGION_ZOMBIE && isBossBuffed) {
+      ctx.save();
+      ctx.translate(drawX, drawY + 6 * scale);
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = 'rgba(34, 197, 94, 0.18)';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, (32 + Math.sin(time * 6) * 3) * scale, 14 * scale, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(74, 222, 128, 0.85)';
+      ctx.lineWidth = 2.6;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, (28 + Math.sin(time * 7) * 3) * scale, 12.5 * scale, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 
   if (e.kind === EnemyKind.MINI_ZOMBIE || e.kind === EnemyKind.BOSS_LEGION_ZOMBIE) {
@@ -6810,7 +7264,7 @@ function drawEnemy(ctx: CanvasRenderingContext2D, e: EnemyEntity, time: number, 
       e.walkPhase,
       scale,
       false,
-      e.kind === EnemyKind.BOSS_LEGION_ZOMBIE,
+      isBossTransformed,
       e.hitFlash
     );
   } else if (
@@ -6818,6 +7272,10 @@ function drawEnemy(ctx: CanvasRenderingContext2D, e: EnemyEntity, time: number, 
     e.kind === EnemyKind.BOSS_LEGION_GHOUL ||
     e.kind === EnemyKind.PLAGUE_STALKER
   ) {
+    ctx.save();
+    if (e.kind === EnemyKind.BOSS_LEGION_GHOUL && bossStealthTimer > 0) {
+      ctx.globalAlpha = 0.36 + Math.sin(time * 18) * 0.08;
+    }
     drawChibiGhoulBody(
       ctx,
       drawX + fearShakeX,
@@ -6826,10 +7284,26 @@ function drawEnemy(ctx: CanvasRenderingContext2D, e: EnemyEntity, time: number, 
       e.walkPhase,
       scale,
       false,
-      e.kind === EnemyKind.BOSS_LEGION_GHOUL,
+      isBossTransformed,
       e.hitFlash
     );
+    ctx.restore();
+
+    if (e.kind === EnemyKind.BOSS_LEGION_GHOUL && bossStealthTimer > 0) {
+      ctx.save();
+      ctx.translate(drawX, drawY - 12 * scale);
+      for (let s = 0; s < 4; s++) {
+        const sa = time * 5.2 + (s * Math.PI) / 2;
+        ctx.fillStyle = s % 2 === 0 ? 'rgba(15, 23, 42, 0.7)' : 'rgba(225, 29, 72, 0.55)';
+        ctx.beginPath();
+        ctx.arc(Math.cos(sa) * 20 * scale, Math.sin(sa * 1.4) * 11 * scale, 4.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
   } else if (e.kind === EnemyKind.MINI_GHOST || e.kind === EnemyKind.BOSS_LEGION_GHOST) {
+    ctx.save();
+    ctx.globalAlpha = 0.94;
     drawChibiGhostBody(
       ctx,
       drawX + fearShakeX,
@@ -6838,10 +7312,32 @@ function drawEnemy(ctx: CanvasRenderingContext2D, e: EnemyEntity, time: number, 
       e.walkPhase,
       scale,
       false,
-      e.kind === EnemyKind.BOSS_LEGION_GHOST,
-      e.hitFlash
+      isBossTransformed,
+      e.hitFlash,
+      bossStealthTimer
     );
+    ctx.restore();
+
+    // Restless Spirit Passive: Orbiting starlight-teal motes when spiritual energy intensifies!
+    if (e.kind === EnemyKind.BOSS_LEGION_GHOST && isBossBuffed && bossStealthTimer <= 0) {
+      ctx.save();
+      ctx.translate(drawX, drawY - 12 * scale);
+      ctx.globalCompositeOperation = 'lighter';
+      for (let s = 0; s < 3; s++) {
+        const ang = time * 4.4 + (s * Math.PI * 2) / 3;
+        const rx = Math.cos(ang) * 26 * scale;
+        const ry = Math.sin(ang) * 14 * scale;
+        ctx.fillStyle = s % 2 === 0 ? '#5eead4' : '#c7d2fe';
+        ctx.globalAlpha = 0.85;
+        ctx.beginPath();
+        ctx.arc(rx, ry, 3.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
   } else {
+    const isLegionOrMiniSkel =
+      e.kind === EnemyKind.BOSS_LEGION_SKELETON || e.kind === EnemyKind.MINI_SKELETON;
     drawChibiSkeletonBody(
       ctx,
       drawX + fearShakeX,
@@ -6853,7 +7349,7 @@ function drawEnemy(ctx: CanvasRenderingContext2D, e: EnemyEntity, time: number, 
         ? '#2dd4bf'
         : e.fearTimer > 0
           ? '#e879f9'
-          : isWindingUp && windProg > 0.65
+          : !isLegionOrMiniSkel && isWindingUp && windProg > 0.65
             ? '#fef08a'
             : eyeColor,
       false,
@@ -6861,6 +7357,77 @@ function drawEnemy(ctx: CanvasRenderingContext2D, e: EnemyEntity, time: number, 
       crown,
       e.hitFlash
     );
+  }
+
+  // Authentic Hero Post-Body Overlays (Undying Flesh Helix, Abomination Sparks, Ribcage Shield Orbiting Bones)
+  if (e.kind === EnemyKind.BOSS_LEGION_ZOMBIE && isBossBuffed) {
+    ctx.save();
+    ctx.translate(drawX, drawY);
+    ctx.globalCompositeOperation = 'lighter';
+    for (let strand = 0; strand < 2; strand++) {
+      ctx.strokeStyle = strand === 0 ? '#4ade80' : '#a3e635';
+      ctx.lineWidth = 2.4;
+      ctx.globalAlpha = 0.78;
+      ctx.beginPath();
+      for (let step = 0; step <= 10; step++) {
+        const frac = step / 10;
+        const ang = time * 6.5 + frac * Math.PI * 2.2 + strand * Math.PI;
+        const hx = Math.cos(ang) * (22 * scale);
+        const hy = 8 - frac * (42 * scale) + Math.sin(ang) * 4;
+        if (step === 0) ctx.moveTo(hx, hy);
+        else ctx.lineTo(hx, hy);
+      }
+      ctx.stroke();
+    }
+    ctx.fillStyle = '#bbf7d0';
+    for (let c = 0; c < 4; c++) {
+      const cyc = (time * 1.45 + c * 0.25) % 1;
+      const cx = Math.cos(c * 1.9 + time * 1.8) * (20 * scale);
+      const cy = 4 - cyc * (48 * scale);
+      ctx.globalAlpha = Math.sin(cyc * Math.PI) * 0.95;
+      ctx.fillRect(cx - 1.5, cy - 5, 3, 10);
+      ctx.fillRect(cx - 5, cy - 1.5, 10, 3);
+    }
+    ctx.restore();
+  }
+
+  if (e.kind === EnemyKind.BOSS_LEGION_ZOMBIE && isBossTransformed) {
+    ctx.save();
+    ctx.translate(drawX, drawY - 16 * scale);
+    ctx.globalCompositeOperation = 'lighter';
+    for (let m = 0; m < 4; m++) {
+      const ma = time * 3.4 + (m * Math.PI) / 2;
+      ctx.fillStyle = m % 2 === 0 ? '#a3e635' : '#c084fc';
+      ctx.globalAlpha = 0.72;
+      ctx.beginPath();
+      ctx.arc(Math.cos(ma) * 28 * scale, Math.sin(ma * 1.5) * 15 * scale, 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  if (
+    (e.kind === EnemyKind.BOSS_LEGION_SKELETON && ((e.shieldHp || 0) > 0 || isBossBuffed)) ||
+    (e.kind === EnemyKind.BOSS_LEGION_ZOMBIE && isBossBuffed)
+  ) {
+    ctx.save();
+    ctx.translate(drawX, drawY - 10 * scale);
+    const count = 6;
+    for (let i = 0; i < count; i++) {
+      const ang = time * 3.8 + (i * Math.PI * 2) / count;
+      const rx = Math.cos(ang) * (34 * scale);
+      const ry = Math.sin(ang) * (20 * scale);
+      ctx.save();
+      ctx.translate(rx, ry);
+      ctx.rotate(ang + Math.PI / 2);
+      ctx.strokeStyle = e.kind === EnemyKind.BOSS_LEGION_ZOMBIE ? '#4ade80' : '#fde68a';
+      ctx.lineWidth = 3.5;
+      ctx.beginPath();
+      ctx.arc(0, 0, 9, -0.9, 0.9);
+      ctx.stroke();
+      ctx.restore();
+    }
+    ctx.restore();
   }
 
   // Ghost Haunted Possession Overhead Puppet Crossbar & Glowing Spirit Mask!
@@ -7320,76 +7887,169 @@ function drawEnemy(ctx: CanvasRenderingContext2D, e: EnemyEntity, time: number, 
     ctx.stroke();
     ctx.restore();
   } else if (e.kind === EnemyKind.MINI_GHOST || e.kind === EnemyKind.BOSS_LEGION_GHOST) {
-    // Ghost Mini & Legion Boss: Ethereal Soul Lantern Catalyst
-    glowColor = '#38bdf8';
-    const lanternFloat = Math.sin(time * 6.5 + e.id) * 3.5;
-    wx = drawX + Math.cos(aimAng + 0.65) * (24 * scale);
-    wy = drawY - 12 * scale + Math.sin(aimAng + 0.65) * (15 * scale) + lanternFloat;
-    if (isWindingUp || isStriking) {
-      wx = drawX + Math.cos(aimAng) * (25 * scale);
-      wy = drawY - 12 * scale + Math.sin(aimAng) * (16 * scale);
-      wScale = scale * 1.16;
+    // Ghost Mini & Corrupted Ghost Boss: Exact Original Floating Soul Lantern Catalyst!
+    if (bossStealthTimer <= 0) {
+      const lanternFloat = Math.sin(time * 6.5 + e.id) * 3.5;
+      wx = drawX + Math.cos(aimAng + 0.65) * (24 * scale);
+      wy = drawY - 12 * scale + Math.sin(aimAng + 0.65) * (15 * scale) + lanternFloat;
+      let lanternGlowInt = 0.35;
+      if (isWindingUp || isStriking) {
+        wx = drawX + Math.cos(aimAng) * (25 * scale);
+        wy = drawY - 12 * scale + Math.sin(aimAng) * (16 * scale);
+        wScale = scale * 1.12;
+        lanternGlowInt = 0.85;
+      }
+      drawGhostSoulLanternAt(
+        ctx,
+        wx,
+        wy,
+        isWindingUp || isStriking ? aimAng * 0.25 : 0,
+        wScale * 0.92,
+        isBossTransformed ? '#c084fc' : '#5eead4',
+        lanternGlowInt,
+        isBossTransformed,
+        time
+      );
     }
-    ctx.save();
-    ctx.translate(wx, wy);
-    ctx.scale(wScale, wScale);
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    ctx.fillStyle = isWindingUp ? '#c084fc' : '#38bdf8';
-    ctx.globalAlpha = 0.42 + Math.sin(time * 8) * 0.15;
-    ctx.beginPath();
-    ctx.arc(0, 2, 11, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-    ctx.strokeStyle = '#94a3b8';
-    ctx.lineWidth = 1.6;
-    ctx.strokeRect(-4.5, -4, 9, 11);
-    ctx.fillStyle = '#67e8f9';
-    ctx.beginPath();
-    ctx.arc(0, 1.5, 3.2, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
   } else if (e.kind === EnemyKind.MINI_ZOMBIE || e.kind === EnemyKind.BOSS_LEGION_ZOMBIE) {
-    // Zombie Mini & Legion Boss: Toxic Rotting Bone-Claw Gauntlet
-    glowColor = '#84cc16';
+    // Zombie Mini & Corrupted Zombie Boss: Exact Original Floating Necrotic Gauntlet Rotting Claws!
+    glowColor = isBossTransformed ? '#c084fc' : '#84cc16';
     if (isWindingUp) {
       const cockAng = aimAng - 1.35 * windProg - 0.4;
-      wx = drawX + Math.cos(cockAng) * (23 * scale);
+      wx = drawX + Math.cos(cockAng) * (24 * scale);
       wy = drawY - 9 * scale + Math.sin(cockAng) * (16 * scale);
       wRot = cockAng;
-      wScale = scale * 1.1;
+      wScale = scale * 1.08;
       glowAlpha = windProg * 0.6;
     } else if (isStriking) {
       const sweep = -1.6 + strikeEase * 3.2;
       const orb = aimAng + sweep;
-      wx = drawX + Math.cos(orb) * (29 * scale);
+      wx = drawX + Math.cos(orb) * (30 * scale);
       wy = drawY - 8 * scale + Math.sin(orb) * (20 * scale);
       wRot = orb;
-      wScale = scale * 1.22;
+      wScale = scale * 1.18;
       glowAlpha = (1 - strikeProg) * 0.7;
     }
     ctx.save();
     ctx.translate(wx, wy);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.24)';
+    ctx.beginPath();
+    ctx.ellipse(0, 22, 10 * wScale, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
     ctx.rotate(wRot);
-    ctx.scale(wScale, wScale);
-    ctx.strokeStyle = '#bef264';
-    ctx.lineWidth = 2.2;
-    ctx.lineCap = 'round';
-    for (const cy of [-4.5, 0, 4.5]) {
+    ctx.scale(wScale * 0.92, wScale * 0.92);
+
+    if (glowAlpha > 0.05) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = Math.min(0.55, glowAlpha * 0.5);
+      ctx.fillStyle = glowColor;
       ctx.beginPath();
-      ctx.moveTo(-2, cy);
-      ctx.quadraticCurveTo(8, cy * 1.25, 16, cy * 0.65);
+      ctx.ellipse(18, 0, 26, 15, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    ctx.fillStyle = '#3b2547';
+    ctx.strokeStyle = '#1c1917';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.arc(0, 0, 9.5, -Math.PI * 0.68, Math.PI * 0.68);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = '#a3e635';
+    ctx.beginPath();
+    ctx.arc(1, 0, 3.2, 0, Math.PI * 2);
+    ctx.fill();
+
+    const clawOffsets = [-7.5, 0, 7.5];
+    for (let i = 0; i < clawOffsets.length; i++) {
+      const cy = clawOffsets[i];
+      const len = i === 1 ? 36 : 29;
+      ctx.fillStyle = '#ecfccb';
+      ctx.strokeStyle = '#1c1917';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.moveTo(5, cy - 2.7);
+      ctx.quadraticCurveTo(19, cy - 4.4, len, cy + (i - 1) * 2.4);
+      ctx.quadraticCurveTo(19, cy + 1.9, 5, cy + 2.7);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.strokeStyle = isBossTransformed ? '#c084fc' : '#84cc16';
+      ctx.lineWidth = 1.7;
+      ctx.beginPath();
+      ctx.moveTo(14, cy - 1);
+      ctx.lineTo(len - 2, cy + (i - 1) * 2.0);
       ctx.stroke();
     }
     ctx.restore();
-  } else if (
-    e.kind === EnemyKind.MINI_GHOUL ||
-    e.kind === EnemyKind.BOSS_LEGION_GHOUL ||
-    e.kind === EnemyKind.PLAGUE_STALKER
-  ) {
-    // Ghoul Mini, Legion Boss & Plague Stalker: Twin Feral Talon Claws
-    const isVenom = e.kind === EnemyKind.PLAGUE_STALKER;
-    glowColor = isVenom ? '#a3e635' : '#f43f5e';
+  } else if (e.kind === EnemyKind.MINI_GHOUL || e.kind === EnemyKind.BOSS_LEGION_GHOUL) {
+    // Ghoul Mini & Corrupted Ghoul Boss: Exact Original Dual Left & Right Feral Talons!
+    glowColor = '#f43f5e';
+    let mainX = drawX + Math.cos(aimAng + 0.72) * (24 * scale);
+    let mainY = drawY - 10 * scale + Math.sin(aimAng + 0.72) * (15 * scale) + hover;
+    let mainRot = aimAng + 0.28;
+    let offX = drawX + Math.cos(aimAng - 0.72) * (24 * scale);
+    let offY = drawY - 10 * scale + Math.sin(aimAng - 0.72) * (15 * scale) - hover;
+    let offRot = aimAng - 0.28;
+    let clawGlow = isBossBuffed ? 0.65 : 0.2;
+
+    if (isWindingUp) {
+      const cockR = aimAng + 0.85 + windProg * 0.55;
+      const cockL = aimAng - 0.85 - windProg * 0.55;
+      mainX = drawX + Math.cos(cockR) * (24 * scale);
+      mainY = drawY - 10 * scale + Math.sin(cockR) * (16 * scale);
+      mainRot = cockR;
+      offX = drawX + Math.cos(cockL) * (24 * scale);
+      offY = drawY - 10 * scale + Math.sin(cockL) * (16 * scale);
+      offRot = cockL;
+      wScale = scale * 1.08;
+      clawGlow = 0.4 + windProg * 0.5;
+    } else if (isStriking) {
+      const sweep = 1.35 - strikeEase * 2.7;
+      const orbR = aimAng + sweep;
+      const orbL = aimAng - sweep;
+      mainX = drawX + Math.cos(orbR) * (30 * scale);
+      mainY = drawY - 8 * scale + Math.sin(orbR) * (20 * scale);
+      mainRot = orbR;
+      offX = drawX + Math.cos(orbL) * (30 * scale);
+      offY = drawY - 8 * scale + Math.sin(orbL) * (20 * scale);
+      offRot = orbL;
+      wScale = scale * 1.18;
+      clawGlow = 0.85 * (1 - strikeProg * 0.5);
+    }
+
+    drawSingleGhoulFeralClaw(
+      ctx,
+      offX,
+      offY,
+      offRot,
+      wScale * 0.9,
+      glowColor,
+      clawGlow,
+      isBossTransformed,
+      bossStealthTimer > 0,
+      -1
+    );
+    drawSingleGhoulFeralClaw(
+      ctx,
+      mainX,
+      mainY,
+      mainRot,
+      wScale * 0.9,
+      glowColor,
+      clawGlow,
+      isBossTransformed,
+      bossStealthTimer > 0,
+      1
+    );
+  } else if (e.kind === EnemyKind.PLAGUE_STALKER) {
+    // Plague Stalker: Venomous Stalker Claws
+    glowColor = '#a3e635';
     if (isWindingUp) {
       const cockAng = aimAng - 1.45 * windProg - 0.45;
       wx = drawX + Math.cos(cockAng) * (23 * scale);
@@ -7408,7 +8068,7 @@ function drawEnemy(ctx: CanvasRenderingContext2D, e: EnemyEntity, time: number, 
     ctx.translate(wx, wy);
     ctx.rotate(wRot);
     ctx.scale(wScale, wScale);
-    ctx.strokeStyle = isVenom ? '#a3e635' : '#fb7185';
+    ctx.strokeStyle = '#a3e635';
     ctx.lineWidth = 2.2;
     ctx.lineCap = 'round';
     for (const cy of [-4, 0, 4]) {
@@ -7419,14 +8079,15 @@ function drawEnemy(ctx: CanvasRenderingContext2D, e: EnemyEntity, time: number, 
     }
     ctx.restore();
   } else if (e.kind === EnemyKind.MINI_SKELETON || e.kind === EnemyKind.BOSS_LEGION_SKELETON) {
-    // Skeleton Mini & Legion Boss: Runed Bone Greatsword
-    glowColor = '#fb923c';
+    // Skeleton Mini & Corrupted Skeleton Boss: Exact Original Floating Sharpened Bone Sword (+ Reaper's Judgment Scythe!)
+    const isScythe = e.kind === EnemyKind.BOSS_LEGION_SKELETON && (e.bossScytheTimer || 0) > 0;
+    glowColor = isScythe ? '#c084fc' : isBossTransformed ? '#fde047' : '#fb923c';
     if (isWindingUp) {
       const cockAng = aimAng - 1.55 * windProg - 0.5;
       wx = drawX + Math.cos(cockAng) * (25 * scale);
       wy = drawY - 10 * scale + Math.sin(cockAng) * (17 * scale);
       wRot = cockAng - 0.45;
-      wScale = scale * 1.1;
+      wScale = scale * 1.08;
       glowAlpha = windProg * 0.6;
     } else if (isStriking) {
       const sweep = -1.85 + strikeEase * 3.65;
@@ -7434,29 +8095,94 @@ function drawEnemy(ctx: CanvasRenderingContext2D, e: EnemyEntity, time: number, 
       wx = drawX + Math.cos(orb) * (32 * scale);
       wy = drawY - 9 * scale + Math.sin(orb) * (22 * scale);
       wRot = orb + 0.38;
-      wScale = scale * 1.26;
-      glowAlpha = (1 - strikeProg) * 0.7;
+      wScale = scale * 1.2;
+      glowAlpha = (1 - strikeProg) * 0.75;
     }
     ctx.save();
     ctx.translate(wx, wy);
-    ctx.rotate(wRot);
-    ctx.scale(wScale, wScale);
-    ctx.fillStyle = '#78350f';
-    ctx.fillRect(-8, -2, 7, 4);
-    ctx.fillStyle = '#f59e0b';
-    ctx.fillRect(-2, -6, 3, 12);
-    ctx.fillStyle = '#f8fafc';
-    ctx.strokeStyle = '#1c1917';
-    ctx.lineWidth = 1.6;
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.24)';
     ctx.beginPath();
-    ctx.moveTo(1, -4.2);
-    ctx.lineTo(23, -2.5);
-    ctx.lineTo(29, 0);
-    ctx.lineTo(23, 2.5);
-    ctx.lineTo(1, 4.2);
-    ctx.closePath();
+    ctx.ellipse(0, 22, 10 * wScale, 4, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.stroke();
+    ctx.rotate(wRot);
+    ctx.scale(wScale * 0.88, wScale * 0.88);
+
+    if (glowAlpha > 0.08 || isScythe) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = Math.min(0.55, isScythe ? 0.5 : glowAlpha * 0.45);
+      ctx.fillStyle = glowColor;
+      ctx.beginPath();
+      ctx.ellipse(18, 0, 26, 10, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    if (isScythe) {
+      ctx.strokeStyle = '#e9d5ff';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(-14, 0);
+      ctx.lineTo(48, 0);
+      ctx.stroke();
+
+      ctx.fillStyle = '#c084fc';
+      ctx.strokeStyle = '#f8fafc';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(42, -2);
+      ctx.quadraticCurveTo(54, 28, 12, 46);
+      ctx.quadraticCurveTo(34, 18, 34, 2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = '#e7e5e4';
+      ctx.strokeStyle = '#1c1917';
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.arc(-11, -2.2, 3, 0, Math.PI * 2);
+      ctx.arc(-11, 2.2, 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#78350f';
+      ctx.fillRect(-9, -2.5, 9, 5);
+      ctx.strokeRect(-9, -2.5, 9, 5);
+
+      ctx.fillStyle = '#d6d3d1';
+      ctx.beginPath();
+      ctx.moveTo(0, -9);
+      ctx.lineTo(5, -4);
+      ctx.lineTo(5, 4);
+      ctx.lineTo(0, 9);
+      ctx.lineTo(-2, 5);
+      ctx.lineTo(-2, -5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#f8fafc';
+      ctx.beginPath();
+      ctx.moveTo(4, -5);
+      ctx.lineTo(20, -5.5);
+      ctx.lineTo(23, -3.5);
+      ctx.lineTo(27, -5.2);
+      ctx.lineTo(40, 0);
+      ctx.lineTo(26, 5.2);
+      ctx.lineTo(4, 5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      const pulse = 0.75 + Math.sin(time * 7) * 0.25;
+      ctx.strokeStyle = glowAlpha > 0.2 ? glowColor : `rgba(103, 232, 249, ${pulse})`;
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.moveTo(6, 0);
+      ctx.lineTo(31, 0);
+      ctx.stroke();
+    }
     ctx.restore();
   } else {
     // Crypt Rattler: Jagged Curved Bone Scimitar with 210° whip-slash!
@@ -7556,16 +8282,26 @@ function drawEnemy(ctx: CanvasRenderingContext2D, e: EnemyEntity, time: number, 
     }
   }
 
-  // Overhead Undead Legion Boss Name & Grand Title
+  // Overhead Corrupted [Name] Boss Nameplate
   if (isUndeadLegionBoss(e.kind)) {
     ctx.save();
-    ctx.translate(drawX, drawY - 56 * scale);
-    ctx.font = 'bold 11px sans-serif';
+    ctx.translate(drawX, drawY - 46 * scale);
     ctx.textAlign = 'center';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.88)';
+    ctx.lineWidth = 3.5;
+
+    ctx.font = '900 12px sans-serif';
+    const bossTitle = (e.name || 'Corrupted Boss').toUpperCase();
+    ctx.strokeText(bossTitle, 0, -4);
     ctx.fillStyle = '#fde047';
-    ctx.shadowColor = '#000000';
-    ctx.shadowBlur = 6;
-    ctx.fillText('UNDEAD LEGION BOSS', 0, -6);
+    ctx.fillText(bossTitle, 0, -4);
+
+    ctx.font = 'bold 9px sans-serif';
+    ctx.lineWidth = 2.8;
+    ctx.strokeText('UNDEAD LEGION', 0, -16);
+    ctx.fillStyle = '#f87171';
+    ctx.fillText('UNDEAD LEGION', 0, -16);
     ctx.restore();
   }
 

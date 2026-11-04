@@ -97,7 +97,7 @@ export default function App() {
 
   const [showSkillTree, setShowSkillTree] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [victoryDismissed, setVictoryDismissed] = useState(false);
+  const [portalWarp, setPortalWarp] = useState<{ kind: 'next' | 'lobby'; seq: number } | null>(null);
   const [blessingOptions, setBlessingOptions] = useState<Blessing[] | null>(null);
   const [showBlessingsTray, setShowBlessingsTray] = useState(false);
 
@@ -140,7 +140,6 @@ export default function App() {
         setHud(snapshot);
       },
       (isGuild) => {
-        setVictoryDismissed(false);
         setPhase(isGuild ? GamePhase.GUILD_HOUSE : GamePhase.DUNGEON);
         if (engineRef.current) {
           setSkillRanks(engineRef.current.getSkillRanks());
@@ -153,6 +152,21 @@ export default function App() {
     engineRef.current?.setOnPromptBlessing((options) => {
       setBlessingOptions(options);
     });
+    let warpTimer: number | null = null;
+    engineRef.current?.setOnPortalWarp((kind) => {
+      if (warpTimer !== null) {
+        window.clearTimeout(warpTimer);
+      }
+      setPortalWarp((prev) => ({ kind, seq: (prev?.seq || 0) + 1 }));
+      warpTimer = window.setTimeout(() => {
+        setPortalWarp(null);
+      }, 580);
+    });
+    return () => {
+      if (warpTimer !== null) {
+        window.clearTimeout(warpTimer);
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -180,6 +194,10 @@ export default function App() {
           }
         }
         if (room.status === 'lobby') {
+          if (engineRef.current?.isMultiplayer) {
+            engineRef.current.resetMultiplayerToLobby();
+            setIsMultiplayer(false);
+          }
           setPhase(GamePhase.MULTIPLAYER_LOBBY);
         }
       },
@@ -187,7 +205,6 @@ export default function App() {
         multiplayerReplacedMapRef.current = true;
         setIsMultiplayer(true);
         setIsMultiplayerLoading(false);
-        setVictoryDismissed(false);
         const localId = multiplayerClient.getLocalPlayerId();
         const me = players.find((p) => p.id === localId);
         if (me && HERO_PROFILES[me.heroId]) {
@@ -255,14 +272,12 @@ export default function App() {
         engineRef.current?.handleRemotePlayerLeft(playerId);
       },
       onFloorCleared: ({ floor }) => {
-        setVictoryDismissed(false);
         engineRef.current?.handleRemoteFloorCleared(floor);
       },
-      onPortalWaiting: ({ readyCount, requiredCount }) => {
-        engineRef.current?.handleRemotePortalWaiting(readyCount, requiredCount);
+      onPortalWaiting: ({ readyCount, requiredCount, portalTarget }) => {
+        engineRef.current?.handleRemotePortalWaiting(readyCount, requiredCount, portalTarget);
       },
       onNextFloor: ({ floor, map, enemies }) => {
-        setVictoryDismissed(false);
         engineRef.current?.handleRemoteNextFloor(floor, map, enemies);
       },
       onFullStateSync: (state) => {
@@ -394,32 +409,42 @@ export default function App() {
     syncCanvasSize();
     window.addEventListener('resize', syncCanvasSize);
 
+    let stopped = false;
     const frame = (now: number) => {
-      const dt = (now - lastTime) / 1000;
-      lastTime = now;
-
-      const paused = pausedRef.current;
-      const { w, h } = getGameViewportSize();
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-
-      if (canvas.width !== Math.floor(w * dpr) || canvas.height !== Math.floor(h * dpr)) {
-        canvas.width = Math.floor(w * dpr);
-        canvas.height = Math.floor(h * dpr);
-      }
-
-      const targetLogicalShortSide = 530;
-      const scaleFactor = Math.min(w, h) / targetLogicalShortSide;
-      const logicalW = w / scaleFactor;
-      const logicalH = h / scaleFactor;
-
-      ctx.setTransform(dpr * scaleFactor, 0, 0, dpr * scaleFactor, 0, 0);
-      engine.stepAndRender(paused ? 0.0001 : dt, ctx, logicalW, logicalH);
-
+      if (stopped) return;
       animId = requestAnimationFrame(frame);
+
+      const rawDt = (now - lastTime) / 1000;
+      lastTime = now;
+      const dt = Number.isFinite(rawDt) ? Math.min(0.05, Math.max(0.0005, rawDt)) : 0.016;
+
+      try {
+        const paused = pausedRef.current;
+        const { w, h } = getGameViewportSize();
+        const safeW = Math.max(120, w);
+        const safeH = Math.max(120, h);
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+        if (canvas.width !== Math.floor(safeW * dpr) || canvas.height !== Math.floor(safeH * dpr)) {
+          canvas.width = Math.floor(safeW * dpr);
+          canvas.height = Math.floor(safeH * dpr);
+        }
+
+        const targetLogicalShortSide = 530;
+        const scaleFactor = Math.max(0.1, Math.min(safeW, safeH) / targetLogicalShortSide);
+        const logicalW = safeW / scaleFactor;
+        const logicalH = safeH / scaleFactor;
+
+        ctx.setTransform(dpr * scaleFactor, 0, 0, dpr * scaleFactor, 0, 0);
+        engine.stepAndRender(paused ? 0.0001 : dt, ctx, logicalW, logicalH);
+      } catch (err) {
+        console.error('Frame step recovered:', err);
+      }
     };
 
     animId = requestAnimationFrame(frame);
     return () => {
+      stopped = true;
       cancelAnimationFrame(animId);
       window.removeEventListener('resize', syncCanvasSize);
     };
@@ -860,7 +885,7 @@ export default function App() {
 
             {hud.bossInfo && (
               <div
-                className={`hidden max-w-xs flex-1 flex-col items-center rounded-2xl border px-4 py-2 backdrop-blur-md sm:flex ${
+                className={`flex max-w-xs flex-1 flex-col items-center rounded-2xl border px-2.5 py-1.5 backdrop-blur-md sm:px-4 sm:py-2 ${
                   hud.bossInfo.isLegionBoss
                     ? 'border-purple-500/80 bg-gradient-to-r from-stone-950/95 via-purple-950/60 to-rose-950/80 shadow-[0_0_20px_rgba(217,70,239,0.3)]'
                     : 'border-rose-500/50 bg-stone-950/85'
@@ -1038,56 +1063,7 @@ export default function App() {
             </div>
           </div>
 
-          {hud.runOutcome === 'victory' && !victoryDismissed && (
-            <div className="pointer-events-auto absolute left-1/2 top-16 z-30 flex w-[90%] max-w-md -translate-x-1/2 flex-col items-center rounded-2xl border border-amber-300/70 bg-stone-950/92 p-4 text-center shadow-2xl backdrop-blur-md">
-              <h3 className="font-display text-lg font-bold text-amber-200">
-                Graveyard Boss Vanquished!
-              </h3>
-              <p className="mt-1 text-xs text-stone-300">
-                Earned +1 Skill Point and +60 Bone Shards.{' '}
-                {isMultiplayer
-                  ? 'Gather your squad at the Boss Portal or vote to descend:'
-                  : 'Step into a portal or choose below:'}
-              </p>
-              <div className="mt-3 flex flex-wrap justify-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setVictoryDismissed(true);
-                    if (isMultiplayer) {
-                      multiplayerClient.sendEnterPortal();
-                    } else {
-                      engineRef.current?.enterDungeon(hud.floor + 1);
-                    }
-                  }}
-                  className="min-h-[42px] whitespace-nowrap rounded-xl bg-cyan-400 px-4 py-2 text-xs font-bold text-stone-950"
-                >
-                  {isMultiplayer ? 'Ready for Next Floor' : 'Next Graveyard Floor'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setVictoryDismissed(true);
-                    if (isMultiplayer) {
-                      handleLeaveMultiplayerRoom();
-                    } else {
-                      engineRef.current?.enterGuildHouse();
-                    }
-                  }}
-                  className="min-h-[42px] whitespace-nowrap rounded-xl border border-amber-300/60 bg-amber-950/70 px-4 py-2 text-xs font-semibold text-amber-100"
-                >
-                  {isMultiplayer ? 'Leave Co-Op Run' : 'Return to Guild'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setVictoryDismissed(true)}
-                  className="min-h-[42px] whitespace-nowrap rounded-xl bg-stone-800 px-3 py-2 text-xs font-medium text-stone-300"
-                >
-                  Explore Room
-                </button>
-              </div>
-            </div>
-          )}
+          {/* Post-boss options are handled purely via the in-world animated portals! */}
 
           {hud.runOutcome === 'defeat' && (
             <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
@@ -1163,6 +1139,38 @@ export default function App() {
             onOpenSkillTree={() => setShowSkillTree(true)}
           />
         </>
+      )}
+
+      {/* 60fps GPU-Composited Dimensional Portal Warp Overlay (transform & opacity only) */}
+      {portalWarp && (
+        <div
+          key={portalWarp.seq}
+          className="pointer-events-none fixed inset-0 z-50 overflow-hidden"
+          aria-hidden="true"
+        >
+          <div
+            className={`animate-portal-warp-backdrop absolute inset-0 ${
+              portalWarp.kind === 'lobby'
+                ? 'bg-radial from-amber-300/45 via-amber-950/55 to-stone-950/85'
+                : 'bg-radial from-cyan-300/45 via-indigo-950/60 to-slate-950/90'
+            }`}
+          />
+          <div
+            className={`animate-portal-warp-ring absolute left-1/2 top-1/2 h-64 w-64 rounded-full border-4 border-dashed ${
+              portalWarp.kind === 'lobby' ? 'border-amber-300/90' : 'border-cyan-300/90'
+            }`}
+          />
+          <div
+            className={`animate-portal-warp-counter absolute left-1/2 top-1/2 h-44 w-44 rounded-full border-2 ${
+              portalWarp.kind === 'lobby' ? 'border-rose-300/85' : 'border-purple-400/85'
+            }`}
+          />
+          <div
+            className={`animate-portal-warp-core absolute left-1/2 top-1/2 h-28 w-28 rounded-full ${
+              portalWarp.kind === 'lobby' ? 'bg-amber-100/80' : 'bg-cyan-100/80'
+            }`}
+          />
+        </div>
       )}
 
       {showSkillTree && (

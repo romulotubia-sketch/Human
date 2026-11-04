@@ -70,8 +70,12 @@ export interface MultiplayerCallbacks {
   onPlayerDisconnected?: (payload: { playerId: string; name: string }) => void;
   onPlayerReconnected?: (payload: { playerId: string; name: string }) => void;
   onPlayerLeft?: (payload: { playerId: string; name: string }) => void;
-  onFloorCleared?: (payload: { floor: number; portalProp?: WorldProp }) => void;
-  onPortalWaiting?: (payload: { readyCount: number; requiredCount: number }) => void;
+  onFloorCleared?: (payload: { floor: number; portalProp?: WorldProp; portalProps?: WorldProp[] }) => void;
+  onPortalWaiting?: (payload: {
+    readyCount: number;
+    requiredCount: number;
+    portalTarget?: 'next' | 'lobby';
+  }) => void;
   onNextFloor?: (payload: {
     floor: number;
     map: WorldMap;
@@ -438,9 +442,10 @@ export class MultiplayerClient {
     });
   }
 
-  public sendEnterPortal() {
+  public sendEnterPortal(portalKind: 'next' | 'lobby' = 'next') {
     this.send({
       type: 'c:enter_portal',
+      portalKind,
     });
   }
 
@@ -614,6 +619,7 @@ export class MultiplayerClient {
           this.callbacks.onFloorCleared?.({
             floor: data.floor,
             portalProp: data.portalProp,
+            portalProps: Array.isArray(data.portalProps) ? data.portalProps : undefined,
           });
           break;
         }
@@ -622,6 +628,7 @@ export class MultiplayerClient {
           this.callbacks.onPortalWaiting?.({
             readyCount: data.readyCount,
             requiredCount: data.requiredCount,
+            portalTarget: data.portalTarget === 'lobby' ? 'lobby' : 'next',
           });
           break;
         }

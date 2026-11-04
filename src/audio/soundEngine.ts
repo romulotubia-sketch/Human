@@ -2,22 +2,37 @@ class SoundEngine {
   private ctx: AudioContext | null = null;
   private volume = 0.65;
 
+  private lastSlashMs = 0;
+  private lastHitMs = 0;
+  private lastClangMs = 0;
+
+  private clampFreq(f: number, fallback = 220): number {
+    if (!Number.isFinite(f)) return fallback;
+    return Math.max(24, Math.min(12000, f));
+  }
+
   public setVolume(v: number) {
-    this.volume = Math.max(0, Math.min(1, v));
+    this.volume = Math.max(0, Math.min(1, Number.isFinite(v) ? v : 0.65));
   }
 
   private ensureContext(): AudioContext | null {
     if (this.volume <= 0.01) return null;
-    if (!this.ctx && typeof window !== 'undefined') {
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      if (AudioCtx) {
-        this.ctx = new AudioCtx();
+    try {
+      if (!this.ctx && typeof window !== 'undefined') {
+        const AudioCtx =
+          window.AudioContext ||
+          (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+        if (AudioCtx) {
+          this.ctx = new AudioCtx();
+        }
       }
+      if (this.ctx && this.ctx.state === 'suspended') {
+        this.ctx.resume().catch(() => {});
+      }
+      return this.ctx;
+    } catch {
+      return null;
     }
-    if (this.ctx && this.ctx.state === 'suspended') {
-      this.ctx.resume().catch(() => {});
-    }
-    return this.ctx;
   }
 
   public unlock() {
@@ -25,44 +40,60 @@ class SoundEngine {
   }
 
   public playSlash(pitch = 1) {
+    const nowMs = performance.now();
+    if (nowMs - this.lastSlashMs < 18) return;
+    this.lastSlashMs = nowMs;
+
     const ctx = this.ensureContext();
     if (!ctx) return;
-    const now = ctx.currentTime;
+    try {
+      const now = ctx.currentTime;
+      const safePitch = Number.isFinite(pitch) ? Math.max(0.4, Math.min(2.5, pitch)) : 1;
 
-    // Crisp airy sword whoosh using filtered noise + triangle sweep
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'triangle';
-    osc.frequency.setValueAtTime(360 * pitch, now);
-    osc.frequency.exponentialRampToValueAtTime(95 * pitch, now + 0.11);
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(this.clampFreq(360 * safePitch), now);
+      osc.frequency.exponentialRampToValueAtTime(this.clampFreq(95 * safePitch), now + 0.11);
 
-    gain.gain.setValueAtTime(0.14 * this.volume, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+      gain.gain.setValueAtTime(Math.max(0.002, 0.14 * this.volume), now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
 
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start(now);
-    osc.stop(now + 0.13);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.13);
+    } catch {
+      // ignore transient audio node error
+    }
   }
 
   public playHit(isCrit = false) {
+    const nowMs = performance.now();
+    if (nowMs - this.lastHitMs < 18) return;
+    this.lastHitMs = nowMs;
+
     const ctx = this.ensureContext();
     if (!ctx) return;
-    const now = ctx.currentTime;
+    try {
+      const now = ctx.currentTime;
 
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = isCrit ? 'sawtooth' : 'sine';
-    osc.frequency.setValueAtTime(isCrit ? 620 : 230, now);
-    osc.frequency.exponentialRampToValueAtTime(isCrit ? 180 : 85, now + (isCrit ? 0.15 : 0.08));
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = isCrit ? 'sawtooth' : 'sine';
+      osc.frequency.setValueAtTime(isCrit ? 620 : 230, now);
+      osc.frequency.exponentialRampToValueAtTime(isCrit ? 180 : 85, now + (isCrit ? 0.15 : 0.08));
 
-    gain.gain.setValueAtTime((isCrit ? 0.18 : 0.11) * this.volume, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + (isCrit ? 0.16 : 0.09));
+      gain.gain.setValueAtTime(Math.max(0.002, (isCrit ? 0.18 : 0.11) * this.volume), now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + (isCrit ? 0.16 : 0.09));
 
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start(now);
-    osc.stop(now + 0.17);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.17);
+    } catch {
+      // ignore transient audio node error
+    }
   }
 
   public playSkill(type: 'spear' | 'shield' | 'rush' | 'storm' | 'ultimate') {
@@ -224,31 +255,42 @@ class SoundEngine {
   }
 
   public playPipeClang(pitch = 1, heavy = false) {
+    const nowMs = performance.now();
+    if (nowMs - this.lastClangMs < 20) return;
+    this.lastClangMs = nowMs;
+
     const ctx = this.ensureContext();
     if (!ctx) return;
-    const now = ctx.currentTime;
+    try {
+      const now = ctx.currentTime;
+      const safePitch = Number.isFinite(pitch) ? Math.max(0.4, Math.min(2.4, pitch)) : 1;
 
-    // Authentic hollow steel pipe ring (inharmonic metallic overtones + blunt thud)
-    const partials = heavy ? [145, 582, 1140, 1790] : [175, 690, 1315];
-    partials.forEach((freq, idx) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = idx === 0 ? 'triangle' : 'sine';
-      const dur = idx === 0 ? (heavy ? 0.14 : 0.09) : (heavy ? 0.24 : 0.16);
-      osc.frequency.setValueAtTime(freq * pitch, now);
-      if (idx === 0) {
-        osc.frequency.exponentialRampToValueAtTime(52 * pitch, now + dur);
-      } else {
-        osc.frequency.exponentialRampToValueAtTime(freq * 0.96 * pitch, now + dur);
-      }
-      const amp = (idx === 0 ? 0.15 : heavy ? 0.095 : 0.068) * this.volume;
-      gain.gain.setValueAtTime(amp, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + dur + 0.01);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(now);
-      osc.stop(now + dur + 0.02);
-    });
+      const partials = heavy ? [145, 582, 1140, 1790] : [175, 690, 1315];
+      partials.forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = idx === 0 ? 'triangle' : 'sine';
+        const dur = idx === 0 ? (heavy ? 0.14 : 0.09) : heavy ? 0.24 : 0.16;
+        osc.frequency.setValueAtTime(this.clampFreq(freq * safePitch), now);
+        if (idx === 0) {
+          osc.frequency.exponentialRampToValueAtTime(this.clampFreq(52 * safePitch), now + dur);
+        } else {
+          osc.frequency.exponentialRampToValueAtTime(
+            this.clampFreq(freq * 0.96 * safePitch),
+            now + dur
+          );
+        }
+        const amp = Math.max(0.002, (idx === 0 ? 0.15 : heavy ? 0.095 : 0.068) * this.volume);
+        gain.gain.setValueAtTime(amp, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + dur + 0.01);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + dur + 0.02);
+      });
+    } catch {
+      // ignore
+    }
   }
 
   public playFeatherShoot(pitch = 1, heavy = false) {
@@ -358,6 +400,56 @@ class SoundEngine {
       osc.start(now);
       osc.stop(now + 0.46);
     });
+  }
+
+  public playPortalSpawn() {
+    const ctx = this.ensureContext();
+    if (!ctx) return;
+    try {
+      const now = ctx.currentTime;
+      // Shimmering dimensional rift opening chord
+      [293.66, 440, 587.33, 880].forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = idx % 2 === 0 ? 'sine' : 'triangle';
+        const delay = idx * 0.055;
+        osc.frequency.setValueAtTime(this.clampFreq(freq * 0.72), now + delay);
+        osc.frequency.exponentialRampToValueAtTime(this.clampFreq(freq * 1.18), now + delay + 0.42);
+        gain.gain.setValueAtTime(0.001, now + delay);
+        gain.gain.linearRampToValueAtTime(Math.max(0.002, 0.11 * this.volume), now + delay + 0.08);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.52);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + delay);
+        osc.stop(now + delay + 0.55);
+      });
+    } catch {
+      // ignore
+    }
+  }
+
+  public playPortalWarp(isLobby = false) {
+    const ctx = this.ensureContext();
+    if (!ctx) return;
+    try {
+      const now = ctx.currentTime;
+      const base = isLobby ? [329.63, 493.88, 659.25] : [261.63, 392.0, 523.25];
+      base.forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = idx === 2 ? 'triangle' : 'sine';
+        osc.frequency.setValueAtTime(this.clampFreq(freq), now);
+        osc.frequency.exponentialRampToValueAtTime(this.clampFreq(freq * 1.85), now + 0.34);
+        gain.gain.setValueAtTime(Math.max(0.002, 0.12 * this.volume), now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.4);
+      });
+    } catch {
+      // ignore
+    }
   }
 }
 

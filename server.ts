@@ -229,7 +229,8 @@ wss.on('connection', (ws: WebSocket) => {
 
         case 'c:enter_portal': {
           if (attachedPlayerId) {
-            roomManager.handleEnterPortal(attachedPlayerId);
+            const portalKind = data.portalKind === 'lobby' ? 'lobby' : 'next';
+            roomManager.handleEnterPortal(attachedPlayerId, portalKind);
           }
           break;
         }

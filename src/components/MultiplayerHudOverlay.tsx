@@ -9,7 +9,11 @@ interface MultiplayerHudOverlayProps {
   localReviveProgress: number;
   revivingTargetName: string | null;
   revivingProgress: number;
-  portalWaiting: { readyCount: number; requiredCount: number } | null;
+  portalWaiting: {
+    readyCount: number;
+    requiredCount: number;
+    portalTarget?: 'next' | 'lobby';
+  } | null;
 }
 
 export function MultiplayerHudOverlay({
@@ -138,10 +142,22 @@ export function MultiplayerHudOverlay({
       {/* Portal Waiting Counter */}
       {portalWaiting && portalWaiting.readyCount > 0 && (
         <div className="pointer-events-none absolute left-1/2 top-14 z-30 -translate-x-1/2">
-          <div className="flex items-center gap-2 rounded-xl border border-cyan-400/60 bg-stone-950/90 px-3.5 py-1.5 text-xs font-semibold text-cyan-100 shadow-xl backdrop-blur-md">
-            <Sparkles className="h-3.5 w-3.5 text-cyan-300" />
+          <div
+            className={`flex items-center gap-2 rounded-xl border px-3.5 py-1.5 text-xs font-semibold shadow-xl backdrop-blur-md ${
+              portalWaiting.portalTarget === 'lobby'
+                ? 'border-amber-400/70 bg-amber-950/90 text-amber-100'
+                : 'border-cyan-400/60 bg-stone-950/90 text-cyan-100'
+            }`}
+          >
+            <Sparkles
+              className={`h-3.5 w-3.5 ${
+                portalWaiting.portalTarget === 'lobby' ? 'text-amber-300' : 'text-cyan-300'
+              }`}
+            />
             <span>
-              Graveyard Portal Ready ({portalWaiting.readyCount}/{portalWaiting.requiredCount} Heroes)
+              {portalWaiting.portalTarget === 'lobby'
+                ? `Return to Lobby Portal (${portalWaiting.readyCount}/${portalWaiting.requiredCount} Heroes)`
+                : `Next Dungeon Portal (${portalWaiting.readyCount}/${portalWaiting.requiredCount} Heroes)`}
             </span>
           </div>
         </div>

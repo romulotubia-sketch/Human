@@ -41,6 +41,7 @@ interface ServerEnemyProjectile {
   damage: number;
   life: number;
   maxLife: number;
+  homing?: boolean;
 }
 
 interface GameRoom {
@@ -55,6 +56,7 @@ interface GameRoom {
   enemyProjectiles: ServerEnemyProjectile[];
   loot: Map<number, SyncLootItem>;
   nextFloorReady: Set<string>;
+  returnLobbyReady: Set<string>;
   loopInterval: NodeJS.Timeout | null;
   lastTickTime: number;
   createdAt: number;
@@ -127,6 +129,7 @@ export class RoomManager {
       enemyProjectiles: [],
       loot: new Map(),
       nextFloorReady: new Set(),
+      returnLobbyReady: new Set(),
       loopInterval: null,
       lastTickTime: Date.now(),
       createdAt: Date.now(),
@@ -305,6 +308,7 @@ export class RoomManager {
     room.floor = floor;
     room.floorCleared = false;
     room.nextFloorReady.clear();
+    room.returnLobbyReady.clear();
     room.enemyProjectiles = [];
     room.loot.clear();
     room.enemies.clear();
@@ -517,7 +521,19 @@ export class RoomManager {
     const enemy = room.enemies.get(enemyId);
     if (!enemy || enemy.hp <= 0) return;
 
-    const clampedDmg = Math.max(1, Math.min(2500, Math.round(damage)));
+    let clampedDmg = Math.max(1, Math.min(2500, Math.round(damage)));
+
+    // Corrupted Ghost Passives: Ethereal Body & Restless Spirit (phase-shimmer evade + spiritual power surge)
+    if (enemy.kind === EnemyKind.BOSS_LEGION_GHOST && Math.random() < 0.18) {
+      clampedDmg = Math.max(1, Math.round(clampedDmg * 0.35));
+      enemy.bossBuffTimer = 4.0;
+    }
+
+    // Corrupted Skeleton Passive: Eternal Framework (fortified bone ward reduces incoming damage while shielded)
+    if (enemy.kind === EnemyKind.BOSS_LEGION_SKELETON && (enemy.shieldHp || 0) > 0) {
+      clampedDmg = Math.max(1, Math.round(clampedDmg * 0.8));
+    }
+
     let hpDmg = clampedDmg;
     if ((enemy.shieldHp || 0) > 0) {
       const absorbed = Math.min(enemy.shieldHp || 0, hpDmg);
@@ -638,27 +654,49 @@ export class RoomManager {
 
     if (!room.floorCleared && (!bossAlive || remaining === 0) && room.dungeonMap) {
       room.floorCleared = true;
-      const bossRoom = room.dungeonMap.rooms.find((r) => r.kind === 'boss') || room.dungeonMap.rooms[room.dungeonMap.rooms.length - 1];
+      const bossRoom =
+        room.dungeonMap.rooms.find((r) => r.kind === 'boss') ||
+        room.dungeonMap.rooms[room.dungeonMap.rooms.length - 1];
       if (bossRoom) {
         bossRoom.cleared = true;
-        const portalId = `portal_next_${room.floor}`;
-        if (!room.dungeonMap.props.some((pr) => pr.id === portalId)) {
+        const nextPortalId = `portal_next_${room.floor}`;
+        const guildPortalId = `portal_guild_${room.floor}`;
+        const portalY = Math.round(bossRoom.y + bossRoom.h * 0.5 - 38 - 34);
+        const guildPortalX = Math.round(bossRoom.x + bossRoom.w * 0.5 - 120 - 34);
+        const nextPortalX = Math.round(bossRoom.x + bossRoom.w * 0.5 + 120 - 34);
+
+        if (!room.dungeonMap.props.some((pr) => pr.id === guildPortalId)) {
           room.dungeonMap.props.push({
-            id: portalId,
-            kind: 'portal_next',
-            x: bossRoom.x + bossRoom.w * 0.5 - 27,
-            y: bossRoom.y + bossRoom.h * 0.5 - 27,
-            w: 54,
-            h: 54,
+            id: guildPortalId,
+            kind: 'portal_guild',
+            x: guildPortalX,
+            y: portalY,
+            w: 68,
+            h: 68,
             solid: false,
-            label: `Graveyard of the Fallen · Floor ${room.floor + 1}`,
+            label: 'Return to Lobby',
+          });
+        }
+        if (!room.dungeonMap.props.some((pr) => pr.id === nextPortalId)) {
+          room.dungeonMap.props.push({
+            id: nextPortalId,
+            kind: 'portal_next',
+            x: nextPortalX,
+            y: portalY,
+            w: 68,
+            h: 68,
+            solid: false,
+            label: `Next Dungeon · Floor ${room.floor + 1}`,
           });
         }
 
+        const nextProp = room.dungeonMap.props.find((pr) => pr.id === nextPortalId);
+        const guildProp = room.dungeonMap.props.find((pr) => pr.id === guildPortalId);
         this.broadcast(room, {
           type: 's:floor_cleared',
           floor: room.floor,
-          portalProp: room.dungeonMap.props.find((pr) => pr.id === portalId),
+          portalProp: nextProp,
+          portalProps: [guildProp, nextProp].filter(Boolean),
         });
       }
     }
@@ -731,6 +769,7 @@ export class RoomManager {
     p.state.reviveProgress = 0;
     p.revivingPlayerId = null;
     room.nextFloorReady.delete(playerId);
+    room.returnLobbyReady.delete(playerId);
 
     this.broadcast(room, {
       type: 's:player_downed',
@@ -791,21 +830,63 @@ export class RoomManager {
     }
   }
 
-  public handleEnterPortal(playerId: string) {
+  public handleEnterPortal(playerId: string, portalKind: 'next' | 'lobby' = 'next') {
     const room = this.getRoomByPlayerId(playerId);
-    if (!room || room.status !== 'playing' || !room.floorCleared) return;
+    if (!room || room.status !== 'playing') return;
+    if (portalKind === 'next' && !room.floorCleared) return;
 
     const player = room.players.get(playerId);
     if (!player || player.state.isDowned) return;
-
-    room.nextFloorReady.add(playerId);
 
     let activeLivingCount = 0;
     for (const p of room.players.values()) {
       if (p.connected && !p.state.isDowned) activeLivingCount++;
     }
+    const required = Math.max(1, activeLivingCount);
 
-    if (room.nextFloorReady.size >= Math.max(1, activeLivingCount)) {
+    if (portalKind === 'lobby') {
+      room.nextFloorReady.delete(playerId);
+      room.returnLobbyReady.add(playerId);
+
+      if (room.returnLobbyReady.size >= required) {
+        if (room.loopInterval) {
+          clearInterval(room.loopInterval);
+          room.loopInterval = null;
+        }
+        room.status = 'lobby';
+        room.floor = 1;
+        room.floorCleared = false;
+        room.dungeonMap = null;
+        room.enemies.clear();
+        room.enemyProjectiles = [];
+        room.loot.clear();
+        room.nextFloorReady.clear();
+        room.returnLobbyReady.clear();
+        for (const p of room.players.values()) {
+          p.ready = p.isHost;
+          p.revivingPlayerId = null;
+          p.invulnerableTimer = 0;
+          p.state.isDowned = false;
+          p.state.reviveProgress = 0;
+          p.state.hp = p.state.maxHp;
+          p.state.shield = 0;
+        }
+        this.broadcastLobbyUpdate(room);
+      } else {
+        this.broadcast(room, {
+          type: 's:portal_waiting',
+          readyCount: room.returnLobbyReady.size,
+          requiredCount: required,
+          portalTarget: 'lobby',
+        });
+      }
+      return;
+    }
+
+    room.returnLobbyReady.delete(playerId);
+    room.nextFloorReady.add(playerId);
+
+    if (room.nextFloorReady.size >= required) {
       this.initDungeonFloor(room, room.floor + 1);
       this.broadcast(room, {
         type: 's:next_floor',
@@ -822,7 +903,8 @@ export class RoomManager {
       this.broadcast(room, {
         type: 's:portal_waiting',
         readyCount: room.nextFloorReady.size,
-        requiredCount: activeLivingCount,
+        requiredCount: required,
+        portalTarget: 'next',
       });
     }
   }
@@ -835,6 +917,7 @@ export class RoomManager {
           player.ws = null;
           player.revivingPlayerId = null;
           room.nextFloorReady.delete(playerId);
+          room.returnLobbyReady.delete(playerId);
 
           if (room.status === 'lobby') {
             room.players.delete(playerId);
@@ -990,6 +1073,7 @@ export class RoomManager {
 
     room.players.delete(playerId);
     room.nextFloorReady.delete(playerId);
+    room.returnLobbyReady.delete(playerId);
     this.playerRoomMap.delete(playerId);
 
     if (room.players.size === 0) {
@@ -1132,18 +1216,20 @@ export class RoomManager {
 
     const len = Math.hypot(sx, sy) || 1;
     const slowMult = e.slowTimer > 0 ? 0.6 : 1.0;
-    const stepVx = (sx / len) * e.speed * slowMult;
-    const stepVy = (sy / len) * e.speed * slowMult;
+    const buffSpeedMult = (e.bossBuffTimer || 0) > 0 || (e.bossStealthTimer || 0) > 0 ? 1.28 : 1.0;
+    const stepVx = (sx / len) * e.speed * slowMult * buffSpeedMult;
+    const stepVy = (sy / len) * e.speed * slowMult * buffSpeedMult;
     const dx = stepVx * dt;
     const dy = stepVy * dt;
     const colRad = e.radius * 0.75;
+    const ignoreProps = e.kind === EnemyKind.MINI_GHOST || e.kind === EnemyKind.BOSS_LEGION_GHOST;
 
     let nx = e.x;
     let ny = e.y;
-    if (this.isPointWalkableOnMap(room.dungeonMap, e.x + dx, e.y, colRad)) {
+    if (this.isPointWalkableOnMap(room.dungeonMap, e.x + dx, e.y, colRad, ignoreProps)) {
       nx = e.x + dx;
     }
-    if (this.isPointWalkableOnMap(room.dungeonMap, nx, e.y + dy, colRad)) {
+    if (this.isPointWalkableOnMap(room.dungeonMap, nx, e.y + dy, colRad, ignoreProps)) {
       ny = e.y + dy;
     }
 
@@ -1151,7 +1237,7 @@ export class RoomManager {
     e.vy = (ny - e.y) / Math.max(0.001, dt);
     e.x = nx;
     e.y = ny;
-    e.walkPhase += dt * 9 * slowMult;
+    e.walkPhase += dt * 9 * slowMult * buffSpeedMult;
   }
 
   private startAuthoritativeLoop(room: GameRoom) {
@@ -1223,6 +1309,21 @@ export class RoomManager {
         if (enemy.slowTimer > 0) enemy.slowTimer = Math.max(0, enemy.slowTimer - dt);
         if (enemy.staggerTimer > 0) enemy.staggerTimer = Math.max(0, enemy.staggerTimer - dt);
         if (enemy.attackAnimTimer > 0) enemy.attackAnimTimer = Math.max(0, enemy.attackAnimTimer - dt);
+        if ((enemy.bossTransformTimer || 0) > 0) {
+          enemy.bossTransformTimer = Math.max(0, (enemy.bossTransformTimer || 0) - dt);
+        }
+        if ((enemy.bossBuffTimer || 0) > 0) {
+          enemy.bossBuffTimer = Math.max(0, (enemy.bossBuffTimer || 0) - dt);
+          if (enemy.kind === EnemyKind.BOSS_LEGION_ZOMBIE && enemy.hp > 0) {
+            enemy.hp = Math.min(enemy.maxHp, enemy.hp + Math.round(45 * dt));
+          }
+        }
+        if ((enemy.bossStealthTimer || 0) > 0) {
+          enemy.bossStealthTimer = Math.max(0, (enemy.bossStealthTimer || 0) - dt);
+        }
+        if ((enemy.bossScytheTimer || 0) > 0) {
+          enemy.bossScytheTimer = Math.max(0, (enemy.bossScytheTimer || 0) - dt);
+        }
 
         if (enemy.staggerTimer > 0) {
           enemy.windupTimer = 0;
@@ -1488,10 +1589,14 @@ export class RoomManager {
           isBoss: isBossKind(enemy.kind),
           isLegionBoss: enemy.isLegionBoss,
           legionHeroId: enemy.legionHeroId,
+          bossTransformTimer: enemy.bossTransformTimer ? Math.round(enemy.bossTransformTimer * 100) / 100 : 0,
+          bossBuffTimer: enemy.bossBuffTimer ? Math.round(enemy.bossBuffTimer * 100) / 100 : 0,
+          bossStealthTimer: enemy.bossStealthTimer ? Math.round(enemy.bossStealthTimer * 100) / 100 : 0,
+          bossScytheTimer: enemy.bossScytheTimer ? Math.round(enemy.bossScytheTimer * 100) / 100 : 0,
         });
       }
 
-      // 3. Step Server-Authoritative Enemy Projectiles (Arrows & Boss Shards)
+      // 3. Step Server-Authoritative Enemy Projectiles (Arrows, Boss Shards & Homing Ghost Wisps)
       for (let i = room.enemyProjectiles.length - 1; i >= 0; i--) {
         const proj = room.enemyProjectiles[i];
         proj.life += dt;
@@ -1499,10 +1604,31 @@ export class RoomManager {
           room.enemyProjectiles.splice(i, 1);
           continue;
         }
+        if (proj.homing && livingPlayers.length > 0) {
+          let targetP = livingPlayers[0];
+          let bestDist = Math.hypot(proj.x - targetP.state.x, proj.y - targetP.state.y);
+          for (let j = 1; j < livingPlayers.length; j++) {
+            const d = Math.hypot(proj.x - livingPlayers[j].state.x, proj.y - livingPlayers[j].state.y);
+            if (d < bestDist) {
+              bestDist = d;
+              targetP = livingPlayers[j];
+            }
+          }
+          const spd = Math.hypot(proj.vx, proj.vy) || 260;
+          const curAng = Math.atan2(proj.vy, proj.vx);
+          const desAng = Math.atan2(targetP.state.y - proj.y, targetP.state.x - proj.x);
+          let diff = desAng - curAng;
+          while (diff > Math.PI) diff -= Math.PI * 2;
+          while (diff < -Math.PI) diff += Math.PI * 2;
+          const maxTurn = 3.2 * dt;
+          const nextAng = curAng + Math.max(-maxTurn, Math.min(maxTurn, diff));
+          proj.vx = Math.cos(nextAng) * spd;
+          proj.vy = Math.sin(nextAng) * spd;
+        }
         proj.x += proj.vx * dt;
         proj.y += proj.vy * dt;
 
-        if (!this.isPointWalkableOnMap(room.dungeonMap, proj.x, proj.y, 4, false)) {
+        if (!this.isPointWalkableOnMap(room.dungeonMap, proj.x, proj.y, 4, !!proj.homing)) {
           room.enemyProjectiles.splice(i, 1);
           continue;
         }
@@ -1540,7 +1666,8 @@ export class RoomManager {
   private placeEnemyOnServerMap(room: GameRoom, e: EnemyEntity, destX: number, destY: number) {
     if (!room.dungeonMap) return;
     const checkRad = e.radius * 0.78;
-    if (this.isPointWalkableOnMap(room.dungeonMap, destX, destY, checkRad)) {
+    const ignoreProps = e.kind === EnemyKind.MINI_GHOST || e.kind === EnemyKind.BOSS_LEGION_GHOST;
+    if (this.isPointWalkableOnMap(room.dungeonMap, destX, destY, checkRad, ignoreProps)) {
       e.x = destX;
       e.y = destY;
       return;
@@ -1550,7 +1677,7 @@ export class RoomManager {
       const t = s / steps;
       const tx = e.x + (destX - e.x) * t;
       const ty = e.y + (destY - e.y) * t;
-      if (this.isPointWalkableOnMap(room.dungeonMap, tx, ty, checkRad)) {
+      if (this.isPointWalkableOnMap(room.dungeonMap, tx, ty, checkRad, ignoreProps)) {
         e.x = tx;
         e.y = ty;
         return;
@@ -1653,15 +1780,17 @@ export class RoomManager {
     }
 
     const hero = e.legionHeroId || 'skeleton';
-    const atk = e.atk;
+    const powerMult = (e.bossTransformTimer || 0) > 0 || (e.bossBuffTimer || 0) > 0 ? 1.2 : 1.0;
+    const atk = Math.round(e.atk * powerMult);
     const originX = e.x;
     const originY = e.y;
 
-    // Ultimates rotation (all 3 ultimates of the Undead Legion hero)
+    // Ultimates rotation (all 3 ultimates of the original Undead Legion hero)
     if (cd.ult1 <= 0) {
       cd.ult1 = 26;
-      e.attackAnimTimer = 0.36;
+      e.attackAnimTimer = 0.42;
       if (hero === 'skeleton') {
+        e.bossScytheTimer = 2.6;
         this.placeEnemyOnServerMap(room, e, nearestP.state.x - Math.cos(angToP) * 35, nearestP.state.y - Math.sin(angToP) * 35);
         for (const lp of livingPlayers) {
           if (Math.hypot(lp.state.x - e.x, lp.state.y - e.y) <= 135) {
@@ -1677,8 +1806,9 @@ export class RoomManager {
           angle: angToP,
           damage: Math.round(atk * 1.8),
           isBoss: true,
+          legionSkillId: 'reapers_judgment',
           skillLabel: "[ULT] REAPER'S JUDGMENT!",
-          skillColor: '#f87171',
+          skillColor: '#c084fc',
         });
       } else if (hero === 'zombie') {
         for (const lp of livingPlayers) {
@@ -1694,8 +1824,9 @@ export class RoomManager {
           y: e.y,
           angle: angToP,
           damage: Math.round(atk * 1.4),
-          radius: 165,
+          radius: 175,
           isBoss: true,
+          legionSkillId: 'deaths_embrace',
           skillLabel: "[ULT] DEATH'S EMBRACE!",
           skillColor: '#a3e635',
         });
@@ -1717,14 +1848,31 @@ export class RoomManager {
           angle: angToP,
           damage: Math.round(atk * 1.7),
           isBoss: true,
+          legionSkillId: 'king_of_the_hunt',
           skillLabel: '[ULT] KING OF THE HUNT!',
           skillColor: '#f43f5e',
         });
       } else {
+        e.bossTransformTimer = 6.5;
         this.spawnLegionBossMinionServer(room, EnemyKind.MINI_GHOST, e.x - 45, e.y + 30, e.roomId, e.x, e.y);
+        for (let k = 0; k < 4; k++) {
+          const sa = angToP + (k - 1.5) * 0.5;
+          room.enemyProjectiles.push({
+            id: this.nextProjId++,
+            x: e.x + Math.cos(sa) * 30,
+            y: e.y + Math.sin(sa) * 30,
+            vx: Math.cos(sa) * 235,
+            vy: Math.sin(sa) * 235,
+            radius: 10,
+            damage: Math.round(atk * 0.9),
+            life: 0,
+            maxLife: 2.6,
+            homing: true,
+          });
+        }
         for (const lp of livingPlayers) {
           if (Math.hypot(lp.state.x - nearestP.state.x, lp.state.y - nearestP.state.y) <= 135) {
-            this.damagePlayerAuthoritative(room, lp, Math.round(atk * 1.5));
+            this.damagePlayerAuthoritative(room, lp, Math.round(atk * 1.35));
           }
         }
         this.broadcastEnemyAttack(room, {
@@ -1734,8 +1882,9 @@ export class RoomManager {
           x: nearestP.state.x,
           y: nearestP.state.y,
           angle: angToP,
-          damage: Math.round(atk * 1.5),
+          damage: Math.round(atk * 1.35),
           isBoss: true,
+          legionSkillId: 'eternal_nightmare',
           skillLabel: '[ULT] ETERNAL NIGHTMARE!',
           skillColor: '#818cf8',
         });
@@ -1745,7 +1894,7 @@ export class RoomManager {
 
     if (cd.ult2 <= 0) {
       cd.ult2 = 34;
-      e.attackAnimTimer = 0.36;
+      e.attackAnimTimer = 0.4;
       if (hero === 'skeleton') {
         for (let i = 0; i < 3; i++) {
           const sa = angToP + ((i - 1) * Math.PI) / 3;
@@ -1769,12 +1918,18 @@ export class RoomManager {
           damage: 0,
           radius: 110,
           isBoss: true,
+          legionSkillId: 'army_of_bones',
           skillLabel: '[ULT] ARMY OF BONES!',
           skillColor: '#e2e8f0',
         });
       } else if (hero === 'zombie') {
         this.spawnLegionBossMinionServer(room, EnemyKind.MINI_ZOMBIE, e.x - 45, e.y + 25, e.roomId, e.x, e.y);
         this.spawnLegionBossMinionServer(room, EnemyKind.MINI_ZOMBIE, e.x + 45, e.y - 25, e.roomId, e.x, e.y);
+        for (const lp of livingPlayers) {
+          if (Math.hypot(lp.state.x - e.x, lp.state.y - e.y) <= 150) {
+            this.damagePlayerAuthoritative(room, lp, atk);
+          }
+        }
         this.broadcastEnemyAttack(room, {
           enemyId: e.id,
           kind: e.kind,
@@ -1786,6 +1941,7 @@ export class RoomManager {
           angle: angToP,
           damage: atk,
           isBoss: true,
+          legionSkillId: 'kingdom_of_the_dead',
           skillLabel: '[ULT] KINGDOM OF THE DEAD!',
           skillColor: '#84cc16',
         });
@@ -1813,22 +1969,24 @@ export class RoomManager {
           angle: angToP,
           damage: Math.round(atk * 0.95),
           isBoss: true,
+          legionSkillId: 'carnage_unleashed',
           skillLabel: '[ULT] CARNAGE UNLEASHED!',
           skillColor: '#fb7185',
         });
       } else {
-        for (let k = 0; k < 12; k++) {
-          const sa = (k * Math.PI * 2) / 12;
+        for (let k = 0; k < 10; k++) {
+          const sa = (k * Math.PI * 2) / 10;
           room.enemyProjectiles.push({
             id: this.nextProjId++,
             x: e.x + Math.cos(sa) * 25,
             y: e.y + Math.sin(sa) * 25,
-            vx: Math.cos(sa) * 260,
-            vy: Math.sin(sa) * 260,
+            vx: Math.cos(sa) * 255,
+            vy: Math.sin(sa) * 255,
             radius: 9,
             damage: Math.round(atk * 0.85),
             life: 0,
-            maxLife: 2.2,
+            maxLife: 2.3,
+            homing: true,
           });
         }
         this.broadcastEnemyAttack(room, {
@@ -1840,8 +1998,9 @@ export class RoomManager {
           angle: angToP,
           damage: Math.round(atk * 0.85),
           isBoss: true,
+          legionSkillId: 'spirit_legion',
           skillLabel: '[ULT] SPIRIT LEGION!',
-          skillColor: '#38bdf8',
+          skillColor: '#5eead4',
         });
       }
       return;
@@ -1849,8 +2008,9 @@ export class RoomManager {
 
     if (cd.ult3 <= 0) {
       cd.ult3 = 42;
-      e.attackAnimTimer = 0.36;
+      e.attackAnimTimer = 0.42;
       if (hero === 'skeleton') {
+        e.bossTransformTimer = 8.0;
         e.shieldHp = (e.shieldHp || 0) + 450;
         e.maxShieldHp = Math.max(e.maxShieldHp || 0, e.shieldHp);
         for (let k = 0; k < 10; k++) {
@@ -1876,13 +2036,20 @@ export class RoomManager {
           angle: angToP,
           damage: Math.round(atk * 1.1),
           isBoss: true,
+          legionSkillId: 'bone_colossus',
           skillLabel: '[ULT] BONE COLOSSUS!',
           skillColor: '#fde047',
         });
       } else if (hero === 'zombie') {
+        e.bossTransformTimer = 8.0;
         e.hp = Math.min(e.maxHp, e.hp + 380);
         e.shieldHp = (e.shieldHp || 0) + 450;
         e.maxShieldHp = Math.max(e.maxShieldHp || 0, e.shieldHp);
+        for (const lp of livingPlayers) {
+          if (Math.hypot(lp.state.x - e.x, lp.state.y - e.y) <= 135) {
+            this.damagePlayerAuthoritative(room, lp, atk);
+          }
+        }
         this.broadcastEnemyAttack(room, {
           enemyId: e.id,
           kind: e.kind,
@@ -1894,12 +2061,19 @@ export class RoomManager {
           angle: angToP,
           damage: atk,
           isBoss: true,
+          legionSkillId: 'abomination_form',
           skillLabel: '[ULT] ABOMINATION FORM!',
-          skillColor: '#4ade80',
+          skillColor: '#c084fc',
         });
       } else if (hero === 'ghoul') {
+        e.bossTransformTimer = 8.0;
         this.spawnLegionBossMinionServer(room, EnemyKind.MINI_GHOUL, e.x - 40, e.y + 35, e.roomId, e.x, e.y);
         this.spawnLegionBossMinionServer(room, EnemyKind.MINI_GHOUL, e.x + 40, e.y - 35, e.roomId, e.x, e.y);
+        for (const lp of livingPlayers) {
+          if (Math.hypot(lp.state.x - e.x, lp.state.y - e.y) <= 125) {
+            this.damagePlayerAuthoritative(room, lp, atk);
+          }
+        }
         this.broadcastEnemyAttack(room, {
           enemyId: e.id,
           kind: e.kind,
@@ -1910,18 +2084,21 @@ export class RoomManager {
           damage: atk,
           radius: 120,
           isBoss: true,
+          legionSkillId: 'apex_predator',
           skillLabel: '[ULT] APEX PREDATOR!',
           skillColor: '#e11d48',
         });
       } else {
+        const riftX = nearestP.state.x;
+        const riftY = nearestP.state.y;
         this.placeEnemyOnServerMap(
           room,
           e,
-          nearestP.state.x + Math.cos(angToP + Math.PI) * 70,
-          nearestP.state.y + Math.sin(angToP + Math.PI) * 70
+          riftX + Math.cos(angToP + Math.PI) * 70,
+          riftY + Math.sin(angToP + Math.PI) * 70
         );
         for (const lp of livingPlayers) {
-          if (Math.hypot(lp.state.x - e.x, lp.state.y - e.y) <= 120) {
+          if (Math.hypot(lp.state.x - riftX, lp.state.y - riftY) <= 130) {
             this.damagePlayerAuthoritative(room, lp, Math.round(atk * 1.6));
           }
         }
@@ -1929,11 +2106,12 @@ export class RoomManager {
           enemyId: e.id,
           kind: e.kind,
           attackType: 'slam',
-          x: e.x,
-          y: e.y,
+          x: riftX,
+          y: riftY,
           angle: angToP,
           damage: Math.round(atk * 1.6),
           isBoss: true,
+          legionSkillId: 'deaths_passage',
           skillLabel: "[ULT] DEATH'S PASSAGE!",
           skillColor: '#c084fc',
         });
@@ -1964,10 +2142,12 @@ export class RoomManager {
           angle: angToP,
           damage: Math.round(atk * 1.2),
           isBoss: true,
+          legionSkillId: 'skeletal_rush',
           skillLabel: 'SKELETAL RUSH!',
           skillColor: '#fb923c',
         });
       } else if (hero === 'zombie') {
+        e.bossBuffTimer = 5.0;
         e.hp = Math.min(e.maxHp, e.hp + 260);
         this.broadcastEnemyAttack(room, {
           enemyId: e.id,
@@ -1979,10 +2159,12 @@ export class RoomManager {
           damage: 0,
           radius: 75,
           isBoss: true,
+          legionSkillId: 'undying_flesh',
           skillLabel: 'UNDYING FLESH +260',
           skillColor: '#4ade80',
         });
       } else if (hero === 'ghoul') {
+        e.bossBuffTimer = 5.5;
         e.attackCooldown = 0.2;
         this.broadcastEnemyAttack(room, {
           enemyId: e.id,
@@ -1994,6 +2176,7 @@ export class RoomManager {
           damage: 0,
           radius: 80,
           isBoss: true,
+          legionSkillId: 'blood_frenzy',
           skillLabel: 'BLOOD FRENZY!',
           skillColor: '#f43f5e',
         });
@@ -2012,6 +2195,7 @@ export class RoomManager {
           angle: angToP,
           damage: Math.round(atk * 1.15),
           isBoss: true,
+          legionSkillId: 'wailing_scream',
           skillLabel: 'WAILING SCREAM!',
           skillColor: '#c084fc',
         });
@@ -2023,6 +2207,7 @@ export class RoomManager {
       cd.skill3 = hero === 'skeleton' ? 11 : 9;
       e.attackAnimTimer = 0.28;
       if (hero === 'skeleton') {
+        e.bossBuffTimer = 6.0;
         e.shieldHp = (e.shieldHp || 0) + 280;
         e.maxShieldHp = Math.max(e.maxShieldHp || 0, e.shieldHp);
         this.broadcastEnemyAttack(room, {
@@ -2035,6 +2220,7 @@ export class RoomManager {
           damage: 0,
           radius: 85,
           isBoss: true,
+          legionSkillId: 'ribcage_shield',
           skillLabel: 'RIBCAGE SHIELD +280',
           skillColor: '#fde68a',
         });
@@ -2058,10 +2244,12 @@ export class RoomManager {
           angle: angToP,
           damage: Math.round(atk * 1.25),
           isBoss: true,
+          legionSkillId: 'flesh_ripper',
           skillLabel: 'FLESH RIPPER!',
           skillColor: '#4ade80',
         });
       } else if (hero === 'ghoul') {
+        e.bossStealthTimer = 1.4;
         this.placeEnemyOnServerMap(
           room,
           e,
@@ -2084,6 +2272,7 @@ export class RoomManager {
           angle: Math.atan2(nearestP.state.y - e.y, nearestP.state.x - e.x),
           damage: Math.round(atk * 1.45),
           isBoss: true,
+          legionSkillId: 'shadow_stalker',
           skillLabel: 'SHADOW STALKER!',
           skillColor: '#e11d48',
         });
@@ -2096,9 +2285,12 @@ export class RoomManager {
           attackType: 'spell',
           x: e.x,
           y: e.y,
+          endX: nearestP.state.x,
+          endY: nearestP.state.y,
           angle: angToP,
           damage: Math.round(atk * 1.15),
           isBoss: true,
+          legionSkillId: 'soul_drain',
           skillLabel: 'SOUL DRAIN +160',
           skillColor: '#818cf8',
         });
@@ -2125,12 +2317,21 @@ export class RoomManager {
           damage: Math.round(atk * 1.3),
           radius: 112,
           isBoss: true,
+          legionSkillId: 'bone_storm',
           skillLabel: 'BONE STORM!',
           skillColor: '#fb7185',
         });
       } else if (hero === 'zombie') {
-        this.spawnLegionBossMinionServer(room, EnemyKind.MINI_ZOMBIE, e.x + 35, e.y + 20, e.roomId, e.x, e.y);
-        this.spawnLegionBossMinionServer(room, EnemyKind.MINI_ZOMBIE, e.x - 35, e.y - 20, e.roomId, e.x, e.y);
+        let activeSummons = 0;
+        for (const oe of room.enemies.values()) {
+          if (oe.hp > 0 && oe.roomId === e.roomId && oe.kind === EnemyKind.MINI_ZOMBIE) {
+            activeSummons++;
+          }
+        }
+        if (activeSummons < 6) {
+          this.spawnLegionBossMinionServer(room, EnemyKind.MINI_ZOMBIE, e.x + 35, e.y + 20, e.roomId, e.x, e.y);
+          this.spawnLegionBossMinionServer(room, EnemyKind.MINI_ZOMBIE, e.x - 35, e.y - 20, e.roomId, e.x, e.y);
+        }
         this.broadcastEnemyAttack(room, {
           enemyId: e.id,
           kind: e.kind,
@@ -2141,6 +2342,7 @@ export class RoomManager {
           damage: 0,
           radius: 80,
           isBoss: true,
+          legionSkillId: 'grave_call',
           skillLabel: 'GRAVE CALL!',
           skillColor: '#84cc16',
         });
@@ -2162,6 +2364,7 @@ export class RoomManager {
           angle: angToP,
           damage: Math.round(atk * 1.35),
           isBoss: true,
+          legionSkillId: 'predators_leap',
           skillLabel: "PREDATOR'S LEAP!",
           skillColor: '#fb7185',
         });
@@ -2173,9 +2376,12 @@ export class RoomManager {
           attackType: 'spell',
           x: e.x,
           y: e.y,
+          endX: nearestP.state.x,
+          endY: nearestP.state.y,
           angle: angToP,
           damage: Math.round(atk * 1.25),
           isBoss: true,
+          legionSkillId: 'haunted_possession',
           skillLabel: 'HAUNTED POSSESSION!',
           skillColor: '#e879f9',
         });
@@ -2191,8 +2397,8 @@ export class RoomManager {
           id: this.nextProjId++,
           x: e.x + Math.cos(angToP) * 24,
           y: e.y + Math.sin(angToP) * 24,
-          vx: Math.cos(angToP) * 360,
-          vy: Math.sin(angToP) * 360,
+          vx: Math.cos(angToP) * 420,
+          vy: Math.sin(angToP) * 420,
           radius: 10,
           damage: Math.round(atk * 1.35),
           life: 0,
@@ -2207,6 +2413,7 @@ export class RoomManager {
           angle: angToP,
           damage: Math.round(atk * 1.35),
           isBoss: true,
+          legionSkillId: 'bone_spear',
           skillLabel: 'BONE SPEAR!',
           skillColor: '#f8fafc',
         });
@@ -2214,7 +2421,7 @@ export class RoomManager {
         const px = e.x + Math.cos(angToP) * Math.min(dist, 160);
         const py = e.y + Math.sin(angToP) * Math.min(dist, 160);
         for (const lp of livingPlayers) {
-          if (Math.hypot(lp.state.x - px, lp.state.y - py) <= 60) {
+          if (Math.hypot(lp.state.x - px, lp.state.y - py) <= 65) {
             this.damagePlayerAuthoritative(room, lp, Math.round(atk * 1.1));
           }
         }
@@ -2229,6 +2436,7 @@ export class RoomManager {
           angle: angToP,
           damage: Math.round(atk * 1.1),
           isBoss: true,
+          legionSkillId: 'plague_burst',
           skillLabel: 'PLAGUE BURST!',
           skillColor: '#a3e635',
         });
@@ -2250,10 +2458,13 @@ export class RoomManager {
           angle: angToP,
           damage: Math.round(atk * 1.4),
           isBoss: true,
+          legionSkillId: 'feral_pounce',
           skillLabel: 'FERAL POUNCE!',
           skillColor: '#f43f5e',
         });
       } else {
+        e.bossStealthTimer = 0.65;
+        e.bossBuffTimer = 3.5;
         const blinkAng = angToP + Math.PI * (Math.random() < 0.5 ? 0.6 : -0.6);
         this.placeEnemyOnServerMap(room, e, e.x + Math.cos(blinkAng) * 140, e.y + Math.sin(blinkAng) * 140);
         this.broadcastEnemyAttack(room, {
@@ -2267,6 +2478,7 @@ export class RoomManager {
           angle: blinkAng,
           damage: 0,
           isBoss: true,
+          legionSkillId: 'phantom_dash',
           skillLabel: 'PHANTOM DASH!',
           skillColor: '#5eead4',
         });
@@ -2278,20 +2490,17 @@ export class RoomManager {
       cd.skill1 = 3.5;
       e.attackAnimTimer = 0.26;
       if (hero === 'ghost') {
-        for (let s = 0; s < 3; s++) {
-          const sa = angToP + (s - 1) * 0.35;
-          room.enemyProjectiles.push({
-            id: this.nextProjId++,
-            x: e.x + Math.cos(sa) * 22,
-            y: e.y + Math.sin(sa) * 22,
-            vx: Math.cos(sa) * 280,
-            vy: Math.sin(sa) * 280,
-            radius: 8,
-            damage: Math.round(atk * 1.05),
-            life: 0,
-            maxLife: 1.8,
-          });
-        }
+        room.enemyProjectiles.push({
+          id: this.nextProjId++,
+          x: e.x + Math.cos(angToP) * 24,
+          y: e.y + Math.sin(angToP) * 24,
+          vx: Math.cos(angToP) * 440,
+          vy: Math.sin(angToP) * 440,
+          radius: 14,
+          damage: Math.round(atk * 1.25),
+          life: 0,
+          maxLife: 1.5,
+        });
         this.broadcastEnemyAttack(room, {
           enemyId: e.id,
           kind: e.kind,
@@ -2299,10 +2508,11 @@ export class RoomManager {
           x: e.x,
           y: e.y,
           angle: angToP,
-          damage: Math.round(atk * 1.05),
+          damage: Math.round(atk * 1.25),
           isBoss: true,
+          legionSkillId: 'spectral_bolt',
           skillLabel: 'SPECTRAL BOLT!',
-          skillColor: '#7dd3fc',
+          skillColor: '#5eead4',
         });
       } else {
         for (const lp of livingPlayers) {
@@ -2319,17 +2529,18 @@ export class RoomManager {
           angle: angToP,
           damage: Math.round(atk * 1.25),
           isBoss: true,
+          legionSkillId: hero === 'skeleton' ? 'bone_slash' : hero === 'zombie' ? 'rotting_claw' : 'rending_claws',
           skillLabel: hero === 'skeleton' ? 'BONE SLASH!' : hero === 'zombie' ? 'ROTTING CLAW!' : 'RENDING CLAWS!',
-          skillColor: hero === 'zombie' ? '#bef264' : '#fda4af',
+          skillColor: hero === 'skeleton' ? '#fb923c' : hero === 'zombie' ? '#bef264' : '#fda4af',
         });
       }
       return;
     }
 
-    const preferredDist = hero === 'ghost' ? 140 : 68;
+    const preferredDist = hero === 'ghost' ? 165 : 68;
     if (dist > preferredDist) {
       this.moveEnemyOnServerMap(room, e, Math.cos(angToP), Math.sin(angToP), dt);
-    } else if (hero === 'ghost' && dist < 85) {
+    } else if (hero === 'ghost' && dist < 95) {
       this.moveEnemyOnServerMap(room, e, -Math.cos(angToP), -Math.sin(angToP), dt);
     } else {
       e.vx = 0;
@@ -2337,10 +2548,11 @@ export class RoomManager {
       e.walkPhase = 0;
     }
 
-    if (e.attackCooldown <= 0 && dist <= preferredDist + 40) {
+    if (e.attackCooldown <= 0 && dist <= (hero === 'ghost' ? 275 : preferredDist + 40)) {
       e.windupType = hero === 'ghost' ? 'spell' : 'slash';
-      e.windupDuration = 0.42;
-      e.windupTimer = 0.42;
+      const hasteMult = hero === 'ghoul' && (e.bossBuffTimer || 0) > 0 ? 0.65 : 1.0;
+      e.windupDuration = (hero === 'ghost' ? 0.34 : 0.4) * hasteMult;
+      e.windupTimer = e.windupDuration;
       e.windupAngle = angToP;
     }
   }
@@ -2357,13 +2569,20 @@ export class RoomManager {
         const dx = lp.state.x - e.x;
         const dy = lp.state.y - e.y;
         const dist = Math.hypot(dx, dy);
-        let diff = Math.atan2(dy, dx) - e.windupAngle;
-        while (diff > Math.PI) diff -= Math.PI * 2;
-        while (diff < -Math.PI) diff += Math.PI * 2;
+        const rawDiff = Math.atan2(dy, dx) - e.windupAngle;
+        const diff = Number.isFinite(rawDiff) ? Math.atan2(Math.sin(rawDiff), Math.cos(rawDiff)) : 0;
         if (dist <= e.radius + 54 && (Math.abs(diff) <= 0.88 || dist <= e.radius + 24)) {
           this.damagePlayerAuthoritative(room, lp, atk);
         }
       }
+      const legionBasic =
+        e.kind === EnemyKind.BOSS_LEGION_SKELETON
+          ? 'skeleton_basic'
+          : e.kind === EnemyKind.BOSS_LEGION_ZOMBIE
+            ? 'zombie_basic'
+            : e.kind === EnemyKind.BOSS_LEGION_GHOUL
+              ? 'ghoul_basic'
+              : undefined;
       this.broadcastEnemyAttack(room, {
         enemyId: e.id,
         kind: e.kind,
@@ -2372,6 +2591,8 @@ export class RoomManager {
         y: originY,
         angle: e.windupAngle,
         damage: atk,
+        isBoss: isBossKind(e.kind),
+        legionSkillId: legionBasic,
       });
     } else if (e.windupType === 'cross_slash') {
       const isBoss = isBossKind(e.kind);
@@ -2392,9 +2613,8 @@ export class RoomManager {
         const dx = lp.state.x - e.x;
         const dy = lp.state.y - e.y;
         const dist = Math.hypot(dx, dy);
-        let diff = Math.atan2(dy, dx) - e.windupAngle;
-        while (diff > Math.PI) diff -= Math.PI * 2;
-        while (diff < -Math.PI) diff += Math.PI * 2;
+        const rawDiff = Math.atan2(dy, dx) - e.windupAngle;
+        const diff = Number.isFinite(rawDiff) ? Math.atan2(Math.sin(rawDiff), Math.cos(rawDiff)) : 0;
         if (dist <= crossRad + 12 && (Math.abs(diff) <= 0.92 || dist <= e.radius + 26)) {
           this.damagePlayerAuthoritative(room, lp, Math.round(atk * 1.25));
         }
@@ -2641,29 +2861,59 @@ export class RoomManager {
       });
     } else if (e.windupType === 'spell') {
       e.attackAnimTimer = 0.34;
-      for (let s = 0; s < 3; s++) {
-        const sa = e.windupAngle + (s - 1) * 0.45;
-        room.enemyProjectiles.push({
-          id: this.nextProjId++,
-          x: e.x + Math.cos(sa) * 22,
-          y: e.y + Math.sin(sa) * 22,
-          vx: Math.cos(sa) * 240,
-          vy: Math.sin(sa) * 240,
-          radius: 8,
+      if (e.kind === EnemyKind.BOSS_LEGION_GHOST || e.kind === EnemyKind.MINI_GHOST) {
+        const wispCount = e.kind === EnemyKind.BOSS_LEGION_GHOST ? 2 : 1;
+        for (let s = 0; s < wispCount; s++) {
+          const sa = e.windupAngle + (wispCount === 2 ? (s === 0 ? -0.18 : 0.18) : 0);
+          room.enemyProjectiles.push({
+            id: this.nextProjId++,
+            x: e.x + Math.cos(sa) * 24,
+            y: e.y + Math.sin(sa) * 24,
+            vx: Math.cos(sa) * 265,
+            vy: Math.sin(sa) * 265,
+            radius: 9,
+            damage: atk,
+            life: 0,
+            maxLife: 2.3,
+            homing: true,
+          });
+        }
+        this.broadcastEnemyAttack(room, {
+          enemyId: e.id,
+          kind: e.kind,
+          attackType: 'spell',
+          x: originX,
+          y: originY,
+          angle: e.windupAngle,
+          damage: atk,
+          isBoss: isBossKind(e.kind),
+          legionSkillId: 'ghost_basic',
+        });
+      } else {
+        for (let s = 0; s < 3; s++) {
+          const sa = e.windupAngle + (s - 1) * 0.45;
+          room.enemyProjectiles.push({
+            id: this.nextProjId++,
+            x: e.x + Math.cos(sa) * 22,
+            y: e.y + Math.sin(sa) * 22,
+            vx: Math.cos(sa) * 240,
+            vy: Math.sin(sa) * 240,
+            radius: 8,
+            damage: Math.round(atk * 0.95),
+            life: 0,
+            maxLife: 2.0,
+          });
+        }
+        this.broadcastEnemyAttack(room, {
+          enemyId: e.id,
+          kind: e.kind,
+          attackType: 'spell',
+          x: originX,
+          y: originY,
+          angle: e.windupAngle,
           damage: Math.round(atk * 0.95),
-          life: 0,
-          maxLife: 2.0,
         });
       }
-      this.broadcastEnemyAttack(room, {
-        enemyId: e.id,
-        kind: e.kind,
-        attackType: 'spell',
-        x: originX,
-        y: originY,
-        angle: e.windupAngle,
-        damage: Math.round(atk * 0.95),
-      });
     } else if (e.windupType === 'nova') {
       e.attackAnimTimer = 0.38;
       const count = 8;
