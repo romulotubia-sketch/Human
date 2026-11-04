@@ -1048,7 +1048,7 @@ export default function App() {
 
               <button
                 type="button"
-                aria-label="View Dungeon Equipment Relics"
+                aria-label="View Dungeon Equipment"
                 onClick={() => {
                   soundEngine.playUiTap();
                   setShowEquipment(true);
@@ -1061,7 +1061,7 @@ export default function App() {
               >
                 <Shield className="h-4 w-4 text-amber-400" />
                 <span>
-                  Relics ({equipmentManager.getEquippedCountForHero(heroId)}/4)
+                  Equipment ({equipmentManager.getEquippedCountForHero(heroId)}/4)
                 </span>
               </button>
 

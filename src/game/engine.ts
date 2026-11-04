@@ -75,6 +75,11 @@ const MAX_SOUL_TETHERS = 10;
 const MAX_PIPE_STRIKES = 40;
 const MAX_SCRAP_DEBRIS = 24;
 
+const STATIC_MAX_COOLDOWNS: Record<ActiveSkillId, number> = {} as any;
+for (const id of ALL_ACTIVE_SKILL_IDS) {
+  STATIC_MAX_COOLDOWNS[id] = HERO_SKILLS[id].cooldown;
+}
+
 export class GameEngine {
   private heroId: HeroId = 'human';
   private map: WorldMap;
@@ -7191,7 +7196,7 @@ export class GameEngine {
     );
 
     this.hudEmitAccum += clampedDt;
-    if (this.hudEmitAccum >= 0.08) {
+    if (this.hudEmitAccum >= 0.15) {
       this.hudEmitAccum = 0;
       this.emitHudSnapshot();
     }
@@ -9603,6 +9608,7 @@ export class GameEngine {
             const preyRank = Math.max(1, this.skillRanks.predators_instinct || 1);
             speedMult += 0.22 + (preyRank - 1) * 0.04;
           }
+        }
         const eqStats = equipmentManager.getComputedStats(this.heroId);
         const speed = this.moveSpeed * speedMult * eqStats.speedMultiplier * Math.min(1, mag);
         const dx = (this.joyX / mag) * speed * dt;
@@ -13742,10 +13748,7 @@ export class GameEngine {
       }
     }
 
-    const maxCooldowns = {} as Record<ActiveSkillId, number>;
-    for (const id of ALL_ACTIVE_SKILL_IDS) {
-      maxCooldowns[id] = HERO_SKILLS[id].cooldown;
-    }
+    const maxCooldowns = STATIC_MAX_COOLDOWNS;
 
     let minimap: HudSnapshot['minimap'] = null;
     if (!this.map.isGuild) {

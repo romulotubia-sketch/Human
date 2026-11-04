@@ -37,6 +37,28 @@ function createDefaultLoadout(): HeroEquipmentLoadout {
   };
 }
 
+const EMPTY_STATS = Object.freeze({
+  atkMultiplier: 1.0,
+  flatMaxHpBonus: 0,
+  defenseReduction: 0,
+  critChanceBonus: 0,
+  critDamageMultiplier: 1.0,
+  speedMultiplier: 1.0,
+  cooldownReduction: 0,
+  resourceMultiplier: 1.0,
+  onKillHealPercent: 0,
+  onKillAtkBoostPercent: 0,
+  poisonChance: 0,
+  consecutiveAtkSpeedBonus: 0,
+  basicAttackDamageMultiplier: 1.0,
+  projectileAtkMultiplier: 1.0,
+  projectilePierce: false,
+  spectralBarrierOnHit: false,
+  seekingSpiritOnSkill: false,
+  explosiveOnPoisonDefeat: false,
+  explosiveSkillProc: false,
+});
+
 export class EquipmentManager {
   private ownedEquipmentIds: Set<string> = new Set();
   private equippedByHero: Record<HeroId, HeroEquipmentLoadout> = {
@@ -49,7 +71,12 @@ export class EquipmentManager {
     tigerkin: createDefaultLoadout(),
   };
 
-  private isDungeonActive = false;
+  private _isDungeonActive = false;
+  private setCountsCache: Partial<Record<HeroId, Record<EquipmentCollectionId, number>>> = {};
+
+  private invalidateCache() {
+    this.setCountsCache = {};
+  }
 
   // Runtime combat triggers & state counters
   public boneEnergyStacks = 0; // Skeleton 4-pc: 0-5
@@ -114,6 +141,7 @@ export class EquipmentManager {
   }
 
   public saveToStorage() {
+    this.invalidateCache();
     try {
       localStorage.setItem(INVENTORY_STORAGE_KEY, JSON.stringify([...this.ownedEquipmentIds]));
       localStorage.setItem(EQUIPPED_STORAGE_KEY, JSON.stringify(this.equippedByHero));
@@ -123,7 +151,8 @@ export class EquipmentManager {
   }
 
   public setDungeonActive(active: boolean) {
-    this.isDungeonActive = active;
+    this._isDungeonActive = active;
+    this.invalidateCache();
     if (!active) {
       // Reset runtime transient buff states when exiting dungeon
       this.boneEnergyStacks = 0;
@@ -143,11 +172,11 @@ export class EquipmentManager {
   }
 
   public getIsDungeonActive(): boolean {
-    return this.isDungeonActive;
+    return this._isDungeonActive;
   }
 
-  public isDungeonActive(): boolean {
-    return this.isDungeonActive;
+  public get isDungeonActive(): boolean {
+    return this._isDungeonActive;
   }
 
   public getEquippedCountForHero(heroId: HeroId): number {
@@ -224,6 +253,9 @@ export class EquipmentManager {
    * Count how many pieces of each collection are equipped by this hero
    */
   public getSetCountsForHero(heroId: HeroId): Record<EquipmentCollectionId, number> {
+    if (this.setCountsCache[heroId]) {
+      return this.setCountsCache[heroId]!;
+    }
     const counts: Record<EquipmentCollectionId, number> = {
       eternal_bone: 0,
       phantom_regalia: 0,
@@ -234,15 +266,16 @@ export class EquipmentManager {
       king_of_beasts: 0,
     };
     const loadout = this.equippedByHero[heroId];
-    if (!loadout) return counts;
-
-    for (const slot of ['weapon', 'armor', 'spirit', 'ancient'] as EquipmentSlot[]) {
-      const itemId = loadout[slot];
-      if (itemId && EQUIPMENT_BY_ID[itemId]) {
-        const item = EQUIPMENT_BY_ID[itemId];
-        counts[item.collection] += 1;
+    if (loadout) {
+      for (const slot of ['weapon', 'armor', 'spirit', 'ancient'] as EquipmentSlot[]) {
+        const itemId = loadout[slot];
+        if (itemId && EQUIPMENT_BY_ID[itemId]) {
+          const item = EQUIPMENT_BY_ID[itemId];
+          counts[item.collection] += 1;
+        }
       }
     }
+    this.setCountsCache[heroId] = counts;
     return counts;
   }
 
@@ -280,27 +313,7 @@ export class EquipmentManager {
    */
   public getComputedStats(heroId: HeroId) {
     if (!this.isDungeonActive) {
-      return {
-        atkMultiplier: 1.0,
-        flatMaxHpBonus: 0,
-        defenseReduction: 0,
-        critChanceBonus: 0,
-        critDamageMultiplier: 1.0,
-        speedMultiplier: 1.0,
-        cooldownReduction: 0,
-        resourceMultiplier: 1.0,
-        onKillHealPercent: 0,
-        onKillAtkBoostPercent: 0,
-        poisonChance: 0,
-        consecutiveAtkSpeedBonus: 0,
-        basicAttackDamageMultiplier: 1.0,
-        projectileAtkMultiplier: 1.0,
-        projectilePierce: false,
-        spectralBarrierOnHit: false,
-        seekingSpiritOnSkill: false,
-        explosiveOnPoisonDefeat: false,
-        explosiveSkillProc: false,
-      };
+      return EMPTY_STATS;
     }
 
     const items = this.getEquippedItemDefs(heroId);
@@ -662,7 +675,7 @@ export class EquipmentManager {
     return {
       ownedEquipmentIds: [...this.ownedEquipmentIds],
       equippedByHero: { ...this.equippedByHero },
-      isDungeonActive: this.isDungeonActive,
+      isDungeonActive: this._isDungeonActive,
       activeSetBonuses,
     };
   }

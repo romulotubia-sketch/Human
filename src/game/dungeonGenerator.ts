@@ -949,7 +949,7 @@ export function buildProceduralDungeon(floor: number): {
       );
 
       // Corrupted Heroes appear as dungeon bosses! Each drops equipment from their corresponding set.
-      const isLegionBossRoll = Math.random() < 0.88; // 88% chance of Corrupted Hero Boss
+      const isLegionBossRoll = true;
       const legionBossPool: Array<{
         kind: EnemyKind;
         legionHeroId: HeroId;
@@ -969,6 +969,15 @@ export function buildProceduralDungeon(floor: number): {
           speed: 132,
         },
         {
+          kind: EnemyKind.BOSS_LEGION_GHOST,
+          legionHeroId: 'ghost',
+          name: 'Corrupted Ghost',
+          baseHp: 2000,
+          baseAtk: 46,
+          radius: 40,
+          speed: 124,
+        },
+        {
           kind: EnemyKind.BOSS_LEGION_ZOMBIE,
           legionHeroId: 'zombie',
           name: 'Corrupted Zombie',
@@ -985,15 +994,6 @@ export function buildProceduralDungeon(floor: number): {
           baseAtk: 50,
           radius: 40,
           speed: 152,
-        },
-        {
-          kind: EnemyKind.BOSS_LEGION_GHOST,
-          legionHeroId: 'ghost',
-          name: 'Corrupted Ghost',
-          baseHp: 2000,
-          baseAtk: 46,
-          radius: 40,
-          speed: 124,
         },
         {
           kind: EnemyKind.BOSS_LEGION_HUMAN,
@@ -1026,7 +1026,7 @@ export function buildProceduralDungeon(floor: number): {
 
       if (isLegionBossRoll) {
         // Floor-directed rotation so player encounters varied Corrupted Bosses
-        const pickIndex = (floor - 1 + Math.floor(Math.random() * legionBossPool.length)) % legionBossPool.length;
+        const pickIndex = (floor - 1) % legionBossPool.length;
         const picked = legionBossPool[pickIndex];
         const bossWindupType =
           picked.legionHeroId === 'ghost'
