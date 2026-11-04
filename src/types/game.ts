@@ -533,11 +533,14 @@ export enum EnemyKind {
   MINI_ZOMBIE = 'MINI_ZOMBIE',
   MINI_GHOUL = 'MINI_GHOUL',
   MINI_GHOST = 'MINI_GHOST',
-  // Members of the Undead Legion appearing as ultra-powerful bosses:
+  // Corrupted Heroes appearing as ultra-powerful bosses:
   BOSS_LEGION_SKELETON = 'BOSS_LEGION_SKELETON',
   BOSS_LEGION_ZOMBIE = 'BOSS_LEGION_ZOMBIE',
   BOSS_LEGION_GHOUL = 'BOSS_LEGION_GHOUL',
   BOSS_LEGION_GHOST = 'BOSS_LEGION_GHOST',
+  BOSS_LEGION_HUMAN = 'BOSS_LEGION_HUMAN',
+  BOSS_LEGION_EAGLEKIN = 'BOSS_LEGION_EAGLEKIN',
+  BOSS_LEGION_TIGERKIN = 'BOSS_LEGION_TIGERKIN',
 }
 
 export function isBossKind(kind: EnemyKind): boolean {
@@ -546,7 +549,10 @@ export function isBossKind(kind: EnemyKind): boolean {
     kind === EnemyKind.BOSS_LEGION_SKELETON ||
     kind === EnemyKind.BOSS_LEGION_ZOMBIE ||
     kind === EnemyKind.BOSS_LEGION_GHOUL ||
-    kind === EnemyKind.BOSS_LEGION_GHOST
+    kind === EnemyKind.BOSS_LEGION_GHOST ||
+    kind === EnemyKind.BOSS_LEGION_HUMAN ||
+    kind === EnemyKind.BOSS_LEGION_EAGLEKIN ||
+    kind === EnemyKind.BOSS_LEGION_TIGERKIN
   );
 }
 
@@ -555,7 +561,10 @@ export function isUndeadLegionBoss(kind: EnemyKind): boolean {
     kind === EnemyKind.BOSS_LEGION_SKELETON ||
     kind === EnemyKind.BOSS_LEGION_ZOMBIE ||
     kind === EnemyKind.BOSS_LEGION_GHOUL ||
-    kind === EnemyKind.BOSS_LEGION_GHOST
+    kind === EnemyKind.BOSS_LEGION_GHOST ||
+    kind === EnemyKind.BOSS_LEGION_HUMAN ||
+    kind === EnemyKind.BOSS_LEGION_EAGLEKIN ||
+    kind === EnemyKind.BOSS_LEGION_TIGERKIN
   );
 }
 
@@ -625,7 +634,7 @@ export interface EnemyEntity {
   precisionHits?: number;
   // Undead Legion member boss and attack variation extras:
   isLegionBoss?: boolean;
-  legionHeroId?: 'skeleton' | 'zombie' | 'ghoul' | 'ghost';
+  legionHeroId?: HeroId;
   specialCooldowns?: Record<string, number>;
   bossPhase?: number;
   activeAuraTimer?: number;
@@ -709,13 +718,14 @@ export interface Projectile {
 export interface PickupOrb {
   id?: number;
   active: boolean;
-  kind: 'xp' | 'heal' | 'shard' | 'boss_essence';
+  kind: 'xp' | 'heal' | 'shard' | 'boss_essence' | 'equipment';
   x: number;
   y: number;
   vx: number;
   vy: number;
   value: number;
   age: number;
+  equipmentItemId?: string;
 }
 
 export interface RectZone {

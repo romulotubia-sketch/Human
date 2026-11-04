@@ -2,6 +2,7 @@ import {
   DungeonRoom,
   EnemyEntity,
   EnemyKind,
+  HeroId,
   RectZone,
   WorldMap,
   WorldProp,
@@ -947,11 +948,11 @@ export function buildProceduralDungeon(floor: number): {
         { id: `bp_${rm.id}_4`, kind: 'pillar', x: rm.x + rm.w - bOff - 50, y: rm.y + rm.h - bOff - 50, w: 50, h: 50, solid: true }
       );
 
-      // Members of the Undead Legion appear as bosses! They have far higher HP & damage than normal bosses.
-      const isLegionBossRoll = Math.random() < 0.75;
+      // Corrupted Heroes appear as dungeon bosses! Each drops equipment from their corresponding set.
+      const isLegionBossRoll = Math.random() < 0.88; // 88% chance of Corrupted Hero Boss
       const legionBossPool: Array<{
         kind: EnemyKind;
-        legionHeroId: 'skeleton' | 'zombie' | 'ghoul' | 'ghost';
+        legionHeroId: HeroId;
         name: string;
         baseHp: number;
         baseAtk: number;
@@ -994,10 +995,48 @@ export function buildProceduralDungeon(floor: number): {
           radius: 40,
           speed: 124,
         },
+        {
+          kind: EnemyKind.BOSS_LEGION_HUMAN,
+          legionHeroId: 'human',
+          name: 'Corrupted Human',
+          baseHp: 2350,
+          baseAtk: 45,
+          radius: 42,
+          speed: 128,
+        },
+        {
+          kind: EnemyKind.BOSS_LEGION_EAGLEKIN,
+          legionHeroId: 'eaglekin',
+          name: 'Corrupted Eaglekin',
+          baseHp: 2050,
+          baseAtk: 48,
+          radius: 40,
+          speed: 142,
+        },
+        {
+          kind: EnemyKind.BOSS_LEGION_TIGERKIN,
+          legionHeroId: 'tigerkin',
+          name: 'Corrupted Tigerkin',
+          baseHp: 2500,
+          baseAtk: 47,
+          radius: 44,
+          speed: 134,
+        },
       ];
 
       if (isLegionBossRoll) {
-        const picked = legionBossPool[Math.floor(Math.random() * legionBossPool.length)];
+        // Floor-directed rotation so player encounters varied Corrupted Bosses
+        const pickIndex = (floor - 1 + Math.floor(Math.random() * legionBossPool.length)) % legionBossPool.length;
+        const picked = legionBossPool[pickIndex];
+        const bossWindupType =
+          picked.legionHeroId === 'ghost'
+            ? 'spell'
+            : picked.legionHeroId === 'eaglekin'
+              ? 'shoot'
+              : picked.legionHeroId === 'ghoul'
+                ? 'pounce'
+                : 'slash';
+
         enemies.push({
           id: allocEntityId(),
           kind: picked.kind,
@@ -1016,7 +1055,7 @@ export function buildProceduralDungeon(floor: number): {
           attackCooldown: 1.2,
           windupTimer: 0,
           windupDuration: Math.max(0.5, 0.72 * windupScale),
-          windupType: picked.legionHeroId === 'ghost' ? 'spell' : 'slash',
+          windupType: bossWindupType,
           windupAngle: 0,
           attackAnimTimer: 0,
           attackAnimDuration: 0.35,

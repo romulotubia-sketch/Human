@@ -44,6 +44,9 @@ import { Blessing, BlessingModifier } from '../types/blessing';
 import { getBlessingOptions } from '../data/heroBlessings';
 import { allocEntityId, buildGuildHouse, buildProceduralDungeon } from './dungeonGenerator';
 import { PlayerRenderState, RemotePlayerRenderState, renderGameWorld } from './renderer';
+import { equipmentManager } from './equipmentManager';
+import { EquipmentDropPayload, EquipmentItemId } from '../types/equipment';
+import { EQUIPMENT_BY_ID, EQUIPMENT_COLLECTIONS } from '../data/equipmentData';
 
 import { multiplayerClient } from './multiplayerClient';
 import {
@@ -129,6 +132,7 @@ export class GameEngine {
   private activeLoadout: SkillLoadout = [...HERO_PROFILES.human.defaultLoadout];
   private onPromptBlessing?: (options: Blessing[]) => void;
   private onPortalWarp?: (kind: 'next' | 'lobby') => void;
+  private onEquipmentDrop?: (drop: EquipmentDropPayload) => void;
 
   private baseMaxHp = HERO_PROFILES.human.baseHp;
 
@@ -361,6 +365,7 @@ export class GameEngine {
     this.map = guild.map;
     this.enemies = guild.enemies;
     this.syncHeroBaseStats();
+    this.initEquipmentProcs();
     this.recalcStats(true);
     this.resetPlayerPosition(this.map.spawnX, this.map.spawnY);
   }
@@ -806,6 +811,286 @@ export class GameEngine {
     this.onPortalWarp = cb;
   }
 
+  public setOnEquipmentDrop(cb: (drop: EquipmentDropPayload) => void) {
+    this.onEquipmentDrop = cb;
+  }
+
+  public applyEquipmentChanges() {
+    this.recalcStats(false);
+    this.emitHudSnapshot();
+  }
+
+  private initEquipmentProcs() {
+    equipmentManager.registerProcCallback((proc) => {
+      if (!equipmentManager.isDungeonActive()) return;
+      switch (proc.type) {
+        case 'bone_shockwave':
+          this.triggerEquipmentBoneShockwave();
+          break;
+        case 'ghostwalk_echo':
+          this.triggerEquipmentGhostwalkEcho();
+          break;
+        case 'apex_claw_wave':
+          this.triggerEquipmentApexClawWave();
+          break;
+        case 'last_survivor':
+          this.triggerEquipmentLastSurvivorProc();
+          break;
+        case 'tempest_wings':
+          this.triggerEquipmentTempestWingsHurricane();
+          break;
+        case 'roar_of_apex':
+          this.triggerEquipmentRoarOfApex();
+          break;
+        case 'seeking_spirit':
+          this.spawnSeekingSpirit(proc.damage || 45);
+          break;
+        case 'shrapnel_burst':
+          this.spawnShrapnelExplosion(proc.targetX ?? this.player.x, proc.targetY ?? this.player.y, proc.damage || 40);
+          break;
+        case 'toxic_burst':
+          this.spawnToxicBurst(proc.targetX ?? this.player.x, proc.targetY ?? this.player.y, proc.damage || 35);
+          break;
+        case 'wind_blade':
+          this.spawnWindBlade(proc.damage || 30);
+          break;
+        case 'heal_pulse':
+          if (proc.amount && proc.amount > 0) {
+            this.healPlayer(proc.amount, true);
+          }
+          break;
+      }
+    });
+  }
+
+  private triggerEquipmentBoneShockwave() {
+    soundEngine.playSkill('ultimate');
+    this.triggerShake(0.24, 6.0);
+    this.spawnRingEffect(this.player.x, this.player.y, 180, '#f8fafc');
+    this.spawnRingEffect(this.player.x, this.player.y, 120, '#67e8f9');
+    this.spawnBurstParticles(this.player.x, this.player.y - 10, '#f8fafc', 30, true);
+    this.spawnFloatingText(this.player.x, this.player.y - 48, 'BONE SHOCKWAVE!', '#67e8f9', true);
+
+    const dmg = Math.round(this.getEffectiveAtk() * 2.2);
+    for (const e of this.enemies) {
+      if (e.hp <= 0 || e.kind === EnemyKind.TRAINING_DUMMY) continue;
+      if (Math.hypot(e.x - this.player.x, e.y - this.player.y) <= 185 + e.radius) {
+        this.damageEnemy(e, dmg, true, '#67e8f9');
+        if (e.hp > 0 && !isBossKind(e.kind)) {
+          e.staggerTimer = Math.max(e.staggerTimer, 1.0);
+        }
+      }
+    }
+  }
+
+  private triggerEquipmentGhostwalkEcho() {
+    soundEngine.playGhostWisp(1.25);
+    this.spawnFloatingText(this.player.x, this.player.y - 48, 'GHOSTWALK ECHO!', '#2dd4bf', true);
+    this.spawnRingEffect(this.player.x, this.player.y, 90, '#2dd4bf');
+
+    for (let i = 0; i < 4; i++) {
+      const sa = this.player.facing + (i - 1.5) * 0.32;
+      this.spawnProjectile({
+        fromPlayer: true,
+        kind: 'ghost_soul_orb',
+        x: this.player.x + Math.cos(sa) * 20,
+        y: this.player.y - 10 + Math.sin(sa) * 20,
+        vx: Math.cos(sa) * 440,
+        vy: Math.sin(sa) * 440,
+        angle: sa,
+        radius: 14,
+        damage: Math.round(this.getEffectiveAtk() * 0.95),
+        isCrit: Math.random() < 0.3,
+        pierce: true,
+        maxLife: 1.1,
+        color: '#2dd4bf',
+      });
+    }
+  }
+
+  private triggerEquipmentApexClawWave() {
+    soundEngine.playFeralClaw(1.3, true);
+    this.triggerShake(0.18, 5.0);
+    this.spawnFloatingText(this.player.x, this.player.y - 48, 'APEX INSTINCT!', '#f43f5e', true);
+    const facing = this.player.facing;
+
+    this.spawnSlashWave(
+      'twin_rend',
+      this.player.x + Math.cos(facing) * 24,
+      this.player.y - 8 + Math.sin(facing) * 24,
+      facing,
+      175,
+      Math.PI * 1.35,
+      1,
+      0.32,
+      '#fff1f2',
+      '#e11d48'
+    );
+    this.spawnArcBurst(this.player.x, this.player.y, facing, 130, '#f43f5e', 18);
+
+    const dmg = Math.round(this.getEffectiveAtk() * 2.4);
+    for (const e of this.enemies) {
+      if (e.hp <= 0 || e.kind === EnemyKind.TRAINING_DUMMY) continue;
+      if (Math.hypot(e.x - this.player.x, e.y - this.player.y) <= 180 + e.radius) {
+        this.damageEnemy(e, dmg, true, '#f43f5e');
+      }
+    }
+  }
+
+  private triggerEquipmentLastSurvivorProc() {
+    soundEngine.playSkill('shield');
+    this.triggerShake(0.2, 5.5);
+    this.player.shield += 120;
+    this.spawnRingEffect(this.player.x, this.player.y, 110, '#fb923c');
+    this.spawnBurstParticles(this.player.x, this.player.y - 10, '#fde047', 24, true);
+    this.spawnFloatingText(this.player.x, this.player.y - 48, "SURVIVOR'S RESOLVE!", '#fb923c', true);
+
+    for (const e of this.enemies) {
+      if (e.hp <= 0 || e.kind === EnemyKind.TRAINING_DUMMY) continue;
+      const d = Math.hypot(e.x - this.player.x, e.y - this.player.y);
+      if (d <= 120 + e.radius) {
+        const ka = Math.atan2(e.y - this.player.y, e.x - this.player.x);
+        this.tryMoveEntity(e.x, e.y, Math.cos(ka) * 75, Math.sin(ka) * 75, e.radius, (nx, ny) => {
+          e.x = nx;
+          e.y = ny;
+        });
+        this.damageEnemy(e, Math.round(this.getEffectiveAtk() * 1.2), false, '#fb923c');
+      }
+    }
+  }
+
+  private triggerEquipmentTempestWingsHurricane() {
+    soundEngine.playSkyScreech(1.1);
+    this.triggerShake(0.25, 6.5);
+    this.spawnRingEffect(this.player.x, this.player.y, 200, '#38bdf8');
+    this.spawnRingEffect(this.player.x, this.player.y, 130, '#e0f2fe');
+    this.spawnFloatingText(this.player.x, this.player.y - 50, 'TEMPEST HURRICANE!', '#38bdf8', true);
+
+    const dmg = Math.round(this.getEffectiveAtk() * 1.8);
+    for (const e of this.enemies) {
+      if (e.hp <= 0 || e.kind === EnemyKind.TRAINING_DUMMY) continue;
+      const d = Math.hypot(e.x - this.player.x, e.y - this.player.y);
+      if (d <= 210 + e.radius) {
+        const pullX = (this.player.x - e.x) * 0.35;
+        const pullY = (this.player.y - e.y) * 0.35;
+        this.tryMoveEntity(e.x, e.y, pullX, pullY, e.radius, (nx, ny) => {
+          e.x = nx;
+          e.y = ny;
+        });
+        e.slowTimer = Math.max(e.slowTimer, 2.5);
+        this.damageEnemy(e, dmg, true, '#38bdf8');
+      }
+    }
+  }
+
+  private triggerEquipmentRoarOfApex() {
+    soundEngine.playTigerRoar(1.2);
+    this.triggerShake(0.28, 7.5);
+    this.spawnRingEffect(this.player.x, this.player.y, 220, '#f59e0b');
+    this.spawnRingEffect(this.player.x, this.player.y, 140, '#fbbf24');
+    this.spawnBurstParticles(this.player.x, this.player.y - 10, '#fde047', 32, true);
+    this.spawnFloatingText(this.player.x, this.player.y - 50, 'ROAR OF APEX!', '#fbbf24', true);
+
+    const dmg = Math.round(this.getEffectiveAtk() * 2.0);
+    for (const e of this.enemies) {
+      if (e.hp <= 0 || e.kind === EnemyKind.TRAINING_DUMMY) continue;
+      if (Math.hypot(e.x - this.player.x, e.y - this.player.y) <= 220 + e.radius) {
+        e.slowTimer = Math.max(e.slowTimer, 3.5);
+        if (!isBossKind(e.kind)) {
+          e.staggerTimer = Math.max(e.staggerTimer, 1.5);
+        }
+        this.damageEnemy(e, dmg, true, '#fbbf24');
+      }
+    }
+  }
+
+  private spawnSeekingSpirit(damage: number) {
+    soundEngine.playGhostWisp(1.1);
+    const target = this.findNearestEnemy(380);
+    const ang = target
+      ? Math.atan2(target.y - this.player.y, target.x - this.player.x)
+      : this.player.facing;
+
+    this.spawnProjectile({
+      fromPlayer: true,
+      kind: 'ghost_wisp',
+      x: this.player.x,
+      y: this.player.y - 10,
+      vx: Math.cos(ang) * 480,
+      vy: Math.sin(ang) * 480,
+      angle: ang,
+      radius: 12,
+      damage: Math.round(damage),
+      isCrit: false,
+      pierce: false,
+      maxLife: 1.2,
+      color: '#5eead4',
+      targetEnemyId: target?.id,
+    });
+  }
+
+  private spawnShrapnelExplosion(x: number, y: number, damage: number) {
+    soundEngine.playPipeClang(1.2, false);
+    this.spawnBurstParticles(x, y, '#fb923c', 16, true);
+    this.spawnRingEffect(x, y, 90, '#fb923c');
+    for (const e of this.enemies) {
+      if (e.hp <= 0 || e.kind === EnemyKind.TRAINING_DUMMY) continue;
+      if (Math.hypot(e.x - x, e.y - y) <= 90 + e.radius) {
+        this.damageEnemy(e, Math.round(damage), false, '#fb923c');
+      }
+    }
+  }
+
+  private spawnToxicBurst(x: number, y: number, damage: number) {
+    this.spawnToxicCloud(x, y, 95, 3.5, damage * 0.45);
+    this.spawnRingEffect(x, y, 100, '#a3e635');
+    this.spawnBurstParticles(x, y, '#84cc16', 14, true);
+    for (const e of this.enemies) {
+      if (e.hp <= 0 || e.kind === EnemyKind.TRAINING_DUMMY) continue;
+      if (Math.hypot(e.x - x, e.y - y) <= 100 + e.radius) {
+        e.poisonTimer = Math.max(e.poisonTimer, 4.0);
+        e.poisonDps = Math.max(e.poisonDps, damage * 0.5);
+      }
+    }
+  }
+
+  private spawnWindBlade(damage: number) {
+    soundEngine.playFeatherShoot(1.25);
+    const ang = this.player.facing;
+    this.spawnProjectile({
+      fromPlayer: true,
+      kind: 'feather_shot',
+      x: this.player.x + Math.cos(ang) * 20,
+      y: this.player.y - 8 + Math.sin(ang) * 20,
+      vx: Math.cos(ang) * 720,
+      vy: Math.sin(ang) * 720,
+      angle: ang,
+      radius: 16,
+      damage: Math.round(damage),
+      isCrit: true,
+      pierce: true,
+      maxLife: 0.9,
+      color: '#38bdf8',
+    });
+  }
+
+  private spawnEquipmentPickup(x: number, y: number, itemId: EquipmentItemId) {
+    for (const orb of this.pickups) {
+      if (!orb.active) {
+        orb.active = true;
+        orb.kind = 'equipment';
+        orb.equipmentItemId = itemId;
+        orb.x = x;
+        orb.y = y;
+        orb.vx = (Math.random() - 0.5) * 40;
+        orb.vy = (Math.random() - 0.5) * 40;
+        orb.value = 1;
+        orb.age = 0;
+        return;
+      }
+    }
+  }
+
   public setActiveLoadout(loadout: SkillLoadout) {
     this.activeLoadout = [...loadout];
   }
@@ -932,7 +1217,12 @@ export class GameEngine {
     } else {
       passiveHpBonus = (this.skillRanks.predators_momentum || 1) * 20;
     }
-    const newMax = this.baseMaxHp + (this.level - 1) * (this.heroId === 'ghost' ? 24 : 30) + passiveHpBonus;
+    const eqStats = equipmentManager.getComputedStats(this.heroId);
+    const newMax =
+      this.baseMaxHp +
+      (this.level - 1) * (this.heroId === 'ghost' ? 24 : 30) +
+      passiveHpBonus +
+      eqStats.flatMaxHpBonus;
     this.player.maxHp = newMax;
     if (fullHeal) {
       this.player.hp = newMax;
@@ -973,6 +1263,7 @@ export class GameEngine {
   }
 
   public enterGuildHouse() {
+    equipmentManager.setDungeonActive(false);
     this.isMultiplayer = false;
     this.remotePlayers.clear();
     this.localIsDowned = false;
@@ -1008,6 +1299,7 @@ export class GameEngine {
   }
 
   public enterDungeon(floor = 1) {
+    equipmentManager.setDungeonActive(true);
     this.isMultiplayer = false;
     this.remotePlayers.clear();
     this.localIsDowned = false;
@@ -1033,6 +1325,7 @@ export class GameEngine {
     if (floor === 1) {
       this.resetRunProgression();
     } else {
+      this.recalcStats(false);
       this.healPlayer(Math.round(this.player.maxHp * 0.45), false);
     }
     this.resetPlayerPosition(this.map.spawnX, this.map.spawnY);
@@ -12414,7 +12707,8 @@ export class GameEngine {
         atk *= 1.55 + (colRank - 1) * 0.15;
       }
     }
-    return atk;
+    const eqStats = equipmentManager.getComputedStats(this.heroId);
+    return atk * eqStats.atkMultiplier;
   }
 
   private rollPlayerDamage(multiplier: number, bonusCritChance: number): { dmg: number; isCrit: boolean } {
@@ -12453,7 +12747,20 @@ export class GameEngine {
       }
     }
     critChance += blessingCrit;
+
+    const eqStats = equipmentManager.getComputedStats(this.heroId);
+    critChance += eqStats.critChanceBonus;
+    critMult *= eqStats.critDamageMultiplier;
+
     const isCrit = Math.random() < critChance;
+    if (isCrit) {
+      equipmentManager.onCriticalStrike(
+        this.heroId,
+        (amt) => this.healPlayer(amt, true),
+        this.player.maxHp
+      );
+    }
+
     const raw = this.getEffectiveAtk() * multiplier * (0.93 + Math.random() * 0.14);
     const dmg = Math.max(1, Math.round(isCrit ? raw * critMult : raw));
     return { dmg, isCrit };

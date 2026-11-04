@@ -7335,6 +7335,45 @@ function drawEnemy(ctx: CanvasRenderingContext2D, e: EnemyEntity, time: number, 
       }
       ctx.restore();
     }
+  } else if (e.kind === EnemyKind.BOSS_LEGION_HUMAN) {
+    drawChibiHumanBody(
+      ctx,
+      drawX + fearShakeX,
+      drawY,
+      aimAng,
+      e.walkPhase,
+      scale,
+      false,
+      e.hitFlash
+    );
+  } else if (e.kind === EnemyKind.BOSS_LEGION_EAGLEKIN) {
+    drawChibiEaglekinBody(
+      ctx,
+      drawX + fearShakeX,
+      drawY,
+      aimAng,
+      e.walkPhase,
+      scale,
+      false,
+      e.hitFlash,
+      0
+    );
+  } else if (e.kind === EnemyKind.BOSS_LEGION_TIGERKIN) {
+    drawChibiTigerkinBody(
+      ctx,
+      drawX + fearShakeX,
+      drawY,
+      aimAng,
+      e.walkPhase,
+      scale,
+      false,
+      isBossTransformed,
+      e.hitFlash,
+      0,
+      0,
+      0,
+      0
+    );
   } else {
     const isLegionOrMiniSkel =
       e.kind === EnemyKind.BOSS_LEGION_SKELETON || e.kind === EnemyKind.MINI_SKELETON;
@@ -8078,6 +8117,97 @@ function drawEnemy(ctx: CanvasRenderingContext2D, e: EnemyEntity, time: number, 
       ctx.stroke();
     }
     ctx.restore();
+  } else if (e.kind === EnemyKind.BOSS_LEGION_HUMAN) {
+    // Corrupted Human Boss: Heavy Galvanized Steel Pipe Weapon
+    glowColor = '#fb923c';
+    if (isWindingUp) {
+      const cockAng = aimAng - 1.45 * windProg - 0.45;
+      wx = drawX + Math.cos(cockAng) * (24 * scale);
+      wy = drawY - 9 * scale + Math.sin(cockAng) * (16 * scale);
+      wRot = cockAng;
+      wScale = scale * 1.1;
+      glowAlpha = windProg * 0.6;
+    } else if (isStriking) {
+      const sweep = -1.7 + strikeEase * 3.4;
+      const orb = aimAng + sweep;
+      wx = drawX + Math.cos(orb) * (31 * scale);
+      wy = drawY - 8 * scale + Math.sin(orb) * (20 * scale);
+      wRot = orb;
+      wScale = scale * 1.2;
+      glowAlpha = (1 - strikeProg) * 0.7;
+    }
+    ctx.save();
+    ctx.translate(wx, wy);
+    ctx.rotate(wRot);
+    ctx.scale(wScale, wScale);
+    drawSteelPipeGraphic(ctx, glowColor, 1.0, false);
+    ctx.restore();
+  } else if (e.kind === EnemyKind.BOSS_LEGION_EAGLEKIN) {
+    // Corrupted Eaglekin Boss: Radiant Celestial Sky Feather Bow
+    glowColor = '#38bdf8';
+    if (isWindingUp) {
+      const cockAng = aimAng - 1.2 * windProg;
+      wx = drawX + Math.cos(cockAng) * (25 * scale);
+      wy = drawY - 10 * scale + Math.sin(cockAng) * (15 * scale);
+      wRot = cockAng;
+      wScale = scale * 1.1;
+      glowAlpha = windProg * 0.7;
+    } else if (isStriking) {
+      wx = drawX + Math.cos(aimAng) * (28 * scale);
+      wy = drawY - 8 * scale + Math.sin(aimAng) * (18 * scale);
+      wRot = aimAng;
+      wScale = scale * 1.18;
+      glowAlpha = (1 - strikeProg) * 0.8;
+    }
+    ctx.save();
+    ctx.translate(wx, wy);
+    ctx.rotate(wRot);
+    ctx.scale(wScale, wScale);
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 2.4;
+    ctx.beginPath();
+    ctx.arc(0, 0, 16, -Math.PI * 0.45, Math.PI * 0.45);
+    ctx.stroke();
+    ctx.strokeStyle = '#fde047';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(0, -14);
+    ctx.lineTo(-6, 0);
+    ctx.lineTo(0, 14);
+    ctx.stroke();
+    ctx.restore();
+  } else if (e.kind === EnemyKind.BOSS_LEGION_TIGERKIN) {
+    // Corrupted Tigerkin Boss: Twin Savage Tiger Talons
+    glowColor = '#f59e0b';
+    if (isWindingUp) {
+      const cockAng = aimAng - 1.5 * windProg;
+      wx = drawX + Math.cos(cockAng) * (26 * scale);
+      wy = drawY - 9 * scale + Math.sin(cockAng) * (16 * scale);
+      wRot = cockAng;
+      wScale = scale * 1.12;
+      glowAlpha = windProg * 0.65;
+    } else if (isStriking) {
+      const sweep = -1.8 + strikeEase * 3.6;
+      const orb = aimAng + sweep;
+      wx = drawX + Math.cos(orb) * (32 * scale);
+      wy = drawY - 8 * scale + Math.sin(orb) * (22 * scale);
+      wRot = orb;
+      wScale = scale * 1.25;
+      glowAlpha = (1 - strikeProg) * 0.75;
+    }
+    ctx.save();
+    ctx.translate(wx, wy);
+    ctx.rotate(wRot);
+    ctx.scale(wScale, wScale);
+    ctx.strokeStyle = '#fbbf24';
+    ctx.lineWidth = 2.8;
+    for (const cy of [-5, 0, 5]) {
+      ctx.beginPath();
+      ctx.moveTo(-4, cy);
+      ctx.quadraticCurveTo(8, cy * 1.2 - 2, 22, cy * 0.6);
+      ctx.stroke();
+    }
+    ctx.restore();
   } else if (e.kind === EnemyKind.MINI_SKELETON || e.kind === EnemyKind.BOSS_LEGION_SKELETON) {
     // Skeleton Mini & Corrupted Skeleton Boss: Exact Original Floating Sharpened Bone Sword (+ Reaper's Judgment Scythe!)
     const isScythe = e.kind === EnemyKind.BOSS_LEGION_SKELETON && (e.bossScytheTimer || 0) > 0;
@@ -8377,6 +8507,38 @@ function drawPickupOrb(ctx: CanvasRenderingContext2D, orb: PickupOrb, time: numb
     ctx.fillStyle = '#fde047';
     ctx.textAlign = 'center';
     ctx.fillText('ESSENCE', 0, -14);
+  } else if (orb.kind === 'equipment') {
+    // Radiant Amber Relic Chest / Artifact Orb with sacred floating runes
+    const glowRad = 17 + Math.sin(time * 5) * 3;
+    const grad = ctx.createRadialGradient(0, 0, 2, 0, 0, glowRad);
+    grad.addColorStop(0, 'rgba(251, 191, 36, 0.95)');
+    grad.addColorStop(0.45, 'rgba(245, 158, 11, 0.65)');
+    grad.addColorStop(1, 'rgba(217, 119, 6, 0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(0, 0, glowRad, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Ornate Relic Jewel / Chest Glyph
+    ctx.fillStyle = '#fef08a';
+    ctx.strokeStyle = '#78350f';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.roundRect(-7, -6, 14, 12, 3);
+    ctx.fill();
+    ctx.stroke();
+
+    // Central Glowing Gem
+    ctx.fillStyle = '#f59e0b';
+    ctx.beginPath();
+    ctx.arc(0, 0, 3.2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Floating text label
+    ctx.font = 'bold 9px "Plus Jakarta Sans", sans-serif';
+    ctx.fillStyle = '#fbbf24';
+    ctx.textAlign = 'center';
+    ctx.fillText('RELIC', 0, -14);
   } else if (orb.kind === 'xp') {
     ctx.fillStyle = '#38bdf8';
     ctx.beginPath();
