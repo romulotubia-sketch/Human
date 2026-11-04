@@ -110,7 +110,7 @@ export interface SyncEnemyState {
   possessedTimer?: number;
   isBoss?: boolean;
   isLegionBoss?: boolean;
-  legionHeroId?: 'skeleton' | 'zombie' | 'ghoul' | 'ghost';
+  legionHeroId?: HeroId;
   bossTransformTimer?: number;
   bossBuffTimer?: number;
   bossStealthTimer?: number;

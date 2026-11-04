@@ -1,8 +1,10 @@
-import { Maximize2, Minimize2, Settings, Sparkles, Swords, Users } from 'lucide-react';
+import { Maximize2, Minimize2, Settings, Shield, Sparkles, Swords, Users } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { soundEngine } from './audio/soundEngine';
 import { BlessingSelectionModal } from './components/BlessingSelectionModal';
 import { BlessingsTrayModal } from './components/BlessingsTrayModal';
+import { EquipmentDropBanner } from './components/EquipmentDropBanner';
+import { EquipmentModal } from './components/EquipmentModal';
 import { HeroSelectScreen } from './components/HeroSelectScreen';
 import { Minimap } from './components/Minimap';
 import { MobaControls } from './components/MobaControls';
@@ -12,6 +14,8 @@ import { MultiplayerMenuModal } from './components/MultiplayerMenuModal';
 import { SettingsModal } from './components/SettingsModal';
 import { SkillTreeModal } from './components/SkillTreeModal';
 import { Blessing } from './types/blessing';
+import { EquipmentDropPayload } from './types/equipment';
+import { equipmentManager } from './game/equipmentManager';
 import {
   ALL_ACTIVE_SKILL_IDS,
   createInitialSkillRanks,
@@ -97,6 +101,8 @@ export default function App() {
 
   const [showSkillTree, setShowSkillTree] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showEquipment, setShowEquipment] = useState(false);
+  const [equipmentDrop, setEquipmentDrop] = useState<EquipmentDropPayload | null>(null);
   const [portalWarp, setPortalWarp] = useState<{ kind: 'next' | 'lobby'; seq: number } | null>(null);
   const [blessingOptions, setBlessingOptions] = useState<Blessing[] | null>(null);
   const [showBlessingsTray, setShowBlessingsTray] = useState(false);
@@ -129,7 +135,7 @@ export default function App() {
   const multiplayerReplacedMapRef = useRef<boolean>(false);
   const pausedRef = useRef<boolean>(false);
   pausedRef.current =
-    (showSkillTree || showSettings || Boolean(blessingOptions) || showBlessingsTray) &&
+    (showSkillTree || showSettings || Boolean(blessingOptions) || showBlessingsTray || showEquipment) &&
     !isMultiplayer;
 
   if (!engineRef.current) {
@@ -151,6 +157,9 @@ export default function App() {
   useEffect(() => {
     engineRef.current?.setOnPromptBlessing((options) => {
       setBlessingOptions(options);
+    });
+    engineRef.current?.setOnEquipmentDrop((drop) => {
+      setEquipmentDrop(drop);
     });
     let warpTimer: number | null = null;
     engineRef.current?.setOnPortalWarp((kind) => {
@@ -497,6 +506,7 @@ export default function App() {
     setShowSettings(false);
     setShowSkillTree(false);
     setShowBlessingsTray(false);
+    setShowEquipment(false);
     setMultiplayerError(null);
     setIsMultiplayerLoading(false);
     setMultiplayerReturnPhase(returnPhase);
@@ -1038,6 +1048,25 @@ export default function App() {
 
               <button
                 type="button"
+                aria-label="View Dungeon Equipment Relics"
+                onClick={() => {
+                  soundEngine.playUiTap();
+                  setShowEquipment(true);
+                }}
+                className={`flex min-h-[42px] items-center gap-1.5 rounded-xl border bg-stone-950/85 px-3 py-2 text-xs font-semibold backdrop-blur-md active:scale-95 ${
+                  equipmentManager.getEquippedCountForHero(heroId) > 0
+                    ? 'border-amber-400/80 text-amber-200 shadow-[0_0_12px_rgba(245,158,11,0.25)]'
+                    : 'border-stone-700/80 text-stone-300'
+                }`}
+              >
+                <Shield className="h-4 w-4 text-amber-400" />
+                <span>
+                  Relics ({equipmentManager.getEquippedCountForHero(heroId)}/4)
+                </span>
+              </button>
+
+              <button
+                type="button"
                 aria-label={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
                 onClick={handleToggleFullscreen}
                 className="flex min-h-[42px] min-w-[42px] items-center justify-center rounded-xl border border-stone-700/80 bg-stone-950/85 text-amber-200 backdrop-blur-md active:scale-95"
@@ -1256,6 +1285,21 @@ export default function App() {
           blessings={hud.activeBlessings ?? []}
           maxBlessings={hud.maxBlessings ?? 6}
           onClose={() => setShowBlessingsTray(false)}
+        />
+      )}
+
+      <EquipmentDropBanner
+        drop={equipmentDrop}
+        onDismiss={() => setEquipmentDrop(null)}
+      />
+
+      {showEquipment && (
+        <EquipmentModal
+          heroId={heroId}
+          onClose={() => setShowEquipment(false)}
+          onEquipmentChanged={() => {
+            engineRef.current?.applyEquipmentChanges();
+          }}
         />
       )}
     </div>

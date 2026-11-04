@@ -35,8 +35,10 @@ export interface EquipmentCollectionDef {
   fourPieceBonus: SetBonusInfo;
 }
 
+export type EquipmentItemId = string;
+
 export interface EquipmentItemDef {
-  id: string;
+  id: EquipmentItemId;
   name: string;
   collection: EquipmentCollectionId;
   slot: EquipmentSlot;

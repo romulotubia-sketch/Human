@@ -146,6 +146,16 @@ export class EquipmentManager {
     return this.isDungeonActive;
   }
 
+  public isDungeonActive(): boolean {
+    return this.isDungeonActive;
+  }
+
+  public getEquippedCountForHero(heroId: HeroId): number {
+    const loadout = this.equippedByHero[heroId];
+    if (!loadout) return 0;
+    return Object.values(loadout).filter(Boolean).length;
+  }
+
   public isOwned(itemId: string): boolean {
     return this.ownedEquipmentIds.has(itemId);
   }

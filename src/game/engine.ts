@@ -133,6 +133,7 @@ export class GameEngine {
   private onPromptBlessing?: (options: Blessing[]) => void;
   private onPortalWarp?: (kind: 'next' | 'lobby') => void;
   private onEquipmentDrop?: (drop: EquipmentDropPayload) => void;
+  private currentAttackIsBasic = false;
 
   private baseMaxHp = HERO_PROFILES.human.baseHp;
 
@@ -821,46 +822,46 @@ export class GameEngine {
   }
 
   private initEquipmentProcs() {
-    equipmentManager.registerProcCallback((proc) => {
-      if (!equipmentManager.isDungeonActive()) return;
-      switch (proc.type) {
-        case 'bone_shockwave':
-          this.triggerEquipmentBoneShockwave();
-          break;
-        case 'ghostwalk_echo':
-          this.triggerEquipmentGhostwalkEcho();
-          break;
-        case 'apex_claw_wave':
-          this.triggerEquipmentApexClawWave();
-          break;
-        case 'last_survivor':
-          this.triggerEquipmentLastSurvivorProc();
-          break;
-        case 'tempest_wings':
-          this.triggerEquipmentTempestWingsHurricane();
-          break;
-        case 'roar_of_apex':
-          this.triggerEquipmentRoarOfApex();
-          break;
-        case 'seeking_spirit':
-          this.spawnSeekingSpirit(proc.damage || 45);
-          break;
-        case 'shrapnel_burst':
-          this.spawnShrapnelExplosion(proc.targetX ?? this.player.x, proc.targetY ?? this.player.y, proc.damage || 40);
-          break;
-        case 'toxic_burst':
-          this.spawnToxicBurst(proc.targetX ?? this.player.x, proc.targetY ?? this.player.y, proc.damage || 35);
-          break;
-        case 'wind_blade':
-          this.spawnWindBlade(proc.damage || 30);
-          break;
-        case 'heal_pulse':
-          if (proc.amount && proc.amount > 0) {
-            this.healPlayer(proc.amount, true);
-          }
-          break;
-      }
-    });
+    equipmentManager.onTriggerBoneShockwave = () => {
+      if (!equipmentManager.getIsDungeonActive()) return;
+      this.triggerEquipmentBoneShockwave();
+    };
+    equipmentManager.onTriggerGhostwalkEcho = () => {
+      if (!equipmentManager.getIsDungeonActive()) return;
+      this.triggerEquipmentGhostwalkEcho();
+    };
+    equipmentManager.onTriggerApexClawWave = () => {
+      if (!equipmentManager.getIsDungeonActive()) return;
+      this.triggerEquipmentApexClawWave();
+    };
+    equipmentManager.onTriggerLastSurvivorProc = () => {
+      if (!equipmentManager.getIsDungeonActive()) return;
+      this.triggerEquipmentLastSurvivorProc();
+    };
+    equipmentManager.onTriggerTempestWingsHurricane = () => {
+      if (!equipmentManager.getIsDungeonActive()) return;
+      this.triggerEquipmentTempestWingsHurricane();
+    };
+    equipmentManager.onTriggerRoarOfApex = () => {
+      if (!equipmentManager.getIsDungeonActive()) return;
+      this.triggerEquipmentRoarOfApex();
+    };
+    equipmentManager.onTriggerSeekingSpirit = (_x, _y) => {
+      if (!equipmentManager.getIsDungeonActive()) return;
+      this.spawnSeekingSpirit(45);
+    };
+    equipmentManager.onTriggerShrapnelExplosion = (x, y) => {
+      if (!equipmentManager.getIsDungeonActive()) return;
+      this.spawnShrapnelExplosion(x, y, 40);
+    };
+    equipmentManager.onTriggerToxicBurst = (x, y) => {
+      if (!equipmentManager.getIsDungeonActive()) return;
+      this.spawnToxicBurst(x, y, 35);
+    };
+    equipmentManager.onTriggerWindBlade = (_x, _y, _angle) => {
+      if (!equipmentManager.getIsDungeonActive()) return;
+      this.spawnWindBlade(30);
+    };
   }
 
   private triggerEquipmentBoneShockwave() {
@@ -1418,6 +1419,7 @@ export class GameEngine {
     players: Array<{ id: string; name: string; heroId: HeroId; isHost?: boolean }>
   ) {
     this.isMultiplayer = true;
+    equipmentManager.setDungeonActive(true);
     this.map = dungeonMap;
     this.map.floor = floor;
     this.enemies = enemies.map((e) => ({ ...e }));
@@ -3237,6 +3239,30 @@ export class GameEngine {
       if (data.killerId === multiplayerClient.getLocalPlayerId()) {
         this.triggerLocalKillPassives(e);
       }
+
+      if (isBossKind(e.kind)) {
+        let bossHeroId: HeroId = 'skeleton';
+        if (e.legionHeroId) {
+          bossHeroId = e.legionHeroId;
+        } else if (e.kind === EnemyKind.BOSS_LEGION_SKELETON) {
+          bossHeroId = 'skeleton';
+        } else if (e.kind === EnemyKind.BOSS_LEGION_GHOST) {
+          bossHeroId = 'ghost';
+        } else if (e.kind === EnemyKind.BOSS_LEGION_ZOMBIE) {
+          bossHeroId = 'zombie';
+        } else if (e.kind === EnemyKind.BOSS_LEGION_GHOUL) {
+          bossHeroId = 'ghoul';
+        } else if (e.kind === EnemyKind.BOSS_LEGION_HUMAN) {
+          bossHeroId = 'human';
+        } else if (e.kind === EnemyKind.BOSS_LEGION_EAGLEKIN) {
+          bossHeroId = 'eaglekin';
+        } else if (e.kind === EnemyKind.BOSS_LEGION_TIGERKIN) {
+          bossHeroId = 'tigerkin';
+        }
+        const dropPayload = equipmentManager.rollBossDrop(bossHeroId);
+        soundEngine.playPickup();
+        this.onEquipmentDrop?.(dropPayload);
+      }
     }
 
     if (data.loot) {
@@ -3527,6 +3553,7 @@ export class GameEngine {
   }
 
   public resetMultiplayerToLobby() {
+    equipmentManager.setDungeonActive(false);
     this.onPortalWarp?.('lobby');
     soundEngine.playPortalWarp(true);
     this.isMultiplayer = false;
@@ -3620,6 +3647,10 @@ export class GameEngine {
     const blessingDmg = this.getBlessingDamageMult(skillId);
     const mult = def.baseMultiplier + (rank - 1) * def.rankMultiplier + blessingDmg;
     const cdr = this.getBlessingCooldownReduction(skillId);
+    const eqStats = equipmentManager.getComputedStats(this.heroId);
+    const totalCdr = Math.min(0.65, cdr + eqStats.cooldownReduction);
+
+    equipmentManager.onUseSkill(this.heroId);
 
     // Auto-target nearest enemy unless manually dragged
     let targetAngle = manualAngle;
@@ -3650,7 +3681,7 @@ export class GameEngine {
     }
 
     this.player.facing = targetAngle;
-    this.cooldowns[skillId] = Math.max(0.18, def.cooldown * (1 - cdr));
+    this.cooldowns[skillId] = Math.max(0.18, def.cooldown * (1 - totalCdr));
     this.swordCastAngle = targetAngle;
     this.player.swordGlowColor = def.glowColor;
     this.player.swordGlowIntensity = 1.25;
@@ -6037,6 +6068,25 @@ export class GameEngine {
   }
 
   public triggerBasicAttack() {
+    this.currentAttackIsBasic = true;
+    try {
+      this.executeBasicAttackInternal();
+      const eqStats = equipmentManager.getComputedStats(this.heroId);
+      if (eqStats.consecutiveAtkSpeedBonus > 0) {
+        this.basicCooldown = Math.max(0.1, this.basicCooldown / (1 + eqStats.consecutiveAtkSpeedBonus));
+      }
+      if (equipmentManager.improvisedTacticsReady) {
+        equipmentManager.improvisedTacticsReady = false;
+        this.spawnFloatingText(this.player.x, this.player.y - 36, 'IMPROVISED TACTICS!', '#fb923c', true);
+        soundEngine.playPipeClang(1.25, true);
+        this.spawnRingEffect(this.player.x, this.player.y, 85, '#fb923c');
+      }
+    } finally {
+      this.currentAttackIsBasic = false;
+    }
+  }
+
+  private executeBasicAttackInternal() {
     if (this.runOutcome === 'defeat' || this.localIsDowned) return;
     if (
       this.basicCooldown > 0 ||
@@ -6989,6 +7039,7 @@ export class GameEngine {
     this.elapsedTime += clampedDt;
 
     this.updatePlayer(clampedDt);
+    equipmentManager.update(clampedDt);
     this.updatePortals(clampedDt);
     this.updateFloatingSwordAndTrail(clampedDt);
     this.updateToxicClouds(clampedDt);
@@ -9552,8 +9603,8 @@ export class GameEngine {
             const preyRank = Math.max(1, this.skillRanks.predators_instinct || 1);
             speedMult += 0.22 + (preyRank - 1) * 0.04;
           }
-        }
-        const speed = this.moveSpeed * speedMult * Math.min(1, mag);
+        const eqStats = equipmentManager.getComputedStats(this.heroId);
+        const speed = this.moveSpeed * speedMult * eqStats.speedMultiplier * Math.min(1, mag);
         const dx = (this.joyX / mag) * speed * dt;
         const dy = (this.joyY / mag) * speed * dt;
         // Ghost's Ethereal Body allows phasing smoothly through interior obstacles (ignoreProps = true)!
@@ -10458,7 +10509,7 @@ export class GameEngine {
       if (e.bossScytheTimer && e.bossScytheTimer > 0) e.bossScytheTimer = Math.max(0, e.bossScytheTimer - dt);
       if (e.activeAuraTimer && e.activeAuraTimer > 0) e.activeAuraTimer = Math.max(0, e.activeAuraTimer - dt);
 
-      // Tick Zombie's Infectious Touch lingering poison
+      // Tick lingering poison
       if (e.poisonTimer > 0) {
         e.poisonTimer = Math.max(0, e.poisonTimer - dt);
         e.poisonTickAccum += dt;
@@ -10467,6 +10518,15 @@ export class GameEngine {
           const pDmg = Math.max(1, Math.round(e.poisonDps * 0.5));
           this.damageEnemyFromPoisonTick(e, pDmg);
           if (e.hp <= 0) continue;
+        }
+
+        // Plaguebound 4-pc: Plague Incarnate (periodic toxic burst every 2s)
+        if (equipmentManager.hasFourPieceBonus(this.heroId, 'plaguebound')) {
+          e.plagueBurstAccum = (e.plagueBurstAccum || 0) + dt;
+          if (e.plagueBurstAccum >= 2.0) {
+            e.plagueBurstAccum -= 2.0;
+            this.spawnToxicBurst(e.x, e.y, Math.round(this.getEffectiveAtk() * 0.4));
+          }
         }
       }
 
@@ -11482,7 +11542,10 @@ export class GameEngine {
       cd[k] = Math.max(0, cd[k] - dt);
     }
 
-    const hero = e.legionHeroId || 'skeleton';
+    const hero: 'skeleton' | 'zombie' | 'ghoul' | 'ghost' =
+      (e.legionHeroId === 'zombie' || e.legionHeroId === 'ghoul' || e.legionHeroId === 'ghost')
+        ? e.legionHeroId
+        : 'skeleton';
     const hpRatio = e.hp / Math.max(1, e.maxHp);
     const empoweredMult = e.bossTransformTimer && e.bossTransformTimer > 0 ? 1.2 : 1.0;
     const effectiveAtk = Math.round(enemyAtk * empoweredMult);
@@ -12557,9 +12620,11 @@ export class GameEngine {
           multiplayerClient.sendLootPickup(orb.id);
           continue;
         }
+        const eqStats = equipmentManager.getComputedStats(this.heroId);
+        const resourceMult = eqStats.resourceMultiplier;
         if (orb.kind === 'xp') {
           soundEngine.playPickup();
-          this.gainXp(orb.value);
+          this.gainXp(Math.round(orb.value * resourceMult));
         } else if (orb.kind === 'heal') {
           soundEngine.playPickup();
           this.healPlayer(orb.value, true);
@@ -12575,7 +12640,7 @@ export class GameEngine {
           }
         } else {
           soundEngine.playPickup();
-          this.boneShards += orb.value;
+          this.boneShards += Math.round(orb.value * resourceMult);
         }
       }
     }
@@ -12674,9 +12739,7 @@ export class GameEngine {
     if (this.heroId === 'human') {
       if (this.player.lastStandTimer > 0) atk *= 1.32;
       if (this.player.oneManArmyTimer > 0) atk *= 1.25;
-      return atk;
-    }
-    if (this.heroId === 'ghost') {
+    } else if (this.heroId === 'ghost') {
       if (this.player.restlessStacks > 0) {
         const restRank = Math.max(1, this.skillRanks.restless_spirit || 1);
         atk *= 1 + this.player.restlessStacks * (0.08 + (restRank - 1) * 0.02);
@@ -12685,17 +12748,13 @@ export class GameEngine {
         const nightRank = Math.max(1, this.skillRanks.eternal_nightmare || 1);
         atk *= 1.38 + (nightRank - 1) * 0.12;
       }
-      return atk;
-    }
-    if (this.heroId === 'tigerkin') {
+    } else if (this.heroId === 'tigerkin') {
       if ((this.player.kingOfBeastsTimer ?? 0) > 0) atk *= 1.45;
       if (this.player.feralMomentumStacks && this.player.feralMomentumStacks > 0) {
         const momRank = Math.max(1, this.skillRanks.feral_momentum || 1);
         atk *= 1 + this.player.feralMomentumStacks * (0.05 + (momRank - 1) * 0.01);
       }
-      return atk;
-    }
-    if (this.player.colossusTimer > 0) {
+    } else if (this.player.colossusTimer > 0) {
       if (this.heroId === 'ghoul') {
         const apexRank = Math.max(1, this.skillRanks.apex_predator || 1);
         atk *= 1.6 + (apexRank - 1) * 0.15;
@@ -12961,6 +13020,18 @@ export class GameEngine {
       this.spawnBurstParticles(e.x, e.y - 8, sparkColor, isCrit ? 10 : 5, true);
     }
 
+    // Equipment on-hit combat hooks & poison chance
+    const eqStats = equipmentManager.getComputedStats(this.heroId);
+    if (eqStats.poisonChance > 0 && Math.random() < eqStats.poisonChance) {
+      e.poisonTimer = Math.max(e.poisonTimer, 4.0);
+      e.poisonDps = Math.max(e.poisonDps, Math.round(this.getEffectiveAtk() * 0.35));
+    }
+    if (this.currentAttackIsBasic) {
+      equipmentManager.onBasicAttackHit(this.heroId, e.x, e.y, this.player.facing);
+    } else {
+      equipmentManager.onSkillHitEnemy(this.heroId, e.x, e.y);
+    }
+
     // Skeleton Bone Mastery Passive: Critical Strikes spawn homing bone splinters
     if (this.heroId === 'skeleton') {
       const masteryRank = this.skillRanks.bone_mastery || 1;
@@ -13099,6 +13170,15 @@ export class GameEngine {
     this.spawnBurstParticles(e.x, e.y, '#f5f0e6', 16, false);
     this.triggerLocalKillPassives(e);
 
+    equipmentManager.onEnemyDefeated(
+      this.heroId,
+      e.x,
+      e.y,
+      Boolean(e.poisonTimer && e.poisonTimer > 0),
+      (amt) => this.healPlayer(amt, true),
+      this.player.maxHp
+    );
+
     const isBoss = isBossKind(e.kind);
     const orbCount = isBoss ? 10 : e.kind === EnemyKind.BRUTE ? 4 : 2;
     for (let i = 0; i < orbCount; i++) {
@@ -13115,6 +13195,37 @@ export class GameEngine {
       this.spawnFloatingText(e.x, e.y - 48, 'BOSS VANQUISHED! ESSENCE DROPPED!', '#fbbf24', true);
       // Spawn Boss Essence! Only upon collecting this essence will the blessings show up!
       this.spawnPickup(e.x, e.y, 'boss_essence', 1);
+
+      // Roll Corrupted Hero equipment drop
+      let bossHeroId: HeroId = 'skeleton';
+      if (e.legionHeroId) {
+        bossHeroId = e.legionHeroId;
+      } else if (e.kind === EnemyKind.BOSS_LEGION_SKELETON) {
+        bossHeroId = 'skeleton';
+      } else if (e.kind === EnemyKind.BOSS_LEGION_GHOST) {
+        bossHeroId = 'ghost';
+      } else if (e.kind === EnemyKind.BOSS_LEGION_ZOMBIE) {
+        bossHeroId = 'zombie';
+      } else if (e.kind === EnemyKind.BOSS_LEGION_GHOUL) {
+        bossHeroId = 'ghoul';
+      } else if (e.kind === EnemyKind.BOSS_LEGION_HUMAN) {
+        bossHeroId = 'human';
+      } else if (e.kind === EnemyKind.BOSS_LEGION_EAGLEKIN) {
+        bossHeroId = 'eaglekin';
+      } else if (e.kind === EnemyKind.BOSS_LEGION_TIGERKIN) {
+        bossHeroId = 'tigerkin';
+      }
+
+      const dropPayload = equipmentManager.rollBossDrop(bossHeroId);
+      this.spawnFloatingText(
+        e.x,
+        e.y - 74,
+        `RELIC DROPPED: ${dropPayload.item.name.toUpperCase()}!`,
+        dropPayload.collection.themeColor,
+        true
+      );
+      soundEngine.playPickup();
+      this.onEquipmentDrop?.(dropPayload);
     }
   }
 
@@ -13226,7 +13337,9 @@ export class GameEngine {
 
     const stormRed = this.player.boneStormTimer > 0 ? 0.3 : 0;
     const undyingRed = this.player.undyingTimer > 0 ? 0.35 : 0;
-    const totalMult = Math.max(0.25, (1 - passiveRed) * (1 - stormRed) * (1 - undyingRed));
+    const eqStats = equipmentManager.getComputedStats(this.heroId);
+    const defReduction = eqStats.defenseReduction;
+    const totalMult = Math.max(0.15, (1 - passiveRed - defReduction) * (1 - stormRed) * (1 - undyingRed));
 
     let dmg = Math.max(1, Math.round(rawDmg * totalMult));
 
@@ -13246,6 +13359,17 @@ export class GameEngine {
       this.triggerShake(0.12, 4);
       soundEngine.playHit(false);
       this.spawnFloatingText(this.player.x, this.player.y - 32, `-${dmg}`, '#fb7185', false);
+
+      equipmentManager.onTakeDamage(
+        this.heroId,
+        this.player.hp,
+        this.player.maxHp,
+        (shieldHp) => {
+          this.player.shield = Math.max(this.player.shield, shieldHp);
+          soundEngine.playSkill('shield');
+          this.spawnRingEffect(this.player.x, this.player.y, 85, '#5eead4');
+        }
+      );
     } else {
       this.spawnFloatingText(this.player.x, this.player.y - 32, 'BLOCKED', '#fde68a', false);
     }
@@ -13520,7 +13644,9 @@ export class GameEngine {
         pr.radius = cfg.radius;
         pr.damage = cfg.damage;
         pr.isCrit = cfg.isCrit;
-        pr.pierce = cfg.pierce;
+        const eqStats = equipmentManager.getComputedStats(this.heroId);
+        pr.pierce = (cfg.fromPlayer && eqStats.projectilePierce) ? true : cfg.pierce;
+        pr.isBasicAttack = cfg.isBasicAttack !== undefined ? cfg.isBasicAttack : this.currentAttackIsBasic;
         pr.hitIds.clear();
         pr.life = 0;
         pr.maxLife = cfg.maxLife;

@@ -635,6 +635,7 @@ export interface EnemyEntity {
   // Undead Legion member boss and attack variation extras:
   isLegionBoss?: boolean;
   legionHeroId?: HeroId;
+  plagueBurstAccum?: number;
   specialCooldowns?: Record<string, number>;
   bossPhase?: number;
   activeAuraTimer?: number;
@@ -713,6 +714,7 @@ export interface Projectile {
   returning?: boolean;
   spinAngle?: number;
   visualOnly?: boolean;
+  isBasicAttack?: boolean;
 }
 
 export interface PickupOrb {

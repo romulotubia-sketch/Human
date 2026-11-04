@@ -7344,6 +7344,7 @@ function drawEnemy(ctx: CanvasRenderingContext2D, e: EnemyEntity, time: number, 
       e.walkPhase,
       scale,
       false,
+      false,
       e.hitFlash
     );
   } else if (e.kind === EnemyKind.BOSS_LEGION_EAGLEKIN) {
