@@ -46,6 +46,7 @@ export interface MultiplayerCallbacks {
   onEnemyDamaged?: (payload: {
     enemyId: number;
     hp: number;
+    shieldHp?: number;
     damage: number;
     isCrit: boolean;
     sparkColor: string;
@@ -530,6 +531,7 @@ export class MultiplayerClient {
           this.callbacks.onEnemyDamaged?.({
             enemyId: data.enemyId,
             hp: data.hp,
+            shieldHp: typeof data.shieldHp === 'number' ? data.shieldHp : undefined,
             damage: data.damage,
             isCrit: Boolean(data.isCrit),
             sparkColor: data.sparkColor || '#ffffff',

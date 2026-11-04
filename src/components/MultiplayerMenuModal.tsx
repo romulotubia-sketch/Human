@@ -94,7 +94,9 @@ export function MultiplayerMenuModal({
             <div>
               <div className="flex items-center gap-2">
                 <Users className="h-5 w-5 text-amber-400" />
-                <h2 className="font-display text-lg font-bold text-amber-50">Online Co-Op Crypts</h2>
+                <h2 className="font-display text-lg font-bold text-amber-50">
+                  Graveyard of the Fallen · Online Co-Op
+                </h2>
               </div>
               <p className="text-xs text-stone-400">Team up with 2–4 players across devices in real time</p>
             </div>

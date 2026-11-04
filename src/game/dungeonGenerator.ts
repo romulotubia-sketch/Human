@@ -587,6 +587,95 @@ export function buildProceduralDungeon(floor: number): {
         armorCrackTimer: 0,
         ...baseDebuffs,
       });
+    } else if (kind === EnemyKind.NECROMANCER) {
+      enemies.push({
+        id: allocEntityId(),
+        kind,
+        name: floor >= 3 ? `Dread Necromancer Lv.${floor}` : 'Graveyard Necromancer',
+        x,
+        y,
+        vx: 0,
+        vy: 0,
+        radius: 19,
+        hp: Math.round(94 * scaleHp),
+        maxHp: Math.round(94 * scaleHp),
+        atk: Math.round(19 * scaleAtk),
+        speed: Math.round(90 * scaleSpeed),
+        facing: Math.random() * Math.PI * 2,
+        walkPhase: Math.random() * Math.PI * 2,
+        attackCooldown: 0.9 + Math.random() * 0.55,
+        windupTimer: 0,
+        windupDuration: Math.max(0.38, 0.54 * windupScale),
+        windupType: Math.random() < 0.45 ? 'spell' : Math.random() < 0.78 ? 'frost_nova' : 'nova',
+        windupAngle: 0,
+        hitFlash: 0,
+        roomId: rm.id,
+        weaponAngle: 0,
+        weaponSwing: 0,
+        armorCrackTimer: 0,
+        ...baseDebuffs,
+      });
+    } else if (kind === EnemyKind.GRAVE_KNIGHT) {
+      const wardShield = Math.round(55 * scaleHp);
+      enemies.push({
+        id: allocEntityId(),
+        kind,
+        name: floor >= 3 ? `Deathbound Knight Lv.${floor}` : 'Fallen Grave Knight',
+        x,
+        y,
+        vx: 0,
+        vy: 0,
+        radius: 23,
+        hp: Math.round(175 * scaleHp),
+        maxHp: Math.round(175 * scaleHp),
+        atk: Math.round(21 * scaleAtk),
+        speed: Math.round(98 * scaleSpeed),
+        facing: Math.random() * Math.PI * 2,
+        walkPhase: Math.random() * Math.PI * 2,
+        attackCooldown: 0.85 + Math.random() * 0.45,
+        windupTimer: 0,
+        windupDuration: Math.max(0.36, 0.52 * windupScale),
+        windupType:
+          Math.random() < 0.4 ? 'cross_slash' : Math.random() < 0.7 ? 'charge' : 'whirlwind',
+        windupAngle: 0,
+        hitFlash: 0,
+        roomId: rm.id,
+        weaponAngle: 0,
+        weaponSwing: 0,
+        armorCrackTimer: 0,
+        shieldHp: wardShield,
+        maxShieldHp: wardShield,
+        ...baseDebuffs,
+      });
+    } else if (kind === EnemyKind.PLAGUE_STALKER) {
+      enemies.push({
+        id: allocEntityId(),
+        kind,
+        name: floor >= 3 ? `Blightfang Stalker Lv.${floor}` : 'Plague Stalker',
+        x,
+        y,
+        vx: 0,
+        vy: 0,
+        radius: 17,
+        hp: Math.round(96 * scaleHp),
+        maxHp: Math.round(96 * scaleHp),
+        atk: Math.round(17 * scaleAtk),
+        speed: Math.round(136 * scaleSpeed),
+        facing: Math.random() * Math.PI * 2,
+        walkPhase: Math.random() * Math.PI * 2,
+        attackCooldown: 0.58 + Math.random() * 0.4,
+        windupTimer: 0,
+        windupDuration: Math.max(0.25, 0.34 * windupScale),
+        windupType:
+          Math.random() < 0.45 ? 'pounce' : Math.random() < 0.75 ? 'cross_slash' : 'poison_lob',
+        windupAngle: 0,
+        hitFlash: 0,
+        roomId: rm.id,
+        weaponAngle: 0,
+        weaponSwing: 0,
+        armorCrackTimer: 0,
+        ...baseDebuffs,
+      });
     } else if (kind === EnemyKind.MINI_SKELETON) {
       enemies.push({
         id: allocEntityId(),
@@ -606,7 +695,7 @@ export function buildProceduralDungeon(floor: number): {
         attackCooldown: 0.6 + Math.random() * 0.45,
         windupTimer: 0,
         windupDuration: Math.max(0.24, 0.32 * windupScale),
-        windupType: Math.random() < 0.55 ? 'slash' : 'shoot',
+        windupType: Math.random() < 0.45 ? 'slash' : Math.random() < 0.78 ? 'shoot' : 'whirlwind',
         windupAngle: 0,
         hitFlash: 0,
         roomId: rm.id,
@@ -634,7 +723,7 @@ export function buildProceduralDungeon(floor: number): {
         attackCooldown: 0.75 + Math.random() * 0.45,
         windupTimer: 0,
         windupDuration: Math.max(0.32, 0.42 * windupScale),
-        windupType: Math.random() < 0.5 ? 'slash' : 'poison_lob',
+        windupType: Math.random() < 0.45 ? 'slash' : Math.random() < 0.8 ? 'poison_lob' : 'slam',
         windupAngle: 0,
         hitFlash: 0,
         roomId: rm.id,
@@ -662,7 +751,7 @@ export function buildProceduralDungeon(floor: number): {
         attackCooldown: 0.52 + Math.random() * 0.38,
         windupTimer: 0,
         windupDuration: Math.max(0.22, 0.29 * windupScale),
-        windupType: Math.random() < 0.55 ? 'pounce' : 'slash',
+        windupType: Math.random() < 0.45 ? 'pounce' : Math.random() < 0.78 ? 'cross_slash' : 'slash',
         windupAngle: 0,
         hitFlash: 0,
         roomId: rm.id,
@@ -690,7 +779,7 @@ export function buildProceduralDungeon(floor: number): {
         attackCooldown: 0.72 + Math.random() * 0.45,
         windupTimer: 0,
         windupDuration: Math.max(0.28, 0.36 * windupScale),
-        windupType: Math.random() < 0.6 ? 'shoot' : 'spell',
+        windupType: Math.random() < 0.45 ? 'shoot' : Math.random() < 0.8 ? 'spell' : 'frost_nova',
         windupAngle: 0,
         hitFlash: 0,
         roomId: rm.id,
@@ -767,6 +856,12 @@ export function buildProceduralDungeon(floor: number): {
         EnemyKind.MINI_GHOUL,
         EnemyKind.MINI_GHOST,
       ];
+      const specialistPool = [
+        EnemyKind.NECROMANCER,
+        EnemyKind.GRAVE_KNIGHT,
+        EnemyKind.PLAGUE_STALKER,
+        EnemyKind.ARCHER,
+      ];
 
       for (let m = 0; m < baseCount; m++) {
         const ang = (m / baseCount) * Math.PI * 2 + Math.random() * 0.45;
@@ -777,14 +872,18 @@ export function buildProceduralDungeon(floor: number): {
 
         let kind = EnemyKind.RATTLER;
         if (m === 0 && (combatIndex >= 2 || floor >= 2)) {
-          kind = EnemyKind.BRUTE;
+          kind = combatIndex % 2 === 0 ? EnemyKind.GRAVE_KNIGHT : EnemyKind.BRUTE;
         } else if (m === 1) {
           // Mini Undead Legion heroes regularly spawn in every combat pack!
-          kind = miniPool[(combatIndex + m) % miniPool.length];
-        } else if (m === 2 && floor >= 2) {
+          kind = miniPool[(combatIndex + m + floor) % miniPool.length];
+        } else if (m === 2) {
+          kind = specialistPool[(combatIndex + floor) % specialistPool.length];
+        } else if (m === 3 && floor >= 2) {
           kind = miniPool[(combatIndex + m + 2) % miniPool.length];
         } else if (m % 3 === 1) {
-          kind = EnemyKind.ARCHER;
+          kind = m % 2 === 0 ? EnemyKind.PLAGUE_STALKER : EnemyKind.ARCHER;
+        } else if (m === 4 && combatIndex % 2 === 1) {
+          kind = EnemyKind.NECROMANCER;
         }
         spawnSkeletonMob(kind, rm, mx, my);
       }
@@ -829,12 +928,14 @@ export function buildProceduralDungeon(floor: number): {
         const gy = rm.y + rm.h * 0.5 + Math.sin(ga) * (rm.h * 0.24);
         const gKind =
           g === 0
-            ? EnemyKind.BRUTE
+            ? treasureIndex % 2 === 1
+              ? EnemyKind.GRAVE_KNIGHT
+              : EnemyKind.BRUTE
             : g === 1
               ? miniPool[(floor + g) % miniPool.length]
               : g === 2
-                ? EnemyKind.ARCHER
-                : EnemyKind.RATTLER;
+                ? EnemyKind.NECROMANCER
+                : EnemyKind.PLAGUE_STALKER;
         spawnSkeletonMob(gKind, rm, gx, gy);
       }
     } else if (rm.kind === 'boss') {
@@ -990,7 +1091,7 @@ export function buildProceduralDungeon(floor: number): {
         });
       }
 
-      // Boss honor guards (mix of Brutes, Archers, and Mini Undead Legion heroes)
+      // Boss honor guards (mix of Grave Knights, Necromancers, Brutes, and Mini Undead Legion heroes)
       const royalGuards = Math.min(3, floor);
       const miniPool = [
         EnemyKind.MINI_SKELETON,
@@ -1000,7 +1101,14 @@ export function buildProceduralDungeon(floor: number): {
       ];
       for (let rg = 0; rg < royalGuards; rg++) {
         const ra = (rg / Math.max(1, royalGuards)) * Math.PI * 2 + 0.8;
-        const gKind = rg === 0 ? EnemyKind.BRUTE : miniPool[rg % miniPool.length];
+        const gKind =
+          rg === 0
+            ? floor % 2 === 0
+              ? EnemyKind.GRAVE_KNIGHT
+              : EnemyKind.BRUTE
+            : rg === 2
+              ? EnemyKind.NECROMANCER
+              : miniPool[(rg + floor) % miniPool.length];
         spawnSkeletonMob(
           gKind,
           rm,

@@ -86,12 +86,17 @@ export interface RemotePlayerSyncState {
 export interface SyncEnemyState {
   id: number;
   kind: EnemyKind;
+  name?: string;
+  radius?: number;
+  roomId?: number;
   x: number;
   y: number;
   vx: number;
   vy: number;
   hp: number;
   maxHp: number;
+  shieldHp?: number;
+  maxShieldHp?: number;
   facing: number;
   walkPhase: number;
   windupTimer: number;
@@ -105,6 +110,7 @@ export interface SyncEnemyState {
   possessedTimer?: number;
   isBoss?: boolean;
   isLegionBoss?: boolean;
+  legionHeroId?: 'skeleton' | 'zombie' | 'ghoul' | 'ghost';
 }
 
 export interface SyncEnemyAttackEvent {
@@ -120,6 +126,8 @@ export interface SyncEnemyAttackEvent {
   radius?: number;
   isBoss?: boolean;
   isLegionBoss?: boolean;
+  skillLabel?: string;
+  skillColor?: string;
 }
 
 export interface SyncLootItem {

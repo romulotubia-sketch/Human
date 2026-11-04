@@ -620,12 +620,14 @@ function drawToxicCloud(ctx: CanvasRenderingContext2D, cloud: ToxicCloudZone, ti
   const alpha = Math.max(0, fade);
   const rad = cloud.radius * (0.65 + 0.35 * expand);
 
+  const isHostile = cloud.fromPlayer === false;
+
   ctx.save();
   ctx.translate(cloud.x, cloud.y);
 
-  // Necrotic purple miasma base pool (zero per-frame gradient allocation)
-  ctx.globalAlpha = alpha * 0.26;
-  ctx.fillStyle = '#581c87';
+  // Necrotic miasma base pool (hostile enemy clouds tinted crimson-violet so players read danger)
+  ctx.globalAlpha = alpha * 0.28;
+  ctx.fillStyle = isHostile ? '#7f1d1d' : '#581c87';
   ctx.beginPath();
   ctx.arc(0, 0, rad * 0.98, 0, Math.PI * 2);
   ctx.fill();
@@ -637,15 +639,21 @@ function drawToxicCloud(ctx: CanvasRenderingContext2D, cloud: ToxicCloudZone, ti
     const orbit = rad * (0.28 + 0.14 * Math.sin(time * 2.4 + i));
     const puffR = rad * (0.44 + 0.07 * Math.cos(time * 3.1 + i * 1.7));
     ctx.globalAlpha = alpha * (i % 2 === 0 ? 0.18 : 0.14);
-    ctx.fillStyle = i % 3 === 0 ? '#a855f7' : '#84cc16';
+    ctx.fillStyle = isHostile
+      ? i % 2 === 0
+        ? '#f43f5e'
+        : '#84cc16'
+      : i % 3 === 0
+        ? '#a855f7'
+        : '#84cc16';
     ctx.beginPath();
     ctx.arc(Math.cos(swirlAng) * orbit, Math.sin(swirlAng) * orbit * 0.82, puffR, 0, Math.PI * 2);
     ctx.fill();
   }
 
   // Rotating bio-plague containment ring
-  ctx.globalAlpha = alpha * 0.55;
-  ctx.strokeStyle = '#a3e635';
+  ctx.globalAlpha = alpha * 0.62;
+  ctx.strokeStyle = isHostile ? '#fb7185' : '#a3e635';
   ctx.lineWidth = 2.2;
   ctx.save();
   ctx.rotate(time * 0.55);
@@ -6512,6 +6520,48 @@ function drawEnemyTelegraph(ctx: CanvasRenderingContext2D, e: EnemyEntity) {
     ctx.arc(0, 0, 64, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
+  } else if (e.windupType === 'cross_slash') {
+    // Twin X-Rend Cleave + Forward Crescent Beam Telegraph
+    const reach = isBossKind(e.kind) ? 115 : 78;
+    ctx.rotate(e.windupAngle);
+    ctx.fillStyle = `rgba(225, 29, 72, ${0.12 + ratio * 0.22})`;
+    ctx.strokeStyle = 'rgba(251, 113, 133, 0.88)';
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.arc(0, 0, reach, -0.82, 0.82);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Crisscrossing X-blade warning lines
+    ctx.strokeStyle = `rgba(254, 226, 226, ${0.45 + ratio * 0.5})`;
+    ctx.beginPath();
+    ctx.moveTo(14, -reach * 0.45);
+    ctx.lineTo(reach * 0.95, reach * 0.45);
+    ctx.moveTo(14, reach * 0.45);
+    ctx.lineTo(reach * 0.95, -reach * 0.45);
+    ctx.stroke();
+  } else if (e.windupType === 'frost_nova') {
+    // Chilling Frost Nova Ring + 6 Crystalline Ray Spokes
+    const rad = isBossKind(e.kind) ? 140 : 96;
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.88)';
+    ctx.fillStyle = `rgba(56, 189, 248, ${0.1 + ratio * 0.2})`;
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.arc(0, 0, rad, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, 0, rad * ratio, 0, Math.PI * 2);
+    ctx.stroke();
+    for (let k = 0; k < 6; k++) {
+      const ka = e.windupAngle + (k * Math.PI) / 3;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(ka) * 16, Math.sin(ka) * 16);
+      ctx.lineTo(Math.cos(ka) * rad, Math.sin(ka) * rad);
+      ctx.stroke();
+    }
   }
   ctx.restore();
 }
@@ -6568,6 +6618,20 @@ function drawEnemy(ctx: CanvasRenderingContext2D, e: EnemyEntity, time: number, 
     scale = 1.28;
     eyeColor = '#f97316';
     scarfColor = '#7f1d1d';
+  } else if (e.kind === EnemyKind.NECROMANCER) {
+    scale = 1.02;
+    eyeColor = '#38bdf8';
+    scarfColor = '#581c87';
+    crown = '#c084fc';
+  } else if (e.kind === EnemyKind.GRAVE_KNIGHT) {
+    scale = 1.2;
+    eyeColor = '#f43f5e';
+    scarfColor = '#1e293b';
+    crown = '#94a3b8';
+  } else if (e.kind === EnemyKind.PLAGUE_STALKER) {
+    scale = 0.92;
+    eyeColor = '#a3e635';
+    scarfColor = '#14532d';
   } else if (e.kind === EnemyKind.BOSS_WARDEN) {
     scale = 1.82;
     eyeColor = '#f43f5e';
@@ -6749,7 +6813,11 @@ function drawEnemy(ctx: CanvasRenderingContext2D, e: EnemyEntity, time: number, 
       e.kind === EnemyKind.BOSS_LEGION_ZOMBIE,
       e.hitFlash
     );
-  } else if (e.kind === EnemyKind.MINI_GHOUL || e.kind === EnemyKind.BOSS_LEGION_GHOUL) {
+  } else if (
+    e.kind === EnemyKind.MINI_GHOUL ||
+    e.kind === EnemyKind.BOSS_LEGION_GHOUL ||
+    e.kind === EnemyKind.PLAGUE_STALKER
+  ) {
     drawChibiGhoulBody(
       ctx,
       drawX + fearShakeX,
@@ -7125,6 +7193,271 @@ function drawEnemy(ctx: CanvasRenderingContext2D, e: EnemyEntity, time: number, 
     ctx.stroke();
 
     ctx.restore();
+  } else if (e.kind === EnemyKind.NECROMANCER) {
+    // Graveyard Necromancer: Dark Skull Staff with Orbiting Cyan-Violet Soul Orb
+    glowColor = '#c084fc';
+    if (isWindingUp) {
+      wx = drawX + Math.cos(aimAng) * (20 * scale);
+      wy = drawY - (18 + windProg * 12) * scale + Math.sin(aimAng) * (12 * scale);
+      wRot = -Math.PI * 0.45;
+      wScale = scale * (1.08 + windProg * 0.14);
+      glowAlpha = 0.35 + windProg * 0.55;
+    } else if (isStriking) {
+      wx = drawX + Math.cos(aimAng) * (26 * scale);
+      wy = drawY - 12 * scale + Math.sin(aimAng) * (18 * scale);
+      wRot = aimAng;
+      wScale = scale * 1.18;
+      glowAlpha = 0.75 * (1 - strikeProg);
+    }
+
+    ctx.save();
+    ctx.translate(wx, wy);
+    ctx.rotate(wRot);
+    ctx.scale(wScale, wScale);
+
+    ctx.strokeStyle = '#312e81';
+    ctx.lineWidth = 3.2;
+    ctx.beginPath();
+    ctx.moveTo(-12, 0);
+    ctx.lineTo(18, 0);
+    ctx.stroke();
+
+    // Skull headpiece + soul gem
+    ctx.fillStyle = '#e2e8f0';
+    ctx.strokeStyle = '#1e1b4b';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(19, 0, 5.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = isWindingUp ? '#38bdf8' : '#c084fc';
+    ctx.globalAlpha = 0.65 + glowAlpha * 0.35;
+    ctx.beginPath();
+    ctx.arc(24, 0, 5 + Math.sin(time * 9) * 1.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.restore();
+  } else if (e.kind === EnemyKind.GRAVE_KNIGHT) {
+    // Fallen Grave Knight: Dark Runed Claymore + Offhand Iron Heater Shield
+    const shAng = aimAng - 0.95;
+    const shX = drawX + Math.cos(shAng) * (19 * scale);
+    const shY = drawY - 8 * scale + Math.sin(shAng) * (13 * scale);
+    ctx.save();
+    ctx.translate(shX, shY);
+    ctx.rotate(aimAng);
+    ctx.scale(scale, scale);
+    ctx.fillStyle = '#334155';
+    ctx.strokeStyle = '#f43f5e';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.moveTo(-4, -9);
+    ctx.lineTo(5, -7);
+    ctx.lineTo(7, 0);
+    ctx.lineTo(5, 7);
+    ctx.lineTo(-4, 9);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+
+    glowColor = '#f43f5e';
+    if (isWindingUp) {
+      const cockAng = aimAng - 1.5 * windProg - 0.45;
+      wx = drawX + Math.cos(cockAng) * (25 * scale);
+      wy = drawY - 11 * scale + Math.sin(cockAng) * (17 * scale);
+      wRot = cockAng - 0.45;
+      wScale = scale * 1.12;
+      glowAlpha = windProg * 0.6;
+    } else if (isStriking) {
+      const sweep = -1.75 + strikeEase * 3.5;
+      const orb = aimAng + sweep;
+      wx = drawX + Math.cos(orb) * (32 * scale);
+      wy = drawY - 9 * scale + Math.sin(orb) * (22 * scale);
+      wRot = orb + 0.35;
+      wScale = scale * 1.26;
+      glowAlpha = (1 - strikeProg) * 0.75;
+    }
+
+    ctx.save();
+    ctx.translate(wx, wy);
+    ctx.rotate(wRot);
+    ctx.scale(wScale, wScale);
+    if (glowAlpha > 0.05) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = glowColor;
+      ctx.globalAlpha = glowAlpha;
+      ctx.beginPath();
+      ctx.ellipse(15, 0, 18, 8, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(-8, -2, 7, 4);
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillRect(-2, -6.5, 3, 13);
+    ctx.fillStyle = '#cbd5e1';
+    ctx.strokeStyle = '#0f172a';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(1, -4);
+    ctx.lineTo(24, -2.5);
+    ctx.lineTo(30, 0);
+    ctx.lineTo(24, 2.5);
+    ctx.lineTo(1, 4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.strokeStyle = '#f43f5e';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(4, 0);
+    ctx.lineTo(23, 0);
+    ctx.stroke();
+    ctx.restore();
+  } else if (e.kind === EnemyKind.MINI_GHOST || e.kind === EnemyKind.BOSS_LEGION_GHOST) {
+    // Ghost Mini & Legion Boss: Ethereal Soul Lantern Catalyst
+    glowColor = '#38bdf8';
+    const lanternFloat = Math.sin(time * 6.5 + e.id) * 3.5;
+    wx = drawX + Math.cos(aimAng + 0.65) * (24 * scale);
+    wy = drawY - 12 * scale + Math.sin(aimAng + 0.65) * (15 * scale) + lanternFloat;
+    if (isWindingUp || isStriking) {
+      wx = drawX + Math.cos(aimAng) * (25 * scale);
+      wy = drawY - 12 * scale + Math.sin(aimAng) * (16 * scale);
+      wScale = scale * 1.16;
+    }
+    ctx.save();
+    ctx.translate(wx, wy);
+    ctx.scale(wScale, wScale);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = isWindingUp ? '#c084fc' : '#38bdf8';
+    ctx.globalAlpha = 0.42 + Math.sin(time * 8) * 0.15;
+    ctx.beginPath();
+    ctx.arc(0, 2, 11, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    ctx.strokeStyle = '#94a3b8';
+    ctx.lineWidth = 1.6;
+    ctx.strokeRect(-4.5, -4, 9, 11);
+    ctx.fillStyle = '#67e8f9';
+    ctx.beginPath();
+    ctx.arc(0, 1.5, 3.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  } else if (e.kind === EnemyKind.MINI_ZOMBIE || e.kind === EnemyKind.BOSS_LEGION_ZOMBIE) {
+    // Zombie Mini & Legion Boss: Toxic Rotting Bone-Claw Gauntlet
+    glowColor = '#84cc16';
+    if (isWindingUp) {
+      const cockAng = aimAng - 1.35 * windProg - 0.4;
+      wx = drawX + Math.cos(cockAng) * (23 * scale);
+      wy = drawY - 9 * scale + Math.sin(cockAng) * (16 * scale);
+      wRot = cockAng;
+      wScale = scale * 1.1;
+      glowAlpha = windProg * 0.6;
+    } else if (isStriking) {
+      const sweep = -1.6 + strikeEase * 3.2;
+      const orb = aimAng + sweep;
+      wx = drawX + Math.cos(orb) * (29 * scale);
+      wy = drawY - 8 * scale + Math.sin(orb) * (20 * scale);
+      wRot = orb;
+      wScale = scale * 1.22;
+      glowAlpha = (1 - strikeProg) * 0.7;
+    }
+    ctx.save();
+    ctx.translate(wx, wy);
+    ctx.rotate(wRot);
+    ctx.scale(wScale, wScale);
+    ctx.strokeStyle = '#bef264';
+    ctx.lineWidth = 2.2;
+    ctx.lineCap = 'round';
+    for (const cy of [-4.5, 0, 4.5]) {
+      ctx.beginPath();
+      ctx.moveTo(-2, cy);
+      ctx.quadraticCurveTo(8, cy * 1.25, 16, cy * 0.65);
+      ctx.stroke();
+    }
+    ctx.restore();
+  } else if (
+    e.kind === EnemyKind.MINI_GHOUL ||
+    e.kind === EnemyKind.BOSS_LEGION_GHOUL ||
+    e.kind === EnemyKind.PLAGUE_STALKER
+  ) {
+    // Ghoul Mini, Legion Boss & Plague Stalker: Twin Feral Talon Claws
+    const isVenom = e.kind === EnemyKind.PLAGUE_STALKER;
+    glowColor = isVenom ? '#a3e635' : '#f43f5e';
+    if (isWindingUp) {
+      const cockAng = aimAng - 1.45 * windProg - 0.45;
+      wx = drawX + Math.cos(cockAng) * (23 * scale);
+      wy = drawY - 9 * scale + Math.sin(cockAng) * (16 * scale);
+      wRot = cockAng;
+      wScale = scale * 1.12;
+    } else if (isStriking) {
+      const sweep = -1.75 + strikeEase * 3.5;
+      const orb = aimAng + sweep;
+      wx = drawX + Math.cos(orb) * (30 * scale);
+      wy = drawY - 8 * scale + Math.sin(orb) * (21 * scale);
+      wRot = orb;
+      wScale = scale * 1.25;
+    }
+    ctx.save();
+    ctx.translate(wx, wy);
+    ctx.rotate(wRot);
+    ctx.scale(wScale, wScale);
+    ctx.strokeStyle = isVenom ? '#a3e635' : '#fb7185';
+    ctx.lineWidth = 2.2;
+    ctx.lineCap = 'round';
+    for (const cy of [-4, 0, 4]) {
+      ctx.beginPath();
+      ctx.moveTo(-2, cy);
+      ctx.quadraticCurveTo(9, cy * 1.15 - 1.5, 19, cy * 0.5);
+      ctx.stroke();
+    }
+    ctx.restore();
+  } else if (e.kind === EnemyKind.MINI_SKELETON || e.kind === EnemyKind.BOSS_LEGION_SKELETON) {
+    // Skeleton Mini & Legion Boss: Runed Bone Greatsword
+    glowColor = '#fb923c';
+    if (isWindingUp) {
+      const cockAng = aimAng - 1.55 * windProg - 0.5;
+      wx = drawX + Math.cos(cockAng) * (25 * scale);
+      wy = drawY - 10 * scale + Math.sin(cockAng) * (17 * scale);
+      wRot = cockAng - 0.45;
+      wScale = scale * 1.1;
+      glowAlpha = windProg * 0.6;
+    } else if (isStriking) {
+      const sweep = -1.85 + strikeEase * 3.65;
+      const orb = aimAng + sweep;
+      wx = drawX + Math.cos(orb) * (32 * scale);
+      wy = drawY - 9 * scale + Math.sin(orb) * (22 * scale);
+      wRot = orb + 0.38;
+      wScale = scale * 1.26;
+      glowAlpha = (1 - strikeProg) * 0.7;
+    }
+    ctx.save();
+    ctx.translate(wx, wy);
+    ctx.rotate(wRot);
+    ctx.scale(wScale, wScale);
+    ctx.fillStyle = '#78350f';
+    ctx.fillRect(-8, -2, 7, 4);
+    ctx.fillStyle = '#f59e0b';
+    ctx.fillRect(-2, -6, 3, 12);
+    ctx.fillStyle = '#f8fafc';
+    ctx.strokeStyle = '#1c1917';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(1, -4.2);
+    ctx.lineTo(23, -2.5);
+    ctx.lineTo(29, 0);
+    ctx.lineTo(23, 2.5);
+    ctx.lineTo(1, 4.2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
   } else {
     // Crypt Rattler: Jagged Curved Bone Scimitar with 210° whip-slash!
     glowColor = '#fb7185';
@@ -7191,14 +7524,36 @@ function drawEnemy(ctx: CanvasRenderingContext2D, e: EnemyEntity, time: number, 
     ctx.restore();
   }
 
-  if (!isBossKind(e.kind) && e.hp < e.maxHp) {
+  // Protective Bone/Iron Ward Shield Ring when shieldHp > 0
+  if ((e.shieldHp || 0) > 0) {
+    ctx.save();
+    ctx.translate(drawX, drawY - 12 * scale);
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.strokeStyle = 'rgba(253, 224, 71, 0.72)';
+    ctx.fillStyle = 'rgba(253, 224, 71, 0.09)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([8, 6]);
+    ctx.rotate(time * 1.4);
+    ctx.beginPath();
+    ctx.arc(0, 0, 23 * scale, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  if (!isBossKind(e.kind) && (e.hp < e.maxHp || (e.shieldHp || 0) > 0)) {
     const bw = 38 * scale;
     const bx = drawX - bw / 2;
     const by = drawY - 39 * scale;
     ctx.fillStyle = 'rgba(0,0,0,0.65)';
     ctx.fillRect(bx - 1, by - 1, bw + 2, 6);
     ctx.fillStyle = e.poisonTimer > 0 ? '#84cc16' : '#ef4444';
-    ctx.fillRect(bx, by, bw * Math.max(0, e.hp / e.maxHp), 4);
+    ctx.fillRect(bx, by, bw * Math.max(0, Math.min(1, e.hp / e.maxHp)), 4);
+    if ((e.shieldHp || 0) > 0) {
+      const shFrac = Math.min(1, (e.shieldHp || 0) / Math.max(1, e.maxShieldHp || e.maxHp * 0.4));
+      ctx.fillStyle = '#fde047';
+      ctx.fillRect(bx, by, bw * shFrac, 2.2);
+    }
   }
 
   // Overhead Undead Legion Boss Name & Grand Title

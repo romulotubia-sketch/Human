@@ -326,6 +326,7 @@ export interface ToxicCloudZone {
   maxAge: number;
   tickTimer: number;
   dps: number;
+  fromPlayer?: boolean;
 }
 
 export interface DelayedClawMark {
@@ -523,6 +524,9 @@ export enum EnemyKind {
   RATTLER = 'RATTLER',
   ARCHER = 'ARCHER',
   BRUTE = 'BRUTE',
+  NECROMANCER = 'NECROMANCER',
+  GRAVE_KNIGHT = 'GRAVE_KNIGHT',
+  PLAGUE_STALKER = 'PLAGUE_STALKER',
   BOSS_WARDEN = 'BOSS_WARDEN',
   // Mini versions of Undead Legion heroes as normal dungeon monsters:
   MINI_SKELETON = 'MINI_SKELETON',
@@ -577,7 +581,9 @@ export type EnemyAttackType =
   | 'shockwave_line'
   | 'charge'
   | 'spell'
-  | 'pounce';
+  | 'pounce'
+  | 'cross_slash'
+  | 'frost_nova';
 
 export interface EnemyEntity {
   id: number;
@@ -823,6 +829,7 @@ export interface HudSnapshot {
     name: string;
     hp: number;
     maxHp: number;
+    shield?: number;
     isLegionBoss?: boolean;
     title?: string;
   } | null;

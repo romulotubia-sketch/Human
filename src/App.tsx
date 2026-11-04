@@ -626,7 +626,7 @@ export default function App() {
             <p className="mt-2.5 max-w-md text-xs leading-relaxed text-stone-300 sm:text-sm">
               Choose the street-fighting Human Pipe Brawler, swift Skeleton, plague-wielding Zombie,
               savage Ghoul, or ethereal Ghost in the Guild Lobby, customize your 2 Normal + 1
-              Ultimate MOBA loadout, and delve into deeper crypts.
+              Ultimate MOBA loadout, and brave the Graveyard of the Fallen.
             </p>
 
             <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
@@ -669,7 +669,7 @@ export default function App() {
               <span aria-hidden="true">·</span>
               <span>Online 2-4 Players Co-Op</span>
               <span aria-hidden="true">·</span>
-              <span>Procedural Crypts &amp; Realtime Sync</span>
+              <span>Graveyard of the Fallen &amp; Realtime Sync</span>
             </div>
           </div>
         </div>
@@ -879,6 +879,7 @@ export default function App() {
                   </div>
                   <span className="font-mono-num text-[11px] text-rose-300 shrink-0">
                     {hud.bossInfo.hp}/{hud.bossInfo.maxHp}
+                    {(hud.bossInfo.shield || 0) > 0 ? ` (+${hud.bossInfo.shield})` : ''}
                   </span>
                 </div>
                 <svg
@@ -896,6 +897,19 @@ export default function App() {
                     height="8"
                     fill={hud.bossInfo.isLegionBoss ? '#e11d48' : '#f43f5e'}
                   />
+                  {(hud.bossInfo.shield || 0) > 0 && (
+                    <rect
+                      x="0"
+                      y="0"
+                      width={Math.min(
+                        240,
+                        ((hud.bossInfo.shield || 0) / Math.max(1, hud.bossInfo.maxHp * 0.35)) * 240
+                      )}
+                      height="8"
+                      fill="#fde047"
+                      fillOpacity="0.7"
+                    />
+                  )}
                 </svg>
               </div>
             )}
