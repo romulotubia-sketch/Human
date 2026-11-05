@@ -204,6 +204,8 @@ export interface GameSettings {
   joystickScale: number;
   landscapeLock: boolean;
   sfxVolume: number;
+  screenShakeIntensity: number;
+  visualQuality: 'high' | 'medium' | 'low';
 }
 
 export interface AimState {
@@ -312,7 +314,17 @@ export interface Particle {
   maxAge: number;
   color: string;
   glow: boolean;
-  shape: 'circle' | 'spark' | 'bone' | 'ring';
+  shape:
+    | 'circle'
+    | 'spark'
+    | 'bone'
+    | 'ring'
+    | 'ember'
+    | 'leaf'
+    | 'smoke'
+    | 'shard'
+    | 'feather'
+    | 'bubble';
   rotation: number;
   vRot: number;
 }
@@ -843,7 +855,10 @@ export interface HudSnapshot {
     | 'portal_next'
     | 'portal_guild'
     | 'blessing_statue'
+    | 'equipment_drop'
+    | 'boss_blessing'
     | null;
+  nearInteractionLabel?: string | null;
   bossInfo: {
     name: string;
     hp: number;

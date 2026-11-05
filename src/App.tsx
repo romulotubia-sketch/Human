@@ -67,6 +67,7 @@ function createInitialHud(heroId: HeroId = 'human'): HudSnapshot {
     cooldowns,
     maxCooldowns,
     nearInteraction: null,
+    nearInteractionLabel: null,
     bossInfo: null,
     runOutcome: null,
     minimap: null,
@@ -84,6 +85,8 @@ export default function App() {
     joystickScale: 1.0,
     landscapeLock: true,
     sfxVolume: 0.65,
+    screenShakeIntensity: 1.0,
+    visualQuality: 'high',
   });
 
   const [loadoutsByHero, setLoadoutsByHero] = useState<Record<HeroId, SkillLoadout>>({
@@ -364,6 +367,22 @@ export default function App() {
       window.removeEventListener('orientationchange', onResize);
     };
   }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+      if (showSkillTree || showSettings || showEquipment || Boolean(blessingOptions) || showBlessingsTray) {
+        return;
+      }
+      if (e.code === 'KeyE' || e.code === 'KeyF') {
+        engineRef.current?.interactNearbyProp();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showSkillTree, showSettings, showEquipment, blessingOptions, showBlessingsTray]);
 
   const isForcedCssLandscape = settings.landscapeLock && isWindowPortrait;
 
@@ -1194,6 +1213,7 @@ export default function App() {
             joystickScale={settings.joystickScale}
             isForcedCssLandscape={isForcedCssLandscape}
             nearInteraction={hud.nearInteraction}
+            nearInteractionLabel={hud.nearInteractionLabel}
             onJoystickMove={handleJoystickMove}
             onBasicAttackHeld={handleBasicAttackHeld}
             onSkillAim={handleSkillAim}

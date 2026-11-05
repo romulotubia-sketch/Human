@@ -472,15 +472,35 @@ export function EquipmentModal({
 
                             <div className="shrink-0 pl-1">
                               {isEquippedHere ? (
-                                <span className="flex items-center gap-0.5 text-[8.5px] font-bold text-emerald-300 bg-emerald-500/20 px-1 py-0.2 rounded border border-emerald-500/40">
-                                  <Check className="h-2 w-2 stroke-[3]" />
-                                  <span>Worn</span>
+                                <span className="flex items-center gap-0.5 text-[8.5px] font-bold text-emerald-300 bg-emerald-500/20 px-1.5 py-0.5 rounded border border-emerald-500/40">
+                                  <Check className="h-2.5 w-2.5 stroke-[3]" />
+                                  <span>Equipped</span>
                                 </span>
-                              ) : wornOnOther ? (
-                                <span className="text-[8px] font-bold text-stone-400 bg-stone-800 px-1 py-0.2 rounded">
-                                  {HERO_PROFILES[wornOnOther.heroId].name.slice(0, 3)}
-                                </span>
-                              ) : null}
+                              ) : (
+                                <div className="flex items-center gap-1">
+                                  {wornOnOther && (
+                                    <span
+                                      className="text-[8px] font-bold text-stone-400 bg-stone-800 px-1 py-0.5 rounded"
+                                      title={`Equipped on ${HERO_PROFILES[wornOnOther.heroId].name}`}
+                                    >
+                                      {HERO_PROFILES[wornOnOther.heroId].name.slice(0, 3)}
+                                    </span>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleEquip(item.id);
+                                      setInspectedItemId(item.id);
+                                    }}
+                                    className="flex items-center gap-0.5 text-[9.5px] font-bold px-2 py-0.5 sm:py-1 rounded border border-amber-400 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-stone-950 shadow-sm transition-all active:scale-95 cursor-pointer whitespace-nowrap"
+                                    title={`Equip ${item.name} to ${heroProfile.name}`}
+                                  >
+                                    <span>Equip</span>
+                                    <ChevronRight className="h-2.5 w-2.5" />
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           </button>
                         );
@@ -803,9 +823,18 @@ export function EquipmentModal({
                                     <Check className="h-2 w-2 stroke-[3]" />
                                   </span>
                                 ) : (
-                                  <span className="text-[8px] text-amber-300 font-semibold">
-                                    Owned
-                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleEquip(item.id);
+                                      setInspectedItemId(item.id);
+                                    }}
+                                    className="text-[8.5px] font-bold text-stone-950 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 px-1.5 py-0.5 rounded shadow-sm transition-all active:scale-95 cursor-pointer"
+                                    title={`Equip ${item.name}`}
+                                  >
+                                    Equip
+                                  </button>
                                 )
                               ) : (
                                 <Lock className="h-2.5 w-2.5 text-stone-600" />

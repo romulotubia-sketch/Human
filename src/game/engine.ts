@@ -3264,9 +3264,24 @@ export class GameEngine {
         } else if (e.kind === EnemyKind.BOSS_LEGION_TIGERKIN) {
           bossHeroId = 'tigerkin';
         }
-        const dropPayload = equipmentManager.rollBossDrop(bossHeroId);
-        soundEngine.playPickup();
-        this.onEquipmentDrop?.(dropPayload);
+        const droppedItem = equipmentManager.rollBossDropItem(bossHeroId);
+        const col = EQUIPMENT_COLLECTIONS[droppedItem.collection];
+        this.spawnPickup(
+          e.x + 22,
+          e.y + 14,
+          'equipment',
+          1,
+          undefined,
+          true,
+          droppedItem.id
+        );
+        this.spawnFloatingText(
+          e.x,
+          e.y - 74,
+          `RELIC DROPPED: ${droppedItem.name.toUpperCase()}!`,
+          col.themeColor,
+          true
+        );
       }
     }
 
@@ -6880,6 +6895,39 @@ export class GameEngine {
 
   public interactNearbyProp(): boolean {
     if (this.localIsDowned) return false;
+
+    // 1. Check for nearby dropped equipment (within 92px)
+    let closestEquipOrb: PickupOrb | null = null;
+    let closestEquipDist = 92;
+    for (const orb of this.pickups) {
+      if (!orb.active || orb.kind !== 'equipment') continue;
+      const d = Math.hypot(orb.x - this.player.x, orb.y - this.player.y);
+      if (d <= closestEquipDist) {
+        closestEquipDist = d;
+        closestEquipOrb = orb;
+      }
+    }
+    if (closestEquipOrb) {
+      this.collectDroppedEquipment(closestEquipOrb);
+      return true;
+    }
+
+    // 2. Check for nearby boss blessing (within 92px)
+    let closestBlessingOrb: PickupOrb | null = null;
+    let closestBlessingDist = 92;
+    for (const orb of this.pickups) {
+      if (!orb.active || orb.kind !== 'boss_essence') continue;
+      const d = Math.hypot(orb.x - this.player.x, orb.y - this.player.y);
+      if (d <= closestBlessingDist) {
+        closestBlessingDist = d;
+        closestBlessingOrb = orb;
+      }
+    }
+    if (closestBlessingOrb) {
+      this.collectBossBlessing(closestBlessingOrb);
+      return true;
+    }
+
     for (const prop of this.map.props) {
       const cx = prop.x + prop.w / 2;
       const cy = prop.y + prop.h / 2;
@@ -6963,6 +7011,64 @@ export class GameEngine {
     soundEngine.playPortalWarp(isLobby);
     this.onPortalWarp?.(targetKind);
     this.pendingPortalAction = { kind: targetKind, timer: 0.18 };
+  }
+
+  private collectDroppedEquipment(orb: PickupOrb) {
+    orb.active = false;
+    if (!orb.equipmentItemId) return;
+
+    const payload = equipmentManager.addEquipmentToInventory(orb.equipmentItemId);
+    soundEngine.playPickup();
+    this.spawnBurstParticles(orb.x, orb.y, payload.collection.themeColor, 32, true);
+    this.spawnRingEffect(orb.x, orb.y, 110, payload.collection.themeColor);
+    this.spawnFloatingText(
+      this.player.x,
+      this.player.y - 48,
+      `+ ${payload.item.name.toUpperCase()} (Bag)`,
+      payload.collection.themeColor,
+      true
+    );
+
+    if (this.isMultiplayer && orb.id !== undefined) {
+      multiplayerClient.sendLootPickup(orb.id);
+    }
+
+    this.onEquipmentDrop?.(payload);
+    this.emitHudSnapshot();
+  }
+
+  private collectBossBlessing(orb: PickupOrb) {
+    orb.active = false;
+    soundEngine.playSkill('ultimate');
+    this.spawnRingEffect(this.player.x, this.player.y, 140, '#fbbf24');
+    this.spawnBurstParticles(this.player.x, this.player.y - 12, '#fde047', 32, true);
+    this.spawnFloatingText(
+      this.player.x,
+      this.player.y - 44,
+      'DIVINE BLESSING CLAIMED!',
+      '#fbbf24',
+      true
+    );
+
+    if (this.isMultiplayer && orb.id !== undefined) {
+      multiplayerClient.sendLootPickup(orb.id);
+    }
+
+    if (this.activeBlessings.length < this.maxBlessings) {
+      setTimeout(() => {
+        this.promptBlessingSelection();
+      }, 220);
+    } else {
+      this.boneShards += 50;
+      this.spawnFloatingText(
+        this.player.x,
+        this.player.y - 68,
+        'Max Blessings (6/6)! +50 Shards',
+        '#fde047',
+        true
+      );
+    }
+    this.emitHudSnapshot();
   }
 
   private updatePortals(dt: number) {
@@ -12615,38 +12721,32 @@ export class GameEngine {
       const dx = this.player.x - orb.x;
       const dy = this.player.y - orb.y;
       const d = Math.hypot(dx, dy);
-      if (d < 135) {
-        const pull = 360 * dt;
-        orb.x += (dx / Math.max(1, d)) * pull;
-        orb.y += (dy / Math.max(1, d)) * pull;
-      }
-      if (d < 22) {
-        orb.active = false;
-        if (this.isMultiplayer && orb.id !== undefined) {
-          multiplayerClient.sendLootPickup(orb.id);
-          continue;
+      // XP, Bone Shards, and Healing Orbs are magnetically attracted and auto-collected.
+      // Dropped Equipment and Boss Blessings stay in the world until manually picked up via interaction!
+      if (orb.kind !== 'equipment' && orb.kind !== 'boss_essence') {
+        if (d < 135) {
+          const pull = 360 * dt;
+          orb.x += (dx / Math.max(1, d)) * pull;
+          orb.y += (dy / Math.max(1, d)) * pull;
         }
-        const eqStats = equipmentManager.getComputedStats(this.heroId);
-        const resourceMult = eqStats.resourceMultiplier;
-        if (orb.kind === 'xp') {
-          soundEngine.playPickup();
-          this.gainXp(Math.round(orb.value * resourceMult));
-        } else if (orb.kind === 'heal') {
-          soundEngine.playPickup();
-          this.healPlayer(orb.value, true);
-        } else if (orb.kind === 'boss_essence') {
-          soundEngine.playSkill('ultimate');
-          this.spawnRingEffect(this.player.x, this.player.y, 140, '#fbbf24');
-          this.spawnBurstParticles(this.player.x, this.player.y - 12, '#fde047', 32, true);
-          this.spawnFloatingText(this.player.x, this.player.y - 44, 'BOSS ESSENCE CLAIMED!', '#fbbf24', true);
-          if (this.activeBlessings.length < this.maxBlessings) {
-            setTimeout(() => {
-              this.promptBlessingSelection();
-            }, 300);
+        if (d < 22) {
+          orb.active = false;
+          if (this.isMultiplayer && orb.id !== undefined) {
+            multiplayerClient.sendLootPickup(orb.id);
+            continue;
           }
-        } else {
-          soundEngine.playPickup();
-          this.boneShards += Math.round(orb.value * resourceMult);
+          const eqStats = equipmentManager.getComputedStats(this.heroId);
+          const resourceMult = eqStats.resourceMultiplier;
+          if (orb.kind === 'xp') {
+            soundEngine.playPickup();
+            this.gainXp(Math.round(orb.value * resourceMult));
+          } else if (orb.kind === 'heal') {
+            soundEngine.playPickup();
+            this.healPlayer(orb.value, true);
+          } else {
+            soundEngine.playPickup();
+            this.boneShards += Math.round(orb.value * resourceMult);
+          }
         }
       }
     }
@@ -13198,9 +13298,8 @@ export class GameEngine {
     if (isBoss) {
       soundEngine.playSkill('ultimate');
       this.spawnBurstParticles(e.x, e.y, '#fde047', 48, true);
-      this.spawnFloatingText(e.x, e.y - 48, 'BOSS VANQUISHED! ESSENCE DROPPED!', '#fbbf24', true);
-      // Spawn Boss Essence! Only upon collecting this essence will the blessings show up!
-      this.spawnPickup(e.x, e.y, 'boss_essence', 1);
+      // Spawn Boss Essence (Divine Blessing) - requires manual interaction!
+      this.spawnPickup(e.x - 22, e.y + 14, 'boss_essence', 1, undefined, true);
 
       // Roll Corrupted Hero equipment drop
       let bossHeroId: HeroId = 'skeleton';
@@ -13222,16 +13321,25 @@ export class GameEngine {
         bossHeroId = 'tigerkin';
       }
 
-      const dropPayload = equipmentManager.rollBossDrop(bossHeroId);
+      const droppedItem = equipmentManager.rollBossDropItem(bossHeroId);
+      const col = EQUIPMENT_COLLECTIONS[droppedItem.collection];
+      // Spawn equipment on ground - requires manual interaction!
+      this.spawnPickup(
+        e.x + 22,
+        e.y + 14,
+        'equipment',
+        1,
+        undefined,
+        true,
+        droppedItem.id
+      );
       this.spawnFloatingText(
         e.x,
         e.y - 74,
-        `RELIC DROPPED: ${dropPayload.item.name.toUpperCase()}!`,
-        dropPayload.collection.themeColor,
+        `RELIC DROPPED: ${droppedItem.name.toUpperCase()}!`,
+        col.themeColor,
         true
       );
-      soundEngine.playPickup();
-      this.onEquipmentDrop?.(dropPayload);
     }
   }
 
@@ -13668,15 +13776,16 @@ export class GameEngine {
   private spawnPickup(
     x: number,
     y: number,
-    kind: 'xp' | 'heal' | 'shard' | 'boss_essence',
+    kind: 'xp' | 'heal' | 'shard' | 'boss_essence' | 'equipment',
     value: number,
     id?: number,
-    exactPosition = false
+    exactPosition = false,
+    equipmentItemId?: string
   ) {
     for (const orb of this.pickups) {
       if (!orb.active) {
         const a = Math.random() * Math.PI * 2;
-        const spd = exactPosition ? 18 : 60 + Math.random() * 90;
+        const spd = exactPosition ? 14 : 60 + Math.random() * 90;
         orb.active = true;
         orb.id = id;
         orb.kind = kind;
@@ -13686,6 +13795,7 @@ export class GameEngine {
         orb.vy = Math.sin(a) * spd;
         orb.value = value;
         orb.age = 0;
+        orb.equipmentItemId = equipmentItemId;
         return;
       }
     }
@@ -13715,16 +13825,53 @@ export class GameEngine {
 
   public emitHudSnapshot() {
     let nearInteraction: HudSnapshot['nearInteraction'] = null;
-    for (const prop of this.map.props) {
-      const cx = prop.x + prop.w / 2;
-      const cy = prop.y + prop.h / 2;
-      if (Math.hypot(cx - this.player.x, cy - this.player.y) <= 92) {
-        if (prop.kind === 'door_dungeon') nearInteraction = 'door_dungeon';
-        else if (prop.kind === 'skill_shrine') nearInteraction = 'skill_shrine';
-        else if (prop.kind === 'chest' && !prop.opened) nearInteraction = 'chest';
-        else if (prop.kind === 'blessing_statue' && !prop.opened) nearInteraction = 'blessing_statue';
-        else if (prop.kind === 'portal_next') nearInteraction = 'portal_next';
-        else if (prop.kind === 'portal_guild') nearInteraction = 'portal_guild';
+    let nearInteractionLabel: string | null = null;
+
+    // Check for nearby dropped equipment (prioritized)
+    let closestEquipOrb: PickupOrb | null = null;
+    let closestEquipDist = 92;
+    for (const orb of this.pickups) {
+      if (!orb.active || orb.kind !== 'equipment') continue;
+      const d = Math.hypot(orb.x - this.player.x, orb.y - this.player.y);
+      if (d <= closestEquipDist) {
+        closestEquipDist = d;
+        closestEquipOrb = orb;
+      }
+    }
+
+    // Check for nearby boss blessing (prioritized)
+    let closestBlessingOrb: PickupOrb | null = null;
+    let closestBlessingDist = 92;
+    for (const orb of this.pickups) {
+      if (!orb.active || orb.kind !== 'boss_essence') continue;
+      const d = Math.hypot(orb.x - this.player.x, orb.y - this.player.y);
+      if (d <= closestBlessingDist) {
+        closestBlessingDist = d;
+        closestBlessingOrb = orb;
+      }
+    }
+
+    if (closestEquipOrb) {
+      nearInteraction = 'equipment_drop';
+      const eqItem = closestEquipOrb.equipmentItemId
+        ? EQUIPMENT_BY_ID[closestEquipOrb.equipmentItemId]
+        : null;
+      nearInteractionLabel = eqItem ? eqItem.name : 'Relic';
+    } else if (closestBlessingOrb) {
+      nearInteraction = 'boss_blessing';
+      nearInteractionLabel = 'Divine Blessing';
+    } else {
+      for (const prop of this.map.props) {
+        const cx = prop.x + prop.w / 2;
+        const cy = prop.y + prop.h / 2;
+        if (Math.hypot(cx - this.player.x, cy - this.player.y) <= 92) {
+          if (prop.kind === 'door_dungeon') nearInteraction = 'door_dungeon';
+          else if (prop.kind === 'skill_shrine') nearInteraction = 'skill_shrine';
+          else if (prop.kind === 'chest' && !prop.opened) nearInteraction = 'chest';
+          else if (prop.kind === 'blessing_statue' && !prop.opened) nearInteraction = 'blessing_statue';
+          else if (prop.kind === 'portal_next') nearInteraction = 'portal_next';
+          else if (prop.kind === 'portal_guild') nearInteraction = 'portal_guild';
+        }
       }
     }
 
@@ -13820,6 +13967,7 @@ export class GameEngine {
       cooldowns: { ...this.cooldowns },
       maxCooldowns,
       nearInteraction: this.localIsDowned ? null : nearInteraction,
+      nearInteractionLabel: this.localIsDowned ? null : nearInteractionLabel,
       bossInfo,
       runOutcome: this.runOutcome,
       minimap,

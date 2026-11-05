@@ -614,27 +614,43 @@ export class EquipmentManager {
    * Corrupted Eaglekin drops Sky Sovereign.
    * Corrupted Tigerkin drops King of Beasts.
    */
-  public rollBossDrop(bossHeroId: HeroId): EquipmentDropPayload {
-    const colId = HERO_TO_COLLECTION[bossHeroId];
-    const colDef = EQUIPMENT_COLLECTIONS[colId];
+  /**
+   * Rolls a piece of equipment from the Corrupted Hero's corresponding collection,
+   * prioritizing undiscovered items, WITHOUT immediately taking it into inventory.
+   */
+  public rollBossDropItem(bossHeroId: HeroId): EquipmentItemDef {
+    const colId = HERO_TO_COLLECTION[bossHeroId] || 'survivors_arsenal';
     const pieces = getEquipmentForCollection(colId);
 
     // Prioritize pieces not yet discovered in inventory
     const unowned = pieces.filter((p) => !this.ownedEquipmentIds.has(p.id));
-    const chosen =
-      unowned.length > 0
-        ? unowned[Math.floor(Math.random() * unowned.length)]
-        : pieces[Math.floor(Math.random() * pieces.length)];
+    return unowned.length > 0
+      ? unowned[Math.floor(Math.random() * unowned.length)]
+      : pieces[Math.floor(Math.random() * pieces.length)];
+  }
 
-    const isFirstDiscovery = !this.ownedEquipmentIds.has(chosen.id);
-    this.ownedEquipmentIds.add(chosen.id);
+  /**
+   * Adds an equipment item to the player's permanent inventory bag.
+   * Called only when the player manually picks up the dropped equipment in the world.
+   */
+  public addEquipmentToInventory(itemId: string): EquipmentDropPayload {
+    const item = EQUIPMENT_BY_ID[itemId] || ALL_EQUIPMENT_ITEMS[0];
+    const colDef = EQUIPMENT_COLLECTIONS[item.collection] || EQUIPMENT_COLLECTIONS.survivors_arsenal;
+
+    const isFirstDiscovery = !this.ownedEquipmentIds.has(item.id);
+    this.ownedEquipmentIds.add(item.id);
     this.saveToStorage();
 
     return {
-      item: chosen,
+      item,
       collection: colDef,
       isFirstDiscovery,
     };
+  }
+
+  public rollBossDrop(bossHeroId: HeroId): EquipmentDropPayload {
+    const item = this.rollBossDropItem(bossHeroId);
+    return this.addEquipmentToInventory(item.id);
   }
 
   /**

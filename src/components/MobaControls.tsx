@@ -19,7 +19,10 @@ interface MobaControlsProps {
     | 'portal_next'
     | 'portal_guild'
     | 'blessing_statue'
+    | 'equipment_drop'
+    | 'boss_blessing'
     | null;
+  nearInteractionLabel?: string | null;
   onJoystickMove: (nx: number, ny: number) => void;
   onBasicAttackHeld: (held: boolean) => void;
   onSkillAim: (
@@ -98,6 +101,7 @@ function MobaControlsComponent({
   joystickScale,
   isForcedCssLandscape,
   nearInteraction,
+  nearInteractionLabel,
   onJoystickMove,
   onBasicAttackHeld,
   onSkillAim,
@@ -328,15 +332,25 @@ function MobaControlsComponent({
               ? '✦ Enter Next Dungeon'
               : nearInteraction === 'portal_guild'
                 ? '✦ Return to Lobby'
-                : null;
+                : nearInteraction === 'equipment_drop'
+                  ? `✦ Pick Up: ${nearInteractionLabel || 'Equipment'}`
+                  : nearInteraction === 'boss_blessing'
+                    ? '✦ Claim Divine Blessing'
+                    : null;
 
   const isPortalNext = nearInteraction === 'portal_next';
   const isPortalLobby = nearInteraction === 'portal_guild';
+  const isEquipment = nearInteraction === 'equipment_drop';
+  const isBlessing = nearInteraction === 'boss_blessing';
   const interactionBtnCls = isPortalNext
     ? 'animate-portal-btn border-cyan-300/80 bg-slate-950/90 text-cyan-100 shadow-cyan-500/30'
     : isPortalLobby
       ? 'animate-portal-btn border-amber-300/80 bg-amber-950/92 text-amber-100 shadow-amber-500/30'
-      : 'border-amber-300/60 bg-amber-950/90 text-amber-100';
+      : isBlessing
+        ? 'animate-portal-btn border-amber-300 bg-amber-950/95 text-amber-100 shadow-amber-500/40 ring-1 ring-amber-400/50 font-bold'
+        : isEquipment
+          ? 'animate-portal-btn border-amber-400 bg-gradient-to-r from-amber-950/95 via-stone-900/95 to-amber-950/95 text-amber-100 shadow-amber-500/40 ring-1 ring-amber-400/50 font-bold'
+          : 'border-amber-300/60 bg-amber-950/90 text-amber-100';
 
   return (
     <div className="pointer-events-none absolute inset-0 z-20 flex flex-col justify-end">
