@@ -85,8 +85,6 @@ export default function App() {
     joystickScale: 1.0,
     landscapeLock: true,
     sfxVolume: 0.65,
-    screenShakeIntensity: 1.0,
-    visualQuality: 'high',
   });
 
   const [loadoutsByHero, setLoadoutsByHero] = useState<Record<HeroId, SkillLoadout>>({

@@ -137,66 +137,6 @@ export function SettingsModal({
             />
           </div>
 
-          {/* Screen Shake Intensity */}
-          <div>
-            <div className="flex items-center justify-between text-sm">
-              <label htmlFor="shake-range" className="font-medium text-stone-200">
-                Screen Shake Impact
-              </label>
-              <span className="font-mono-num text-xs text-amber-300">
-                {Math.round((settings.screenShakeIntensity ?? 1.0) * 100)}%
-              </span>
-            </div>
-            <input
-              id="shake-range"
-              type="range"
-              min="0"
-              max="1.5"
-              step="0.1"
-              value={settings.screenShakeIntensity ?? 1.0}
-              onChange={(e) =>
-                onUpdateSettings({ screenShakeIntensity: parseFloat(e.target.value) })
-              }
-              className="mt-1.5 h-6 w-full accent-amber-400"
-            />
-            <div className="flex justify-between text-[11px] text-stone-400">
-              <span>Off (0%)</span>
-              <span>Default (100%)</span>
-              <span>Intense (150%)</span>
-            </div>
-          </div>
-
-          {/* Visual Quality Setting */}
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <div className="text-sm font-medium text-stone-200">
-                Visual Effects & Particles
-              </div>
-              <div className="text-xs text-stone-400">
-                Adjusts particle densities and ambient glow fidelity
-              </div>
-            </div>
-            <div className="flex items-center gap-1 rounded-xl border border-stone-700 bg-stone-900 p-1">
-              {(['low', 'medium', 'high'] as const).map((q) => (
-                <button
-                  key={q}
-                  type="button"
-                  onClick={() => {
-                    soundEngine.playUiTap();
-                    onUpdateSettings({ visualQuality: q });
-                  }}
-                  className={`rounded-lg px-2.5 py-1 text-xs font-semibold capitalize transition-colors ${
-                    (settings.visualQuality ?? 'high') === q
-                      ? 'bg-amber-400 text-stone-950 shadow-sm'
-                      : 'text-stone-400 hover:text-stone-200'
-                  }`}
-                >
-                  {q}
-                </button>
-              ))}
-            </div>
-          </div>
-
           {/* Native Fullscreen Toggle */}
           <div className="flex flex-col gap-1.5 border-t border-stone-800 pt-3.5">
             <div className="flex items-center justify-between gap-4">

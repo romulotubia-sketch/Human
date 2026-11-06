@@ -204,8 +204,6 @@ export interface GameSettings {
   joystickScale: number;
   landscapeLock: boolean;
   sfxVolume: number;
-  screenShakeIntensity: number;
-  visualQuality: 'high' | 'medium' | 'low';
 }
 
 export interface AimState {
@@ -314,17 +312,7 @@ export interface Particle {
   maxAge: number;
   color: string;
   glow: boolean;
-  shape:
-    | 'circle'
-    | 'spark'
-    | 'bone'
-    | 'ring'
-    | 'ember'
-    | 'leaf'
-    | 'smoke'
-    | 'shard'
-    | 'feather'
-    | 'bubble';
+  shape: 'circle' | 'spark' | 'bone' | 'ring';
   rotation: number;
   vRot: number;
 }

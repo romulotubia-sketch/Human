@@ -2146,46 +2146,32 @@ function drawWorldFloorsAndWalls(
   cullB: number,
   time: number
 ) {
-  const isGuild = map.isGuild;
-  const floorLevel = map.floor || 1;
-
-  // Outer foundation stone border
-  ctx.fillStyle = isGuild ? '#2e1e16' : floorLevel === 1 ? '#181e29' : floorLevel === 2 ? '#0f172a' : '#140c1c';
+  ctx.fillStyle = map.isGuild ? '#3b281e' : '#1e2533';
   for (const r of map.walkableRects) {
     if (r.x + r.w + 28 < cullL || r.x - 28 > cullR || r.y + r.h + 28 < cullT || r.y - 28 > cullB) continue;
     ctx.fillRect(r.x - 18, r.y - 22, r.w + 36, r.h + 40);
   }
 
-  // Beveled foundation rim
-  ctx.fillStyle = isGuild ? '#452b1e' : floorLevel === 1 ? '#242e3f' : floorLevel === 2 ? '#1e293b' : '#231633';
+  ctx.fillStyle = map.isGuild ? '#523829' : '#2d3748';
   for (const r of map.walkableRects) {
     if (r.x + r.w + 24 < cullL || r.x - 24 > cullR || r.y + r.h + 24 < cullT || r.y - 24 > cullB) continue;
     ctx.fillRect(r.x - 14, r.y - 18, r.w + 28, r.h + 32);
   }
 
-  // Primary floor base
-  ctx.fillStyle = isGuild ? '#5a3a27' : floorLevel === 1 ? '#1c2432' : floorLevel === 2 ? '#131d2e' : '#181224';
+  ctx.fillStyle = map.isGuild ? '#6c4932' : '#18202c';
   for (const r of map.walkableRects) {
     if (r.x + r.w < cullL || r.x > cullR || r.y + r.h < cullT || r.y > cullB) continue;
     ctx.fillRect(r.x, r.y, r.w, r.h);
   }
 
-  // Detailed floor texture & biome patterns
   for (const r of map.walkableRects) {
     if (r.x + r.w < cullL || r.x > cullR || r.y + r.h < cullT || r.y > cullB) continue;
-
-    if (isGuild) {
-      // Cozy Guild House: Parquet hardwood planks with warm wood-grain & brass nails
-      const plankH = 26;
-      const plankW = 78;
+    if (map.isGuild) {
+      const plankH = 28;
+      ctx.strokeStyle = 'rgba(34, 20, 12, 0.35)';
+      ctx.lineWidth = 1.5;
       const startY = Math.max(r.y, Math.floor(cullT / plankH) * plankH);
       const endY = Math.min(r.y + r.h, cullB);
-      const startX = Math.max(r.x, Math.floor(cullL / plankW) * plankW);
-      const endX = Math.min(r.x + r.w, cullR);
-
-      // Horizontal plank divisions
-      ctx.strokeStyle = 'rgba(26, 15, 10, 0.45)';
-      ctx.lineWidth = 1.5;
       ctx.beginPath();
       for (let py = startY; py <= endY; py += plankH) {
         if (py < r.y) continue;
@@ -2193,59 +2179,15 @@ function drawWorldFloorsAndWalls(
         ctx.lineTo(r.x + r.w, py);
       }
       ctx.stroke();
-
-      // Alternating vertical plank joints & wood tones
-      ctx.beginPath();
-      for (let py = startY; py <= endY; py += plankH) {
-        if (py < r.y || py + plankH > r.y + r.h) continue;
-        const rowIdx = Math.floor(py / plankH);
-        const offset = (rowIdx % 3) * (plankW / 3);
-        for (let px = startX - plankW; px <= endX + plankW; px += plankW) {
-          const jx = px + offset;
-          if (jx > r.x && jx < r.x + r.w) {
-            ctx.moveTo(jx, py);
-            ctx.lineTo(jx, py + plankH);
-          }
-        }
-      }
-      ctx.stroke();
-
-      // Subtle warm wood-grain highlights & brass nails at plank ends
-      ctx.fillStyle = 'rgba(217, 119, 6, 0.08)';
-      for (let py = startY; py < endY; py += plankH) {
-        if (py < r.y || py + plankH > r.y + r.h) continue;
-        const rowIdx = Math.floor(py / plankH);
-        if (rowIdx % 2 === 0) {
-          ctx.fillRect(r.x, py + 2, r.w, plankH - 4);
-        }
-      }
-
-      ctx.fillStyle = 'rgba(251, 191, 36, 0.35)';
-      ctx.beginPath();
-      for (let py = startY; py < endY; py += plankH) {
-        if (py < r.y || py + plankH > r.y + r.h) continue;
-        const rowIdx = Math.floor(py / plankH);
-        const offset = (rowIdx % 3) * (plankW / 3);
-        for (let px = startX - plankW; px <= endX; px += plankW) {
-          const jx = px + offset;
-          if (jx > r.x + 8 && jx < r.x + r.w - 8) {
-            ctx.arc(jx - 3, py + 4, 1.1, 0, Math.PI * 2);
-            ctx.arc(jx + 3, py + plankH - 4, 1.1, 0, Math.PI * 2);
-          }
-        }
-      }
-      ctx.fill();
-
-    } else if (floorLevel === 1) {
-      // Floor 1: Ancient Catacombs with beveled weathered flagstones & moss crevices
+    } else {
       const tile = 48;
       const sx = Math.max(r.x, Math.floor(cullL / tile) * tile);
       const ex = Math.min(r.x + r.w, cullR);
       const sy = Math.max(r.y, Math.floor(cullT / tile) * tile);
       const ey = Math.min(r.y + r.h, cullB);
 
-      ctx.strokeStyle = 'rgba(11, 15, 23, 0.65)';
-      ctx.lineWidth = 1.6;
+      ctx.strokeStyle = 'rgba(11, 15, 23, 0.55)';
+      ctx.lineWidth = 1.5;
       ctx.beginPath();
       for (let x = sx; x <= ex; x += tile) {
         if (x < r.x) continue;
@@ -2259,222 +2201,37 @@ function drawWorldFloorsAndWalls(
       }
       ctx.stroke();
 
-      // Mossy green crevices & scattered ancient ivory bone fragments
-      ctx.fillStyle = 'rgba(74, 222, 128, 0.18)';
+      ctx.fillStyle = 'rgba(52, 118, 90, 0.22)';
       ctx.beginPath();
       for (let x = sx; x < ex; x += tile * 2) {
         for (let y = sy; y < ey; y += tile * 2) {
           if (x < r.x || y < r.y || x + tile > r.x + r.w || y + tile > r.y + r.h) continue;
           const hash = ((x * 73856093) ^ (y * 19349663)) & 15;
-          if (hash === 3 || hash === 7) {
-            ctx.arc(x + 14, y + 16, 5, 0, Math.PI * 2);
-            ctx.arc(x + 22, y + 19, 3.5, 0, Math.PI * 2);
+          if (hash === 3) {
+            ctx.arc(x + 14, y + 16, 4.5, 0, Math.PI * 2);
+            ctx.arc(x + 20, y + 18, 3, 0, Math.PI * 2);
           }
         }
       }
       ctx.fill();
-
-      // Tiny ivory bone splinters in corners
-      ctx.fillStyle = 'rgba(245, 240, 230, 0.22)';
-      ctx.beginPath();
-      for (let x = sx; x < ex; x += tile * 3) {
-        for (let y = sy; y < ey; y += tile * 3) {
-          if (x < r.x || y < r.y || x + tile > r.x + r.w || y + tile > r.y + r.h) continue;
-          const hash = ((x * 827361) ^ (y * 551923)) & 15;
-          if (hash === 5) {
-            ctx.ellipse(x + 28, y + 24, 6, 2, 0.45, 0, Math.PI * 2);
-          }
-        }
-      }
-      ctx.fill();
-
-    } else if (floorLevel === 2) {
-      // Floor 2: Sunken Crypt with dark slate cobblestones, water puddles & bioluminescent fungi
-      const tile = 44;
-      const sx = Math.max(r.x, Math.floor(cullL / tile) * tile);
-      const ex = Math.min(r.x + r.w, cullR);
-      const sy = Math.max(r.y, Math.floor(cullT / tile) * tile);
-      const ey = Math.min(r.y + r.h, cullB);
-
-      ctx.strokeStyle = 'rgba(8, 14, 26, 0.72)';
-      ctx.lineWidth = 1.8;
-      ctx.beginPath();
-      for (let x = sx; x <= ex; x += tile) {
-        if (x < r.x) continue;
-        ctx.moveTo(x, r.y);
-        ctx.lineTo(x, r.y + r.h);
-      }
-      for (let y = sy; y <= ey; y += tile) {
-        if (y < r.y) continue;
-        ctx.moveTo(r.x, y);
-        ctx.lineTo(r.x + r.w, y);
-      }
-      ctx.stroke();
-
-      // Bioluminescent teal fungi clusters with soft pulse
-      const fungiGlow = 0.25 + Math.sin(time * 3.5) * 0.12;
-      ctx.fillStyle = `rgba(45, 212, 191, ${fungiGlow})`;
-      ctx.beginPath();
-      for (let x = sx; x < ex; x += tile * 2) {
-        for (let y = sy; y < ey; y += tile * 2) {
-          if (x < r.x || y < r.y || x + tile > r.x + r.w || y + tile > r.y + r.h) continue;
-          const hash = ((x * 61823) ^ (y * 99182)) & 15;
-          if (hash === 2 || hash === 9) {
-            ctx.arc(x + 12, y + 14, 4.0, 0, Math.PI * 2);
-            ctx.arc(x + 17, y + 11, 2.5, 0, Math.PI * 2);
-            ctx.arc(x + 18, y + 17, 2.8, 0, Math.PI * 2);
-          }
-        }
-      }
-      ctx.fill();
-
-      // Standing water puddles with gentle animated ripples
-      const ripPhase = (time * 0.8) % 1;
-      ctx.strokeStyle = `rgba(56, 189, 248, ${0.28 * (1 - ripPhase)})`;
-      ctx.lineWidth = 1.2;
-      ctx.beginPath();
-      for (let x = sx; x < ex; x += tile * 4) {
-        for (let y = sy; y < ey; y += tile * 4) {
-          if (x + 20 < r.x || y + 20 < r.y || x + 20 > r.x + r.w || y + 20 > r.y + r.h) continue;
-          const hash = ((x * 12391) ^ (y * 44921)) & 7;
-          if (hash === 1) {
-            ctx.ellipse(x + 20, y + 20, 14 + ripPhase * 12, 6 + ripPhase * 5, 0, 0, Math.PI * 2);
-          }
-        }
-      }
-      ctx.stroke();
-
-    } else {
-      // Floor 3+: Royal Sanctum / Tomb with obsidian tiles and gold gilded filigree inlays
-      const tile = 52;
-      const sx = Math.max(r.x, Math.floor(cullL / tile) * tile);
-      const ex = Math.min(r.x + r.w, cullR);
-      const sy = Math.max(r.y, Math.floor(cullT / tile) * tile);
-      const ey = Math.min(r.y + r.h, cullB);
-
-      ctx.strokeStyle = 'rgba(38, 24, 48, 0.7)';
-      ctx.lineWidth = 1.8;
-      ctx.beginPath();
-      for (let x = sx; x <= ex; x += tile) {
-        if (x < r.x) continue;
-        ctx.moveTo(x, r.y);
-        ctx.lineTo(x, r.y + r.h);
-      }
-      for (let y = sy; y <= ey; y += tile) {
-        if (y < r.y) continue;
-        ctx.moveTo(r.x, y);
-        ctx.lineTo(r.x + r.w, y);
-      }
-      ctx.stroke();
-
-      // Gilded gold corner inlays
-      ctx.strokeStyle = 'rgba(251, 191, 36, 0.35)';
-      ctx.lineWidth = 1.2;
-      ctx.beginPath();
-      for (let x = sx; x < ex; x += tile) {
-        for (let y = sy; y < ey; y += tile) {
-          if (x < r.x || y < r.y || x + tile > r.x + r.w || y + tile > r.y + r.h) continue;
-          // Small corner brackets
-          ctx.moveTo(x + 2, y + 7);
-          ctx.lineTo(x + 2, y + 2);
-          ctx.lineTo(x + 7, y + 2);
-
-          ctx.moveTo(x + tile - 2, y + 7);
-          ctx.lineTo(x + tile - 2, y + 2);
-          ctx.lineTo(x + tile - 7, y + 2);
-        }
-      }
-      ctx.stroke();
     }
   }
 
-  // Boss Chamber Ritual Summoning Sigil (Concentric rotating runic circles + 8-pointed celestial star)
   for (const rm of map.rooms) {
     if (rm.kind === 'boss') {
       const cx = rm.x + rm.w * 0.5;
       const cy = rm.y + rm.h * 0.5;
       ctx.save();
       ctx.translate(cx, cy);
-
-      // Soft ambient radiant floor pool
-      ctx.save();
-      ctx.globalCompositeOperation = 'lighter';
-      const bossFloorGrad = ctx.createRadialGradient(0, 0, 10, 0, 0, 180);
-      bossFloorGrad.addColorStop(0, 'rgba(192, 132, 252, 0.22)');
-      bossFloorGrad.addColorStop(0.6, 'rgba(139, 92, 246, 0.1)');
-      bossFloorGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-      ctx.fillStyle = bossFloorGrad;
+      ctx.rotate(time * 0.12);
+      ctx.strokeStyle = 'rgba(167, 139, 250, 0.14)';
+      ctx.lineWidth = 3;
       ctx.beginPath();
-      ctx.arc(0, 0, 180, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-
-      // Outer slowly rotating celestial ring
-      ctx.save();
-      ctx.rotate(time * 0.08);
-      ctx.strokeStyle = 'rgba(192, 132, 252, 0.42)';
-      ctx.lineWidth = 2.4;
-      ctx.beginPath();
-      ctx.arc(0, 0, 168, 0, Math.PI * 2);
+      ctx.arc(0, 0, 165, 0, Math.PI * 2);
       ctx.stroke();
-
-      // 16 Runic tick marks on outer ring
-      ctx.strokeStyle = 'rgba(232, 121, 249, 0.55)';
-      ctx.lineWidth = 2.0;
-      for (let t = 0; t < 16; t++) {
-        const ta = (t * Math.PI) / 8;
-        const inR = t % 2 === 0 ? 156 : 162;
-        ctx.beginPath();
-        ctx.moveTo(Math.cos(ta) * inR, Math.sin(ta) * inR);
-        ctx.lineTo(Math.cos(ta) * 168, Math.sin(ta) * 168);
-        ctx.stroke();
-      }
-
-      // 8 Runic node circles on outer rim
-      ctx.fillStyle = '#c084fc';
-      for (let r = 0; r < 8; r++) {
-        const ra = (r * Math.PI) / 4;
-        ctx.beginPath();
-        ctx.arc(Math.cos(ra) * 168, Math.sin(ra) * 168, 4.5, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      ctx.restore();
-
-      // Inner counter-rotating ring with 8-pointed star
-      ctx.save();
-      ctx.rotate(-time * 0.12);
-      ctx.strokeStyle = 'rgba(168, 85, 247, 0.4)';
-      ctx.lineWidth = 1.8;
       ctx.beginPath();
-      ctx.arc(0, 0, 122, 0, Math.PI * 2);
+      ctx.arc(0, 0, 120, 0, Math.PI * 2);
       ctx.stroke();
-
-      // 8-point geometric astrological star
-      ctx.strokeStyle = 'rgba(251, 191, 36, 0.28)';
-      ctx.lineWidth = 1.6;
-      ctx.beginPath();
-      for (let s = 0; s < 8; s++) {
-        const a1 = (s * Math.PI) / 4;
-        const a2 = ((s + 3) * Math.PI) / 4;
-        ctx.moveTo(Math.cos(a1) * 122, Math.sin(a1) * 122);
-        ctx.lineTo(Math.cos(a2) * 122, Math.sin(a2) * 122);
-      }
-      ctx.stroke();
-      ctx.restore();
-
-      // Core pulsating summoning nexus
-      const corePulse = 0.5 + Math.sin(time * 3.8) * 0.25;
-      ctx.fillStyle = `rgba(244, 63, 94, ${0.12 + corePulse * 0.1})`;
-      ctx.beginPath();
-      ctx.arc(0, 0, 48 + corePulse * 8, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.strokeStyle = 'rgba(251, 113, 133, 0.65)';
-      ctx.lineWidth = 2.2;
-      ctx.beginPath();
-      ctx.arc(0, 0, 42, 0, Math.PI * 2);
-      ctx.stroke();
-
       ctx.restore();
     }
   }
@@ -2484,195 +2241,65 @@ function drawProp(ctx: CanvasRenderingContext2D, prop: WorldProp, time: number) 
   const { x, y, w, h, kind } = prop;
   if (kind === 'rug') {
     ctx.save();
-    // Cozy Braided Burgundy & Gold Guild Hearth Rug with fringed tassels
-    const cx = x + w / 2;
-    const cy = y + h / 2;
-
-    // Soft drop shadow under rug
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
+    ctx.fillStyle = '#7c2d25';
     ctx.beginPath();
-    ctx.ellipse(cx, cy + 3, w * 0.52, h * 0.52, 0, 0, Math.PI * 2);
+    ctx.roundRect(x, y, w, h, 14);
     ctx.fill();
-
-    // Outer braided border
-    ctx.fillStyle = '#6b201a';
+    ctx.strokeStyle = '#e09f5a';
+    ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.ellipse(cx, cy, w * 0.5, h * 0.5, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Golden woven ring
-    ctx.strokeStyle = '#d97706';
-    ctx.lineWidth = 3.5;
-    ctx.beginPath();
-    ctx.ellipse(cx, cy, w * 0.44, h * 0.44, 0, 0, Math.PI * 2);
+    ctx.roundRect(x + 10, y + 10, w - 20, h - 20, 8);
     ctx.stroke();
-
-    // Inner velvet field
-    ctx.fillStyle = '#831843';
+    ctx.strokeStyle = 'rgba(253, 230, 138, 0.35)';
+    ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.ellipse(cx, cy, w * 0.38, h * 0.38, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Central geometric golden sunburst rosette
-    ctx.strokeStyle = 'rgba(253, 230, 138, 0.5)';
-    ctx.lineWidth = 1.8;
-    ctx.beginPath();
-    for (let i = 0; i < 8; i++) {
-      const a = (i * Math.PI) / 4;
-      ctx.moveTo(cx, cy);
-      ctx.lineTo(cx + Math.cos(a) * (w * 0.28), cy + Math.sin(a) * (h * 0.28));
-    }
+    ctx.roundRect(x + 22, y + 22, w - 44, h - 44, 5);
     ctx.stroke();
-
-    ctx.fillStyle = '#fbbf24';
-    ctx.beginPath();
-    ctx.arc(cx, cy, 5, 0, Math.PI * 2);
-    ctx.fill();
-
     ctx.restore();
   } else if (kind === 'hearth') {
-    // Cozy stone hearth with stacked firewood logs & crackling dancing flames
-    ctx.save();
-    // Warm floor flagstone pad in front of hearth
-    ctx.fillStyle = '#3a3430';
-    ctx.beginPath();
-    ctx.roundRect(x - 4, y + h - 6, w + 8, 14, 4);
-    ctx.fill();
-
-    // Hearth outer stone surround with beveled lintel
-    ctx.fillStyle = '#4b4540';
+    ctx.fillStyle = '#474340';
     ctx.beginPath();
     ctx.roundRect(x, y, w, h, 8);
     ctx.fill();
-
-    ctx.strokeStyle = '#2d2724';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(x + 2, y + 2, w - 4, h - 4);
-
-    // Deep firebox cavity
-    ctx.fillStyle = '#1c1614';
+    ctx.fillStyle = '#292320';
     ctx.beginPath();
-    ctx.roundRect(x + 18, y + 14, w - 36, h - 16, 8);
+    ctx.roundRect(x + 24, y + 16, w - 48, h - 18, 10);
     ctx.fill();
-
-    // Stacked firewood logs (dark oak bark + glowing heartwood)
-    const logBaseY = y + h - 10;
-    ctx.fillStyle = '#451a03';
-    ctx.beginPath();
-    ctx.roundRect(x + 24, logBaseY - 6, w - 48, 8, 3);
-    ctx.fill();
-
-    ctx.fillStyle = '#78350f';
-    ctx.beginPath();
-    ctx.roundRect(x + 28, logBaseY - 12, w - 56, 7, 2);
-    ctx.fill();
-
-    // Glowing ember bed below logs
-    ctx.fillStyle = '#ea580c';
-    ctx.beginPath();
-    ctx.ellipse(x + w / 2, logBaseY, w * 0.26, 4, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Lively multi-tiered dancing flame tongues
-    const flicker1 = Math.sin(time * 12) * 3 + Math.cos(time * 19) * 2;
-    const flicker2 = Math.cos(time * 15) * 2.5 + Math.sin(time * 23) * 1.5;
-
-    // Outer orange fire envelope
+    const flicker = Math.sin(time * 11) * 3 + Math.cos(time * 17) * 2;
     ctx.fillStyle = '#f97316';
     ctx.beginPath();
-    ctx.moveTo(x + w / 2 - 18, logBaseY);
-    ctx.quadraticCurveTo(x + w / 2 - 14, logBaseY - 26 - flicker1, x + w / 2, logBaseY - 32 - flicker2);
-    ctx.quadraticCurveTo(x + w / 2 + 14, logBaseY - 26 - flicker1, x + w / 2 + 18, logBaseY);
-    ctx.closePath();
+    ctx.arc(x + w / 2, y + h - 12, 22 + flicker * 0.4, Math.PI, 0);
     ctx.fill();
-
-    // Inner bright yellow flame
     ctx.fillStyle = '#fde047';
     ctx.beginPath();
-    ctx.moveTo(x + w / 2 - 11, logBaseY);
-    ctx.quadraticCurveTo(x + w / 2 - 8, logBaseY - 18 - flicker2, x + w / 2, logBaseY - 22 - flicker1);
-    ctx.quadraticCurveTo(x + w / 2 + 8, logBaseY - 18 - flicker2, x + w / 2 + 11, logBaseY);
-    ctx.closePath();
+    ctx.arc(x + w / 2, y + h - 10, 12 - flicker * 0.25, Math.PI, 0);
     ctx.fill();
-
-    // White-hot core
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.arc(x + w / 2, logBaseY - 8, 4.5, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.restore();
   } else if (kind === 'bookshelf') {
-    ctx.save();
-    // Shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.32)';
-    ctx.beginPath();
-    ctx.ellipse(x + w / 2, y + h + 2, w * 0.52, 6, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Rich dark mahogany wood frame
-    ctx.fillStyle = '#3a2012';
+    ctx.fillStyle = '#432818';
     ctx.beginPath();
     ctx.roundRect(x, y, w, h, 6);
     ctx.fill();
-    ctx.strokeStyle = '#221208';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(x, y, w, h);
-
-    // Shelf dividers
-    ctx.fillStyle = '#5c3820';
-    ctx.fillRect(x + 4, y + h * 0.5, w - 8, 4);
-
-    // Colorful book spines on top & bottom shelves
-    const colors = ['#b91c1c', '#0f766e', '#d97706', '#4338ca', '#15803d', '#9333ea'];
-    for (let bx = x + 8; bx < x + w - 14; bx += 11) {
-      const c = colors[(bx * 7) % colors.length];
-      ctx.fillStyle = c;
-      // Top shelf book
-      ctx.fillRect(bx, y + 8, 8, h * 0.5 - 12);
-      // Bottom shelf book
-      ctx.fillStyle = colors[(bx * 13) % colors.length];
-      ctx.fillRect(bx, y + h * 0.5 + 6, 8, h * 0.5 - 12);
-      // Gold foil title line
-      ctx.fillStyle = '#fde68a';
-      ctx.fillRect(bx + 1, y + 14, 6, 1.5);
+    const colors = ['#b91c1c', '#0f766e', '#d97706', '#4338ca', '#15803d'];
+    for (let bx = x + 10; bx < x + w - 16; bx += 12) {
+      ctx.fillStyle = colors[(bx * 7) % colors.length];
+      ctx.fillRect(bx, y + 10, 9, h - 20);
     }
-    ctx.restore();
   } else if (kind === 'counter') {
-    ctx.save();
-    // Counter shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.35)';
-    ctx.beginPath();
-    ctx.ellipse(x + w / 2, y + h + 2, w * 0.52, 7, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Oak counter base
-    ctx.fillStyle = '#4a2c19';
+    ctx.fillStyle = '#4e3220';
     ctx.beginPath();
     ctx.roundRect(x, y, w, h, 8);
     ctx.fill();
-
-    // Polished lighter wood countertop with beveled edge
-    ctx.fillStyle = '#784e2e';
+    ctx.fillStyle = '#6f482f';
     ctx.beginPath();
-    ctx.roundRect(x + 4, y + 4, w - 8, h - 12, 6);
+    ctx.roundRect(x + 5, y + 5, w - 10, h - 14, 5);
     ctx.fill();
-
-    // Countertop shine
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(x + 8, y + 7);
-    ctx.lineTo(x + w - 8, y + 7);
-    ctx.stroke();
-    ctx.restore();
   } else if (kind === 'skill_shrine') {
-    ctx.save();
     ctx.fillStyle = '#334155';
     ctx.beginPath();
     ctx.arc(x + w / 2, y + h / 2 + 8, 24, 0, Math.PI * 2);
     ctx.fill();
     const hover = Math.sin(time * 3.2) * 4;
+    ctx.save();
     ctx.translate(x + w / 2, y + h / 2 - 4 + hover);
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
@@ -2706,125 +2333,47 @@ function drawProp(ctx: CanvasRenderingContext2D, prop: WorldProp, time: number) 
     ctx.restore();
     drawWorldLabel(ctx, x + w / 2, y - 8, 'Dungeon Door', '#7dd3fc');
   } else if (kind === 'pillar') {
-    // Fluted stone column with stepped base plinth & carved capital
-    ctx.save();
-    ctx.fillStyle = 'rgba(0,0,0,0.42)';
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
     ctx.beginPath();
-    ctx.ellipse(x + w / 2, y + h + 3, w * 0.58, 11, 0, 0, Math.PI * 2);
+    ctx.ellipse(x + w / 2, y + h + 2, w * 0.55, 10, 0, 0, Math.PI * 2);
     ctx.fill();
-
-    // Base plinth
-    ctx.fillStyle = '#1e293b';
-    ctx.beginPath();
-    ctx.roundRect(x - 2, y + h - 14, w + 4, 14, 4);
-    ctx.fill();
-
-    // Column shaft with vertical fluting
     ctx.fillStyle = '#334155';
     ctx.beginPath();
-    ctx.roundRect(x + 2, y - 12, w - 4, h, 6);
+    ctx.roundRect(x, y - 12, w, h + 12, 8);
     ctx.fill();
-
-    // Vertical fluting lines
-    ctx.strokeStyle = '#1e293b';
-    ctx.lineWidth = 1.4;
-    for (let fx = x + 8; fx < x + w - 8; fx += 7) {
-      ctx.beginPath();
-      ctx.moveTo(fx, y - 6);
-      ctx.lineTo(fx, y + h - 14);
-      ctx.stroke();
-    }
-
-    // Capital
     ctx.fillStyle = '#475569';
     ctx.beginPath();
-    ctx.roundRect(x - 2, y - 14, w + 4, 10, 4);
+    ctx.roundRect(x + 4, y - 12, w - 8, 18, 6);
     ctx.fill();
-    ctx.restore();
   } else if (kind === 'torch') {
-    // Wrought-iron wall sconce bracket with lively dancing torch flame
-    ctx.save();
-    // Iron wall sconce plate & curved bracket
-    ctx.fillStyle = '#292524';
-    ctx.fillRect(x + 7, y + 10, 6, 12);
+    ctx.fillStyle = '#57534e';
     ctx.beginPath();
-    ctx.moveTo(x + 10, y + 16);
-    ctx.quadraticCurveTo(x + 14, y + 14, x + 10, y + 6);
-    ctx.strokeStyle = '#44403c';
-    ctx.lineWidth = 2.4;
-    ctx.stroke();
-
-    // Iron torch cup
-    ctx.fillStyle = '#1c1917';
-    ctx.beginPath();
-    ctx.moveTo(x + 6, y + 8);
-    ctx.lineTo(x + 14, y + 8);
-    ctx.lineTo(x + 12, y + 12);
-    ctx.lineTo(x + 8, y + 12);
-    ctx.closePath();
+    ctx.arc(x + 10, y + 10, 6, 0, Math.PI * 2);
     ctx.fill();
-
-    // Multi-layer flickering flame
-    const fl = Math.sin(time * 16 + x) * 1.8 + Math.cos(time * 26) * 1.2;
-    // Outer flame
-    ctx.fillStyle = '#ea580c';
-    ctx.beginPath();
-    ctx.arc(x + 10, y + 5, 5.5 + fl * 0.35, 0, Math.PI * 2);
-    ctx.fill();
-    // Middle bright flame
+    const fl = Math.sin(time * 13 + x) * 1.6;
     ctx.fillStyle = '#fb923c';
     ctx.beginPath();
-    ctx.arc(x + 10, y + 4.5, 4.0 + fl * 0.2, 0, Math.PI * 2);
+    ctx.arc(x + 10, y + 8, 5 + fl * 0.4, 0, Math.PI * 2);
     ctx.fill();
-    // Inner white-hot core
     ctx.fillStyle = '#fef08a';
     ctx.beginPath();
-    ctx.arc(x + 10, y + 4.5, 2.2, 0, Math.PI * 2);
+    ctx.arc(x + 10, y + 8, 2.6, 0, Math.PI * 2);
     ctx.fill();
-    ctx.restore();
   } else if (kind === 'chest') {
-    // Heavy arched wooden reliquary chest with iron banding, gold rivets, & keyhole rune
-    ctx.save();
-    ctx.fillStyle = 'rgba(0,0,0,0.44)';
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
     ctx.beginPath();
-    ctx.ellipse(x + w / 2, y + h + 2, w * 0.58, 9, 0, 0, Math.PI * 2);
+    ctx.ellipse(x + w / 2, y + h, w * 0.55, 9, 0, 0, Math.PI * 2);
     ctx.fill();
-
-    // Wood body
-    ctx.fillStyle = prop.opened ? '#3f3f46' : '#854d0e';
+    ctx.fillStyle = prop.opened ? '#44403c' : '#854d0e';
     ctx.beginPath();
-    ctx.roundRect(x, y + 4, w, h - 4, 6);
+    ctx.roundRect(x, y, w, h, 8);
     ctx.fill();
-
-    // Arched lid
-    ctx.fillStyle = prop.opened ? '#52525b' : '#a16207';
-    ctx.beginPath();
-    ctx.roundRect(x + 1, y, w - 2, 12, 6);
-    ctx.fill();
-
-    // Metal reinforcement corner bands
-    ctx.strokeStyle = prop.opened ? '#71717a' : '#facc15';
-    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = prop.opened ? '#78716c' : '#facc15';
+    ctx.lineWidth = 3;
     ctx.strokeRect(x + 3, y + 3, w - 6, h - 6);
-
-    // Center lockplate & keyhole
-    ctx.fillStyle = prop.opened ? '#27272a' : '#eab308';
-    ctx.beginPath();
-    ctx.arc(x + w / 2, y + h / 2 + 2, 4.5, 0, Math.PI * 2);
-    ctx.fill();
-
     if (!prop.opened) {
-      // Golden magical glint on unopened chest
-      const glint = (time * 1.5) % 3;
-      if (glint < 0.6) {
-        ctx.fillStyle = '#ffffff';
-        ctx.beginPath();
-        ctx.arc(x + 8 + glint * 16, y + 4, 1.8, 0, Math.PI * 2);
-        ctx.fill();
-      }
       drawWorldLabel(ctx, x + w / 2, y - 12, 'Reliquary Chest', '#fde047');
     }
-    ctx.restore();
   } else if (kind === 'portal_next' || kind === 'portal_guild') {
     drawPortalProp(ctx, prop, time);
   } else if (kind === 'blessing_statue') {
@@ -5570,17 +5119,6 @@ function renderSingleSwordRibbonPass(ctx: CanvasRenderingContext2D, pts: SwordTr
     ctx.closePath();
     ctx.fill();
 
-    // Luminous silky inner core
-    ctx.fillStyle = '#ffffff';
-    ctx.globalAlpha = r1 * (p1.isSkillTrail ? 0.8 : 0.5);
-    ctx.beginPath();
-    ctx.moveTo(p0.tipX + (b0x - p0.tipX) * 0.24, p0.tipY + (b0y - p0.tipY) * 0.24);
-    ctx.lineTo(p0.tipX, p0.tipY);
-    ctx.lineTo(p1.tipX, p1.tipY);
-    ctx.lineTo(p1.tipX + (b1x - p1.tipX) * 0.24, p1.tipY + (b1y - p1.tipY) * 0.24);
-    ctx.closePath();
-    ctx.fill();
-
     ctx.strokeStyle = p1.color;
     ctx.lineCap = 'round';
     ctx.globalAlpha = r1 * (p1.isSkillTrail ? 0.76 : 0.56);
@@ -5589,19 +5127,6 @@ function renderSingleSwordRibbonPass(ctx: CanvasRenderingContext2D, pts: SwordTr
     ctx.moveTo(p0.tipX, p0.tipY);
     ctx.lineTo(p1.tipX, p1.tipY);
     ctx.stroke();
-  }
-
-  // Sparkling leading blade-tip glint
-  if (pts.length > 0) {
-    const lead = pts[0];
-    const rLead = Math.max(0, 1 - lead.age / lead.maxAge);
-    if (rLead > 0.3) {
-      ctx.fillStyle = '#ffffff';
-      ctx.globalAlpha = rLead * 0.92;
-      ctx.beginPath();
-      ctx.arc(lead.tipX, lead.tipY, lead.isSkillTrail ? 3.4 : 2.2, 0, Math.PI * 2);
-      ctx.fill();
-    }
   }
 }
 
@@ -9678,152 +9203,28 @@ function drawParticles(
       ctx.beginPath();
       ctx.arc(p.x, p.y, Math.max(0.5, sz), 0, Math.PI * 2);
       ctx.fill();
-      if (p.glow && sz > 2.5) {
-        ctx.fillStyle = '#ffffff';
-        ctx.globalAlpha = alpha * 0.8;
-        ctx.beginPath();
-        ctx.arc(p.x - sz * 0.25, p.y - sz * 0.25, Math.max(0.5, sz * 0.38), 0, Math.PI * 2);
-        ctx.fill();
-      }
     } else if (p.shape === 'ring') {
       ctx.strokeStyle = p.color;
-      ctx.lineWidth = Math.max(1.2, 2.8 * alpha);
+      ctx.lineWidth = 2.5 * alpha;
       ctx.beginPath();
       ctx.arc(p.x, p.y, Math.max(1, sz), 0, Math.PI * 2);
       ctx.stroke();
-      if (p.glow && sz > 14) {
-        ctx.lineWidth = 1.0;
-        ctx.globalAlpha = alpha * 0.45;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, Math.max(1, sz * 0.85), 0, Math.PI * 2);
-        ctx.stroke();
-      }
     } else {
       ctx.save();
       ctx.translate(p.x, p.y);
       ctx.rotate(p.rotation);
       ctx.fillStyle = p.color;
-
       if (p.shape === 'spark') {
-        // High-energy 4-point diamond star spark
         ctx.beginPath();
-        ctx.moveTo(-sz * 2.2, 0);
+        ctx.moveTo(-sz * 1.8, 0);
         ctx.lineTo(0, -sz * 0.55);
-        ctx.lineTo(sz * 2.2, 0);
+        ctx.lineTo(sz * 1.8, 0);
         ctx.lineTo(0, sz * 0.55);
         ctx.closePath();
         ctx.fill();
-        ctx.beginPath();
-        ctx.moveTo(0, -sz * 1.5);
-        ctx.lineTo(sz * 0.4, 0);
-        ctx.lineTo(0, sz * 1.5);
-        ctx.lineTo(-sz * 0.4, 0);
-        ctx.closePath();
-        ctx.fill();
-        if (p.glow) {
-          ctx.fillStyle = '#ffffff';
-          ctx.beginPath();
-          ctx.arc(0, 0, Math.max(0.8, sz * 0.4), 0, Math.PI * 2);
-          ctx.fill();
-        }
-      } else if (p.shape === 'ember') {
-        // Dancing flickering fire ember with radiant core
-        const flicker = 0.85 + Math.sin(p.age * 24 + p.x) * 0.35;
-        const emberSz = sz * flicker;
-        ctx.beginPath();
-        ctx.moveTo(-emberSz * 1.4, 0);
-        ctx.lineTo(0, -emberSz * 0.8);
-        ctx.lineTo(emberSz * 1.4, 0);
-        ctx.lineTo(0, emberSz * 0.8);
-        ctx.closePath();
-        ctx.fill();
-        // Bright white-hot center
-        ctx.fillStyle = '#fffbeb';
-        ctx.beginPath();
-        ctx.arc(0, 0, Math.max(0.6, emberSz * 0.45), 0, Math.PI * 2);
-        ctx.fill();
-      } else if (p.shape === 'leaf') {
-        // Organic swaying leaf with central vein line
-        ctx.beginPath();
-        ctx.moveTo(-sz * 1.4, 0);
-        ctx.quadraticCurveTo(0, -sz * 0.8, sz * 1.4, 0);
-        ctx.quadraticCurveTo(0, sz * 0.8, -sz * 1.4, 0);
-        ctx.closePath();
-        ctx.fill();
-        // Central vein
-        ctx.strokeStyle = 'rgba(0, 0, 0, 0.28)';
-        ctx.lineWidth = 0.9;
-        ctx.beginPath();
-        ctx.moveTo(-sz * 1.2, 0);
-        ctx.lineTo(sz * 1.1, 0);
-        ctx.stroke();
-      } else if (p.shape === 'smoke') {
-        // Soft volumetric smoke puff
-        ctx.globalAlpha = alpha * 0.55;
-        ctx.beginPath();
-        ctx.arc(0, 0, sz, 0, Math.PI * 2);
-        ctx.arc(-sz * 0.35, -sz * 0.25, sz * 0.65, 0, Math.PI * 2);
-        ctx.arc(sz * 0.35, -sz * 0.15, sz * 0.6, 0, Math.PI * 2);
-        ctx.fill();
-      } else if (p.shape === 'shard') {
-        // Faceted mineral/bone splinter
-        ctx.beginPath();
-        ctx.moveTo(-sz * 1.5, -sz * 0.3);
-        ctx.lineTo(sz * 0.2, -sz * 0.7);
-        ctx.lineTo(sz * 1.6, 0);
-        ctx.lineTo(-sz * 0.2, sz * 0.6);
-        ctx.closePath();
-        ctx.fill();
-        // Chiseled highlight facet
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 0.8;
-        ctx.beginPath();
-        ctx.moveTo(-sz * 1.5, -sz * 0.3);
-        ctx.lineTo(sz * 1.6, 0);
-        ctx.stroke();
-      } else if (p.shape === 'feather') {
-        // Graceful curved feather with spine
-        ctx.beginPath();
-        ctx.moveTo(-sz * 1.8, 0);
-        ctx.quadraticCurveTo(-sz * 0.3, -sz * 0.7, sz * 1.6, 0);
-        ctx.quadraticCurveTo(-sz * 0.3, sz * 0.5, -sz * 1.8, 0);
-        ctx.closePath();
-        ctx.fill();
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.65)';
-        ctx.lineWidth = 1.0;
-        ctx.beginPath();
-        ctx.moveTo(-sz * 1.6, 0);
-        ctx.quadraticCurveTo(-sz * 0.2, -sz * 0.2, sz * 1.4, 0);
-        ctx.stroke();
-      } else if (p.shape === 'bubble') {
-        // Translucent bioluminescent sphere
-        ctx.globalAlpha = alpha * 0.45;
-        ctx.beginPath();
-        ctx.arc(0, 0, sz, 0, Math.PI * 2);
-        ctx.fill();
-        // Rim outline
-        ctx.strokeStyle = p.color;
-        ctx.lineWidth = 1.2;
-        ctx.globalAlpha = alpha * 0.85;
-        ctx.stroke();
-        // Specular crescent gleam
-        ctx.fillStyle = '#ffffff';
-        ctx.beginPath();
-        ctx.arc(-sz * 0.35, -sz * 0.35, Math.max(0.6, sz * 0.28), 0, Math.PI * 2);
-        ctx.fill();
       } else if (p.shape === 'bone') {
-        // Chibi bone splinter with rounded dual ends
-        ctx.beginPath();
-        ctx.roundRect(-sz * 1.2, -sz * 0.36, sz * 2.4, sz * 0.72, sz * 0.25);
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(-sz * 1.1, -sz * 0.28, sz * 0.35, 0, Math.PI * 2);
-        ctx.arc(-sz * 1.1, sz * 0.28, sz * 0.35, 0, Math.PI * 2);
-        ctx.arc(sz * 1.1, -sz * 0.28, sz * 0.35, 0, Math.PI * 2);
-        ctx.arc(sz * 1.1, sz * 0.28, sz * 0.35, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.fillRect(-sz, -sz * 0.38, sz * 2, sz * 0.76);
       }
-
       ctx.restore();
     }
   }
@@ -9845,101 +9246,21 @@ function drawAmbientGlows(
 ) {
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
-
-  // 1. Warm ambient lighting from hearths, torches, shrines, statues, and portals
   for (const prop of map.props) {
+    if (prop.kind !== 'hearth' && prop.kind !== 'torch') continue;
     const gx = prop.x + prop.w / 2;
     const gy = prop.y + prop.h / 2;
+    const rad = prop.kind === 'hearth' ? 210 + Math.sin(time * 6) * 8 : 95 + Math.sin(time * 8 + gx) * 5;
+    if (gx + rad < cullL || gx - rad > cullR || gy + rad < cullT || gy - rad > cullB) continue;
 
-    if (prop.kind === 'hearth') {
-      const rad = 230 + Math.sin(time * 6) * 10;
-      if (gx + rad < cullL || gx - rad > cullR || gy + rad < cullT || gy - rad > cullB) continue;
-      const grad = ctx.createRadialGradient(gx, gy, 6, gx, gy, rad);
-      grad.addColorStop(0, 'rgba(251, 146, 60, 0.26)');
-      grad.addColorStop(0.4, 'rgba(249, 115, 22, 0.12)');
-      grad.addColorStop(1, 'rgba(251, 146, 60, 0)');
-      ctx.fillStyle = grad;
-      ctx.beginPath();
-      ctx.arc(gx, gy, rad, 0, Math.PI * 2);
-      ctx.fill();
-    } else if (prop.kind === 'torch') {
-      const rad = 105 + Math.sin(time * 8 + gx) * 6;
-      if (gx + rad < cullL || gx - rad > cullR || gy + rad < cullT || gy - rad > cullB) continue;
-      const grad = ctx.createRadialGradient(gx, gy, 3, gx, gy, rad);
-      grad.addColorStop(0, 'rgba(251, 146, 60, 0.16)');
-      grad.addColorStop(0.5, 'rgba(245, 158, 11, 0.07)');
-      grad.addColorStop(1, 'rgba(251, 146, 60, 0)');
-      ctx.fillStyle = grad;
-      ctx.beginPath();
-      ctx.arc(gx, gy, rad, 0, Math.PI * 2);
-      ctx.fill();
-    } else if (prop.kind === 'skill_shrine') {
-      const rad = 95 + Math.sin(time * 3.5) * 5;
-      if (gx + rad < cullL || gx - rad > cullR || gy + rad < cullT || gy - rad > cullB) continue;
-      const grad = ctx.createRadialGradient(gx, gy, 4, gx, gy, rad);
-      grad.addColorStop(0, 'rgba(56, 189, 248, 0.22)');
-      grad.addColorStop(1, 'rgba(56, 189, 248, 0)');
-      ctx.fillStyle = grad;
-      ctx.beginPath();
-      ctx.arc(gx, gy, rad, 0, Math.PI * 2);
-      ctx.fill();
-    } else if (prop.kind === 'blessing_statue') {
-      const rad = 110 + Math.sin(time * 2.8) * 6;
-      if (gx + rad < cullL || gx - rad > cullR || gy + rad < cullT || gy - rad > cullB) continue;
-      const grad = ctx.createRadialGradient(gx, gy, 6, gx, gy, rad);
-      grad.addColorStop(0, 'rgba(251, 191, 36, 0.22)');
-      grad.addColorStop(1, 'rgba(251, 191, 36, 0)');
-      ctx.fillStyle = grad;
-      ctx.beginPath();
-      ctx.arc(gx, gy, rad, 0, Math.PI * 2);
-      ctx.fill();
-    }
+    const grad = ctx.createRadialGradient(gx, gy, 4, gx, gy, rad);
+    grad.addColorStop(0, prop.kind === 'hearth' ? 'rgba(251, 146, 60, 0.22)' : 'rgba(251, 146, 60, 0.14)');
+    grad.addColorStop(1, 'rgba(251, 146, 60, 0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(gx, gy, rad, 0, Math.PI * 2);
+    ctx.fill();
   }
-
-  // 2. Atmospheric floating cozy dust / spore / ember motes
-  const spanW = Math.max(100, cullR - cullL);
-  const spanH = Math.max(100, cullB - cullT);
-  const moteCount = 18;
-  const isGuild = map.isGuild;
-  const floor = map.floor || 1;
-
-  for (let m = 0; m < moteCount; m++) {
-    const seedX = m * 79.19;
-    const seedY = m * 113.37;
-    const speed = 12 + (m % 5) * 4;
-    const mx = cullL + (((time * speed * 0.6 + seedX) % spanW) + spanW) % spanW;
-    const my = cullT + (((time * -speed * 0.4 + seedY + Math.sin(time * 1.5 + m) * 20) % spanH) + spanH) % spanH;
-
-    const pulse = 0.4 + Math.sin(time * 2.2 + m * 1.3) * 0.35;
-    ctx.globalAlpha = Math.max(0, pulse);
-
-    if (isGuild) {
-      // Warm golden hearth embers
-      ctx.fillStyle = m % 3 === 0 ? '#fde047' : '#fb923c';
-      ctx.beginPath();
-      ctx.arc(mx, my, 1.8, 0, Math.PI * 2);
-      ctx.fill();
-    } else if (floor === 2) {
-      // Bioluminescent turquoise spores
-      ctx.fillStyle = m % 2 === 0 ? '#2dd4bf' : '#38bdf8';
-      ctx.beginPath();
-      ctx.arc(mx, my, 2.0, 0, Math.PI * 2);
-      ctx.fill();
-    } else if (floor >= 3) {
-      // Royal Sanctum starlight violet motes
-      ctx.fillStyle = m % 2 === 0 ? '#c084fc' : '#fde047';
-      ctx.beginPath();
-      ctx.arc(mx, my, 1.9, 0, Math.PI * 2);
-      ctx.fill();
-    } else {
-      // Catacombs ethereal cyan dust motes
-      ctx.fillStyle = m % 2 === 0 ? '#bae6fd' : '#86efac';
-      ctx.beginPath();
-      ctx.arc(mx, my, 1.6, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-
   ctx.restore();
 }
 
