@@ -115,6 +115,8 @@ export interface SyncEnemyState {
   bossBuffTimer?: number;
   bossStealthTimer?: number;
   bossScytheTimer?: number;
+  isElite?: boolean;
+  eliteAffix?: string;
 }
 
 export interface SyncEnemyAttackEvent {

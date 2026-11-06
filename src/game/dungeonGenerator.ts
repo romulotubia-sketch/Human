@@ -1,5 +1,6 @@
 import {
   DungeonRoom,
+  EliteAffix,
   EnemyEntity,
   EnemyKind,
   HeroId,
@@ -489,7 +490,14 @@ export function buildProceduralDungeon(floor: number): {
   const scaleSpeed = Math.min(1.48, 1 + (floor - 1) * 0.065);
   const windupScale = Math.max(0.72, 1 - (floor - 1) * 0.045);
 
-  const spawnSkeletonMob = (kind: EnemyKind, rm: DungeonRoom, x: number, y: number) => {
+  const spawnSkeletonMob = (
+    kind: EnemyKind,
+    rm: DungeonRoom,
+    x: number,
+    y: number,
+    isElite = false,
+    eliteAffix?: EliteAffix
+  ) => {
     const baseDebuffs = {
       attackAnimTimer: 0,
       attackAnimDuration: 0.26,
@@ -790,6 +798,26 @@ export function buildProceduralDungeon(floor: number): {
         ...baseDebuffs,
       });
     }
+
+    if (isElite && enemies.length > 0) {
+      const e = enemies[enemies.length - 1];
+      if (e) {
+        e.isElite = true;
+        e.eliteAffix = eliteAffix || 'berserker';
+        e.radius = Math.round(e.radius * 1.25);
+        e.hp = Math.round(e.hp * 2.35);
+        e.maxHp = e.hp;
+        e.atk = Math.round(e.atk * 1.35);
+        const affixName = e.eliteAffix.toUpperCase();
+        e.name = `[Elite] ${e.name} ★ ${affixName}`;
+        if (e.eliteAffix === 'ironclad') {
+          e.shieldHp = Math.round(e.maxHp * 0.45);
+          e.maxShieldHp = e.shieldHp;
+        } else if (e.eliteAffix === 'swift' || e.eliteAffix === 'berserker') {
+          e.speed = Math.round(e.speed * 1.22);
+        }
+      }
+    }
   };
 
   // 8. Populate props, chests, pillars & scaled enemy packs per room
@@ -864,6 +892,16 @@ export function buildProceduralDungeon(floor: number): {
         EnemyKind.ARCHER,
       ];
 
+      const affixes: EliteAffix[] = ['ironclad', 'berserker', 'molten', 'swift', 'vampiric'];
+      const eliteIndices = new Set<number>();
+      eliteIndices.add(0);
+      if (floor >= 2 && baseCount > 3) {
+        eliteIndices.add(2);
+      }
+      if (floor >= 4 && baseCount > 5) {
+        eliteIndices.add(4);
+      }
+
       for (let m = 0; m < baseCount; m++) {
         const ang = (m / baseCount) * Math.PI * 2 + Math.random() * 0.45;
         const radX = rm.w * (0.14 + Math.random() * 0.16);
@@ -886,7 +924,10 @@ export function buildProceduralDungeon(floor: number): {
         } else if (m === 4 && combatIndex % 2 === 1) {
           kind = EnemyKind.NECROMANCER;
         }
-        spawnSkeletonMob(kind, rm, mx, my);
+
+        const isElite = eliteIndices.has(m);
+        const affix = isElite ? affixes[(combatIndex * 2 + m + floor) % affixes.length] : undefined;
+        spawnSkeletonMob(kind, rm, mx, my, isElite, affix);
       }
     } else if (rm.kind === 'treasure') {
       treasureIndex++;
@@ -922,6 +963,7 @@ export function buildProceduralDungeon(floor: number): {
         EnemyKind.MINI_GHOUL,
         EnemyKind.MINI_GHOST,
       ];
+      const affixes: EliteAffix[] = ['ironclad', 'berserker', 'molten', 'swift', 'vampiric'];
       const guardCount = 3 + Math.min(3, Math.floor(floor / 2));
       for (let g = 0; g < guardCount; g++) {
         const ga = (g / guardCount) * Math.PI * 2 + 0.5;
@@ -937,7 +979,9 @@ export function buildProceduralDungeon(floor: number): {
               : g === 2
                 ? EnemyKind.NECROMANCER
                 : EnemyKind.PLAGUE_STALKER;
-        spawnSkeletonMob(gKind, rm, gx, gy);
+        const isElite = g === 0;
+        const affix = isElite ? affixes[(treasureIndex + floor + g) % affixes.length] : undefined;
+        spawnSkeletonMob(gKind, rm, gx, gy, isElite, affix);
       }
     } else if (rm.kind === 'boss') {
       const bOff = 170;

@@ -543,12 +543,21 @@ export class RoomManager {
     enemy.hp = Math.max(0, enemy.hp - hpDmg);
     enemy.hitFlash = 0.12;
 
-    if (slowDuration > 0) {
-      enemy.slowTimer = Math.max(enemy.slowTimer, Math.min(4.0, slowDuration));
-    }
-    if (staggerDuration > 0 && !isBossKind(enemy.kind)) {
-      enemy.staggerTimer = Math.max(enemy.staggerTimer, Math.min(1.2, staggerDuration));
-      enemy.windupTimer = 0;
+    // Bosses are completely immune to any kind of crowd control (slow, stun/stagger)
+    const isBoss = isBossKind(enemy.kind) || Boolean(enemy.isLegionBoss);
+    if (!isBoss) {
+      if (slowDuration > 0) {
+        enemy.slowTimer = Math.max(enemy.slowTimer, Math.min(4.0, slowDuration));
+      }
+      if (staggerDuration > 0) {
+        enemy.staggerTimer = Math.max(enemy.staggerTimer, Math.min(1.2, staggerDuration));
+        enemy.windupTimer = 0;
+      }
+    } else {
+      enemy.slowTimer = 0;
+      enemy.staggerTimer = 0;
+      enemy.fearTimer = 0;
+      enemy.possessedTimer = 0;
     }
 
     this.broadcast(room, {
@@ -569,11 +578,11 @@ export class RoomManager {
 
   private handleEnemyDeath(room: GameRoom, enemy: EnemyEntity, killerId: string) {
     const spawnedLoot: SyncLootItem[] = [];
-    const isBoss = isBossKind(enemy.kind);
-    const isElite = enemy.kind === EnemyKind.BRUTE || enemy.kind === EnemyKind.GRAVE_KNIGHT;
+    const isBoss = isBossKind(enemy.kind) || Boolean(enemy.isLegionBoss);
+    const isElite = Boolean(enemy.isElite) || enemy.kind === EnemyKind.BRUTE || enemy.kind === EnemyKind.GRAVE_KNIGHT;
 
-    // Bone Shards
-    const shardCount = isBoss ? (enemy.isLegionBoss ? 12 : 8) : isElite ? 3 : 1;
+    // Bone Shards (Elites drop 4-6 shards, bosses drop 10-14 shards)
+    const shardCount = isBoss ? (enemy.isLegionBoss ? 14 : 10) : isElite ? (enemy.isElite ? 5 : 3) : 1;
     for (let i = 0; i < shardCount; i++) {
       const lootItem: SyncLootItem = {
         id: this.nextLootId++,
@@ -1593,6 +1602,9 @@ export class RoomManager {
           bossBuffTimer: enemy.bossBuffTimer ? Math.round(enemy.bossBuffTimer * 100) / 100 : 0,
           bossStealthTimer: enemy.bossStealthTimer ? Math.round(enemy.bossStealthTimer * 100) / 100 : 0,
           bossScytheTimer: enemy.bossScytheTimer ? Math.round(enemy.bossScytheTimer * 100) / 100 : 0,
+          isElite: enemy.isElite,
+          eliteAffix: enemy.eliteAffix,
+          name: enemy.name,
         });
       }
 

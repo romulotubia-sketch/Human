@@ -648,6 +648,37 @@ export interface EnemyEntity {
   bossStealthTimer?: number;
   bossScytheTimer?: number;
   comboCount?: number;
+  isElite?: boolean;
+  eliteAffix?: EliteAffix;
+}
+
+export type EliteAffix = 'ironclad' | 'berserker' | 'molten' | 'swift' | 'vampiric';
+
+export interface DummyCombatStats {
+  isActive: boolean;
+  totalDamage: number;
+  dps: number;
+  rollingDps: number;
+  peakDps: number;
+  hitCount: number;
+  critCount: number;
+  critRate: number;
+  lastHitDamage: number;
+  maxHitDamage: number;
+  combatDuration: number;
+  lastHitTime: number;
+}
+
+export interface CombatVfxEvent {
+  id: number;
+  kind: 'basic_slash' | 'skill_cast' | 'crit_impact' | 'heavy_slam' | 'elemental_burst';
+  screenX: number;
+  screenY: number;
+  angle: number;
+  color: string;
+  secondaryColor?: string;
+  size?: number;
+  label?: string;
 }
 
 export interface AlliedMinion {
@@ -866,5 +897,6 @@ export interface HudSnapshot {
   } | null;
   activeBlessings?: Blessing[];
   maxBlessings?: number;
+  dummyStats?: DummyCombatStats | null;
 }
 
