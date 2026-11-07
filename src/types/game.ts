@@ -883,6 +883,7 @@ export interface HudSnapshot {
     | 'blessing_statue'
     | 'equipment_drop'
     | 'boss_blessing'
+    | 'blacksmith'
     | null;
   nearInteractionLabel?: string | null;
   bossInfo: {

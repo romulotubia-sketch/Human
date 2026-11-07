@@ -382,6 +382,32 @@ export function buildProceduralDungeon(floor: number): {
       }
       if (blacksmithPlaced) break;
     }
+    // Fallback: If no combat/start node had an open neighbor, try ALL available nodes
+    if (!blacksmithPlaced) {
+      for (const pNode of nodes) {
+        for (const d of DIRS) {
+          const bgx = pNode.gx + d.dx;
+          const bgy = pNode.gy + d.dy;
+          if (bgx < 0 || bgx >= GRID_COLS || bgy < 0 || bgy >= GRID_ROWS) continue;
+          if (occupied.has(cellKey(bgx, bgy))) continue;
+
+          const bNode: GridNode = {
+            id: nodes.length,
+            gx: bgx,
+            gy: bgy,
+            kind: 'blacksmith',
+            depth: pNode.depth + 1,
+            parentId: pNode.id,
+          };
+          nodes.push(bNode);
+          occupied.set(cellKey(bgx, bgy), bNode);
+          edges.push([pNode.id, bNode.id]);
+          blacksmithPlaced = true;
+          break;
+        }
+        if (blacksmithPlaced) break;
+      }
+    }
   }
 
   // 4. Materialize DungeonRooms with randomized dimensions & sub-cell (x, y) jitter

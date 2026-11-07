@@ -21,6 +21,7 @@ interface MobaControlsProps {
     | 'blessing_statue'
     | 'equipment_drop'
     | 'boss_blessing'
+    | 'blacksmith'
     | null;
   nearInteractionLabel?: string | null;
   onJoystickMove: (nx: number, ny: number) => void;
@@ -42,6 +43,7 @@ interface MobaControlsProps {
   ) => void;
   onInteract: () => void;
   onOpenSkillTree: () => void;
+  onOpenBlacksmith?: () => void;
 }
 
 const SKILL_SCALE_CLASSES: Record<string, string> = {
@@ -108,6 +110,7 @@ function MobaControlsComponent({
   onSkillCast,
   onInteract,
   onOpenSkillTree,
+  onOpenBlacksmith,
 }: MobaControlsProps) {
   const joyZoneRef = useRef<HTMLDivElement | null>(null);
   const joyTouchIdRef = useRef<number | null>(null);
@@ -336,12 +339,15 @@ function MobaControlsComponent({
                   ? `✦ Pick Up: ${nearInteractionLabel || 'Equipment'}`
                   : nearInteraction === 'boss_blessing'
                     ? '✦ Claim Divine Blessing'
-                    : null;
+                    : nearInteraction === 'blacksmith'
+                      ? `✦ Forge: ${nearInteractionLabel || 'Master Grimforge (Blacksmith)'}`
+                      : null;
 
   const isPortalNext = nearInteraction === 'portal_next';
   const isPortalLobby = nearInteraction === 'portal_guild';
   const isEquipment = nearInteraction === 'equipment_drop';
   const isBlessing = nearInteraction === 'boss_blessing';
+  const isBlacksmith = nearInteraction === 'blacksmith';
   const interactionBtnCls = isPortalNext
     ? 'animate-portal-btn border-cyan-300/80 bg-slate-950/90 text-cyan-100 shadow-cyan-500/30'
     : isPortalLobby
@@ -350,7 +356,9 @@ function MobaControlsComponent({
         ? 'animate-portal-btn border-amber-300 bg-amber-950/95 text-amber-100 shadow-amber-500/40 ring-1 ring-amber-400/50 font-bold'
         : isEquipment
           ? 'animate-portal-btn border-amber-400 bg-gradient-to-r from-amber-950/95 via-stone-900/95 to-amber-950/95 text-amber-100 shadow-amber-500/40 ring-1 ring-amber-400/50 font-bold'
-          : 'border-amber-300/60 bg-amber-950/90 text-amber-100';
+          : isBlacksmith
+            ? 'animate-portal-btn border-orange-400 bg-gradient-to-r from-orange-950/95 via-stone-900/95 to-amber-950/95 text-amber-100 shadow-orange-500/40 ring-1 ring-orange-400/50 font-bold'
+            : 'border-amber-300/60 bg-amber-950/90 text-amber-100';
 
   return (
     <div className="pointer-events-none absolute inset-0 z-20 flex flex-col justify-end">
@@ -374,6 +382,8 @@ function MobaControlsComponent({
             onClick={() => {
               if (nearInteraction === 'skill_shrine') {
                 onOpenSkillTree();
+              } else if (nearInteraction === 'blacksmith') {
+                onOpenBlacksmith?.();
               } else {
                 onInteract();
               }

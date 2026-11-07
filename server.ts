@@ -29,8 +29,12 @@ app.get('/api/multiplayer/rooms', (_req, res) => {
 });
 
 const server = http.createServer(app);
-server.on('error', (err) => {
+server.on('error', (err: any) => {
   console.error('[HTTP Server Error]:', err);
+  if (err && err.code === 'EADDRINUSE') {
+    console.error('Fatal: port in use. Exiting process so supervisor can retry cleanly.');
+    process.exit(1);
+  }
 });
 
 const wss = new WebSocketServer({ noServer: true });
@@ -47,6 +51,9 @@ server.on('upgrade', (req, socket, head) => {
     wss.handleUpgrade(req, socket, head, (ws) => {
       wss.emit('connection', ws, req);
     });
+  } else {
+    // Gracefully ignore or close sockets for non-matching upgrade paths
+    socket.destroy();
   }
 });
 
@@ -286,6 +293,11 @@ function getPort(): number {
     const parsed = Number(process.argv[portArgIndex + 1]);
     if (!Number.isNaN(parsed) && parsed > 0) return parsed;
   }
+  const portEqArg = process.argv.find((arg) => arg.startsWith('--port='));
+  if (portEqArg) {
+    const parsed = Number(portEqArg.split('=')[1]);
+    if (!Number.isNaN(parsed) && parsed > 0) return parsed;
+  }
   if (process.env.PORT && process.env.PORT !== '8080') {
     const parsed = Number(process.env.PORT);
     if (!Number.isNaN(parsed) && parsed > 0) return parsed;
@@ -293,17 +305,30 @@ function getPort(): number {
   return 3000;
 }
 
+process.on('SIGTERM', () => {
+  console.log('Received SIGTERM, closing server cleanly...');
+  server.close(() => {
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('Received SIGINT, closing server cleanly...');
+  server.close(() => {
+    process.exit(0);
+  });
+});
+
 async function startServer() {
   const isProduction = process.env.NODE_ENV === 'production';
 
   if (!isProduction) {
     const { createServer: createViteServer } = await import('vite');
-    const disableHmr = process.env.DISABLE_HMR === 'true';
     const vite = await createViteServer({
       server: {
         middlewareMode: true,
-        hmr: disableHmr ? false : { server },
-        watch: disableHmr ? null : {},
+        hmr: false,
+        watch: null,
       },
       appType: 'spa',
     });

@@ -7,6 +7,7 @@ import {
   Zap,
   Crown,
   Sparkles,
+  Disc,
   Check,
   ChevronRight,
   Lock,
@@ -14,14 +15,18 @@ import {
   Package,
   BookOpen,
   RotateCcw,
+  Hammer,
 } from 'lucide-react';
 import {
   EQUIPMENT_BY_ID,
   EQUIPMENT_COLLECTIONS,
   ALL_EQUIPMENT_ITEMS,
   getEquipmentForCollection,
+  getUnlockedMilestones,
+  getNextMilestone,
 } from '../data/equipmentData';
 import {
+  ALL_EQUIPMENT_SLOTS,
   EquipmentCollectionId,
   EquipmentItemDef,
   EquipmentSlot,
@@ -36,6 +41,7 @@ interface EquipmentModalProps {
   heroId: HeroId;
   onClose: () => void;
   onEquipmentChanged?: () => void;
+  onOpenBlacksmith?: () => void;
 }
 
 type ModalSection = 'equipment_bag' | 'codex';
@@ -45,6 +51,7 @@ export function EquipmentModal({
   heroId,
   onClose,
   onEquipmentChanged,
+  onOpenBlacksmith,
 }: EquipmentModalProps) {
   const [activeSection, setActiveSection] = useState<ModalSection>('equipment_bag');
   const [mobileView, setMobileView] = useState<MobileViewMode>('bag');
@@ -56,7 +63,9 @@ export function EquipmentModal({
       currentLoadout.armor ||
       currentLoadout.spirit ||
       currentLoadout.ancient ||
-      'scavenger_pipe'
+      currentLoadout.accessory ||
+      currentLoadout.core ||
+      null
     );
   });
 
@@ -88,6 +97,16 @@ export function EquipmentModal({
     ? EQUIPMENT_BY_ID[inspectedItemId] || null
     : null;
 
+  const inspectedItemLevel = inspectedItem
+    ? equipmentManager.getEnhancementLevel(inspectedItem.id)
+    : 0;
+  const inspectedMilestones = inspectedItem
+    ? getUnlockedMilestones(inspectedItem, inspectedItemLevel)
+    : [];
+  const inspectedNextMilestone = inspectedItem
+    ? getNextMilestone(inspectedItem, inspectedItemLevel)
+    : null;
+
   const getSlotIcon = (slot: EquipmentSlot, className = 'h-3.5 w-3.5') => {
     switch (slot) {
       case 'weapon':
@@ -98,6 +117,10 @@ export function EquipmentModal({
         return <Zap className={className} />;
       case 'ancient':
         return <Crown className={className} />;
+      case 'accessory':
+        return <Sparkles className={className} />;
+      case 'core':
+        return <Disc className={className} />;
     }
   };
 
@@ -140,14 +163,13 @@ export function EquipmentModal({
   const countAfterEquip = isEquippedOnCurrentHero ? currentCount : currentCount + netChange;
   const activatesTwoPiece = !isEquippedOnCurrentHero && currentCount < 2 && countAfterEquip >= 2;
   const activatesFourPiece = !isEquippedOnCurrentHero && currentCount < 4 && countAfterEquip >= 4;
+  const activatesSixPiece = !isEquippedOnCurrentHero && currentCount < 6 && countAfterEquip >= 6;
   const inspectedCol = inspectedItem ? EQUIPMENT_COLLECTIONS[inspectedItem.collection] : null;
 
   return (
-    // Outer overlay: items-start prevents flexbox from ever pushing the modal top offscreen!
     <div className="absolute inset-0 z-50 flex items-start sm:items-center justify-center bg-black/85 p-1 sm:p-2.5 backdrop-blur-md overflow-y-auto select-none">
-      
-      {/* Modal Card: guaranteed visible top bar, fits within viewport */}
-      <div className="relative flex w-full max-w-5xl h-[calc(100dvh-8px)] sm:h-[min(94dvh,500px)] flex-col rounded-2xl border border-stone-700 bg-gradient-to-b from-[#1c1613] via-[#120e0c] to-[#0a0806] shadow-2xl text-stone-200 overflow-hidden my-auto shrink-0">
+      {/* Modal Card */}
+      <div className="relative flex w-full max-w-5xl h-[calc(100dvh-8px)] sm:h-[min(94dvh,540px)] flex-col rounded-2xl border border-stone-700 bg-gradient-to-b from-[#1c1613] via-[#120e0c] to-[#0a0806] shadow-2xl text-stone-200 overflow-hidden my-auto shrink-0">
         
         {/* ========================================================
             TOP HEADER BAR (ALWAYS VISIBLE WITH PROMINENT BACK BUTTON)
@@ -180,7 +202,7 @@ export function EquipmentModal({
                     : 'bg-stone-800 text-stone-400 border-stone-700'
                 }`}
               >
-                {isDungeonActive ? 'Dungeon' : 'Sanctuary'}
+                {isDungeonActive ? 'Dungeon (Active)' : 'Sanctuary (Inactive)'}
               </span>
               <span className="text-[10px] text-stone-400 hidden md:inline truncate">
                 · {heroProfile.name}
@@ -188,8 +210,23 @@ export function EquipmentModal({
             </div>
           </div>
 
-          {/* Section Navigation Tabs: Equipment & Bag vs Relic Codex */}
-          <div className="flex items-center gap-1">
+          {/* Section Navigation Tabs & Forge Button */}
+          <div className="flex items-center gap-1 sm:gap-1.5">
+            {onOpenBlacksmith && (
+              <button
+                type="button"
+                onClick={() => {
+                  soundEngine.playUiTap();
+                  onOpenBlacksmith();
+                }}
+                className="flex items-center gap-1 px-2 py-1 rounded-lg border border-orange-500/50 bg-gradient-to-r from-orange-950/70 to-stone-900 text-orange-300 hover:text-orange-100 text-xs font-bold transition-all active:scale-95"
+                title="Open Cryptfire Forge Blacksmith"
+              >
+                <Hammer className="h-3.5 w-3.5 text-orange-400 shrink-0" />
+                <span className="hidden sm:inline">Forge</span>
+              </button>
+            )}
+
             <div className="flex bg-stone-950/90 border border-stone-800 rounded-xl p-0.5 text-xs font-semibold">
               <button
                 type="button"
@@ -204,7 +241,7 @@ export function EquipmentModal({
                 }`}
               >
                 <Package className="h-3.5 w-3.5 text-amber-400 shrink-0" />
-                <span>Bag & Slots</span>
+                <span>Bag & 6 Slots</span>
               </button>
 
               <button
@@ -220,11 +257,11 @@ export function EquipmentModal({
                 }`}
               >
                 <BookOpen className="h-3.5 w-3.5 text-indigo-400 shrink-0" />
-                <span>Codex (28)</span>
+                <span>Codex (42)</span>
               </button>
             </div>
 
-            {/* Mobile View Toggle (Only shown on very small portrait screens below sm) */}
+            {/* Mobile View Toggle */}
             {activeSection === 'equipment_bag' && (
               <div className="flex sm:hidden bg-stone-900 border border-stone-800 rounded-lg p-0.5 text-[10px] font-semibold">
                 <button
@@ -265,19 +302,19 @@ export function EquipmentModal({
         </div>
 
         {/* ========================================================
-            MAIN SECTION 1: HERO EQUIPMENT & BAG (FOCUSED INTERFACE)
+            MAIN SECTION 1: HERO EQUIPMENT & BAG (6 SLOTS)
            ======================================================== */}
         {activeSection === 'equipment_bag' && (
           <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 flex-1 min-h-0 p-1.5 sm:p-2.5 overflow-hidden">
             
-            {/* LEFT PANE: 4 Equipped Slots Bar + Relic Bag (7 cols on landscape) */}
+            {/* LEFT PANE: 6 Equipped Slots Bar + Relic Bag (7 cols) */}
             <div
               className={`sm:col-span-7 flex flex-col gap-1.5 min-h-0 overflow-hidden ${
                 mobileView === 'bag' ? 'flex' : 'hidden sm:flex'
               }`}
             >
               
-              {/* 4 Hero Equipment Slots (Compact 4-column bar, height ~62px) */}
+              {/* 6 Hero Equipment Slots Bar */}
               <div className="rounded-xl border border-stone-800 bg-stone-950/70 p-1.5 sm:p-2 shrink-0">
                 <div className="flex items-center justify-between mb-1 px-0.5">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-amber-300/90 flex items-center gap-1">
@@ -285,15 +322,16 @@ export function EquipmentModal({
                     Equipped Relics ({heroProfile.name})
                   </span>
                   <span className="text-[9.5px] text-amber-300 font-mono-num font-semibold">
-                    {equipmentManager.getEquippedCountForHero(heroId)}/4 Slots
+                    {equipmentManager.getEquippedCountForHero(heroId)}/6 Slots
                   </span>
                 </div>
 
-                <div className="grid grid-cols-4 gap-1">
-                  {(['weapon', 'armor', 'spirit', 'ancient'] as EquipmentSlot[]).map((slot) => {
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-1">
+                  {ALL_EQUIPMENT_SLOTS.map((slot) => {
                     const itemId = loadout[slot];
                     const item = itemId ? EQUIPMENT_BY_ID[itemId] : null;
                     const col = item ? EQUIPMENT_COLLECTIONS[item.collection] : null;
+                    const itemLvl = item ? equipmentManager.getEnhancementLevel(item.id) : 0;
                     const isInspected = inspectedItemId === itemId;
 
                     return (
@@ -305,7 +343,7 @@ export function EquipmentModal({
                             if (window.innerWidth < 640) setMobileView('inspect');
                           }
                         }}
-                        className={`group relative flex flex-col items-center justify-center p-1 rounded-lg border transition-all cursor-pointer h-[54px] sm:h-[58px] ${
+                        className={`group relative flex flex-col items-center justify-between p-1 rounded-lg border transition-all cursor-pointer h-[56px] sm:h-[62px] ${
                           item
                             ? isInspected
                               ? 'border-amber-400 bg-amber-950/40 ring-1 ring-amber-400/40 shadow-sm'
@@ -313,7 +351,7 @@ export function EquipmentModal({
                             : 'border-dashed border-stone-800 bg-stone-950/30 hover:border-stone-700'
                         }`}
                       >
-                        {/* Top: Icon + Unequip button */}
+                        {/* Top: Icon + Slot label + Unequip button */}
                         <div className="flex items-center justify-between w-full px-0.5">
                           <div
                             className="flex h-4 w-4 items-center justify-center rounded shrink-0"
@@ -324,11 +362,11 @@ export function EquipmentModal({
                             {getSlotIcon(slot, 'h-3.5 w-3.5')}
                           </div>
 
-                          <span className="text-[8.5px] uppercase font-bold text-stone-500">
+                          <span className="text-[8px] uppercase font-bold text-stone-500">
                             {slot.slice(0, 3)}
                           </span>
 
-                          {item && (
+                          {item ? (
                             <button
                               type="button"
                               title="Unequip from slot"
@@ -340,24 +378,31 @@ export function EquipmentModal({
                             >
                               ×
                             </button>
+                          ) : (
+                            <span className="w-2.5" />
                           )}
                         </div>
 
-                        {/* Bottom: Item Name */}
+                        {/* Bottom: Item Name & Level */}
                         {item ? (
-                          <div className="w-full text-center mt-0.5 px-0.5">
-                            <div className="text-[9.5px] font-bold text-amber-100 truncate leading-tight">
+                          <div className="w-full text-center px-0.5">
+                            <div className="text-[9px] font-bold text-amber-100 truncate leading-tight">
                               {item.name}
                             </div>
-                            <div
-                              className="text-[8px] font-semibold truncate leading-none"
-                              style={{ color: col?.themeColor }}
-                            >
-                              {col?.name.replace(' Set', '')}
+                            <div className="flex items-center justify-center gap-1 leading-none mt-0.5">
+                              <span
+                                className="text-[7.5px] font-semibold truncate"
+                                style={{ color: col?.themeColor }}
+                              >
+                                {col?.name.replace(' Set', '')}
+                              </span>
+                              <span className="text-[7.5px] font-mono-num font-bold text-amber-300 bg-amber-950/60 px-0.5 rounded border border-amber-500/30">
+                                +{itemLvl}
+                              </span>
                             </div>
                           </div>
                         ) : (
-                          <span className="text-[9px] text-stone-600 italic mt-0.5">
+                          <span className="text-[8.5px] text-stone-600 italic">
                             Empty
                           </span>
                         )}
@@ -370,7 +415,7 @@ export function EquipmentModal({
               {/* Relic Bag (Inventory of owned items) */}
               <div className="flex-1 min-h-0 flex flex-col rounded-xl border border-stone-800 bg-stone-950/60 p-2 overflow-hidden">
                 
-                {/* Bag Header & Filter Pills */}
+                {/* Bag Header & Filter Pills for all 6 slots */}
                 <div className="flex items-center justify-between border-b border-stone-800 pb-1.5 mb-1.5 shrink-0 gap-1">
                   <div className="flex items-center gap-1">
                     <Package className="h-3.5 w-3.5 text-amber-400" />
@@ -379,13 +424,13 @@ export function EquipmentModal({
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-0.5">
-                    {(['all', 'weapon', 'armor', 'spirit', 'ancient'] as const).map((slotKey) => (
+                  <div className="flex items-center gap-0.5 overflow-x-auto max-w-[260px]">
+                    {(['all', ...ALL_EQUIPMENT_SLOTS] as const).map((slotKey) => (
                       <button
                         key={slotKey}
                         type="button"
                         onClick={() => setSelectedSlotFilter(slotKey)}
-                        className={`px-1.5 py-0.5 rounded text-[9.5px] font-bold uppercase transition-all whitespace-nowrap ${
+                        className={`px-1.5 py-0.5 rounded text-[8.5px] font-bold uppercase transition-all whitespace-nowrap ${
                           selectedSlotFilter === slotKey
                             ? 'bg-amber-500/25 text-amber-300 border border-amber-500/50'
                             : 'bg-stone-900 text-stone-400 hover:bg-stone-850 hover:text-stone-300 border border-stone-800'
@@ -408,14 +453,14 @@ export function EquipmentModal({
                           : `No ${selectedSlotFilter} relics in bag.`}
                       </p>
                       <p className="text-[10px] text-stone-500 mt-0.5">
-                        Open crypt chests or defeat dungeon bosses to find relic drops!
+                        Defeat crypt bosses or open treasure chests to find relic drops!
                       </p>
                       <button
                         type="button"
                         onClick={() => setActiveSection('codex')}
                         className="mt-2 px-2.5 py-1 rounded-lg border border-indigo-500/30 bg-indigo-950/40 text-indigo-300 text-xs font-semibold hover:bg-indigo-900/60 transition-all"
                       >
-                        Browse Codex (28)
+                        Browse Codex (42)
                       </button>
                     </div>
                   ) : (
@@ -424,7 +469,7 @@ export function EquipmentModal({
                         const col = EQUIPMENT_COLLECTIONS[item.collection];
                         const isEquippedHere = loadout[item.slot] === item.id;
                         const isSelected = inspectedItemId === item.id;
-                        const wornOnOther = equipmentManager.isItemEquippedAnywhere(item.id);
+                        const itemLvl = equipmentManager.getEnhancementLevel(item.id);
 
                         return (
                           <button
@@ -448,58 +493,40 @@ export function EquipmentModal({
                           >
                             <div className="flex items-center gap-1.5 min-w-0">
                               <div
-                                className="flex h-6 w-6 items-center justify-center rounded border bg-stone-950 shrink-0"
+                                className="flex h-6 w-6 shrink-0 items-center justify-center rounded border"
                                 style={{
-                                  borderColor: col.themeColor,
+                                  borderColor: `${col.themeColor}55`,
+                                  backgroundColor: `${col.themeColor}15`,
                                   color: col.themeColor,
                                 }}
                               >
-                                {getSlotIcon(item.slot, 'h-3 w-3')}
+                                {getSlotIcon(item.slot, 'h-3.5 w-3.5')}
                               </div>
 
                               <div className="min-w-0">
-                                <div className="text-[10px] font-bold text-amber-100 truncate leading-tight">
-                                  {item.name}
+                                <div className="flex items-center gap-1">
+                                  <span className="text-[10px] font-bold text-amber-100 truncate">
+                                    {item.name}
+                                  </span>
+                                  <span className="font-mono-num font-bold text-[8.5px] text-amber-300 px-1 py-0.2 rounded bg-amber-950/60 border border-amber-500/30">
+                                    +{itemLvl}
+                                  </span>
                                 </div>
-                                <div
-                                  className="text-[8px] font-semibold truncate leading-none"
-                                  style={{ color: col.themeColor }}
-                                >
-                                  {col.name.replace(' Set', '')}
+                                <div className="text-[8.5px] font-semibold truncate" style={{ color: col.themeColor }}>
+                                  {EQUIPMENT_SLOT_LABELS[item.slot]} · {col.name.replace(' Set', '')}
                                 </div>
                               </div>
                             </div>
 
-                            <div className="shrink-0 pl-1">
+                            <div className="flex items-center gap-1 shrink-0 pl-1">
                               {isEquippedHere ? (
-                                <span className="flex items-center gap-0.5 text-[8.5px] font-bold text-emerald-300 bg-emerald-500/20 px-1.5 py-0.5 rounded border border-emerald-500/40">
-                                  <Check className="h-2.5 w-2.5 stroke-[3]" />
-                                  <span>Equipped</span>
+                                <span className="text-[8px] font-bold uppercase px-1 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                                  Equipped
                                 </span>
                               ) : (
-                                <div className="flex items-center gap-1">
-                                  {wornOnOther && (
-                                    <span
-                                      className="text-[8px] font-bold text-stone-400 bg-stone-800 px-1 py-0.5 rounded"
-                                      title={`Equipped on ${HERO_PROFILES[wornOnOther.heroId].name}`}
-                                    >
-                                      {HERO_PROFILES[wornOnOther.heroId].name.slice(0, 3)}
-                                    </span>
-                                  )}
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleEquip(item.id);
-                                      setInspectedItemId(item.id);
-                                    }}
-                                    className="flex items-center gap-0.5 text-[9.5px] font-bold px-2 py-0.5 sm:py-1 rounded border border-amber-400 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-stone-950 shadow-sm transition-all active:scale-95 cursor-pointer whitespace-nowrap"
-                                    title={`Equip ${item.name} to ${heroProfile.name}`}
-                                  >
-                                    <span>Equip</span>
-                                    <ChevronRight className="h-2.5 w-2.5" />
-                                  </button>
-                                </div>
+                                <span className="text-[8px] font-semibold text-stone-400 px-1 py-0.5 rounded bg-stone-800 border border-stone-700">
+                                  Bag
+                                </span>
                               )}
                             </div>
                           </button>
@@ -513,7 +540,7 @@ export function EquipmentModal({
 
             </div>
 
-            {/* RIGHT PANE: Selected Relic Inspector & Synergies (5 cols on landscape) */}
+            {/* RIGHT PANE: Selected Relic Inspector & Synergies (5 cols) */}
             <div
               className={`sm:col-span-5 flex flex-col gap-1.5 min-h-0 overflow-hidden ${
                 mobileView === 'inspect' ? 'flex' : 'hidden sm:flex'
@@ -540,9 +567,14 @@ export function EquipmentModal({
                             {getSlotIcon(inspectedItem.slot, 'h-3.5 w-3.5')}
                           </div>
                           <div className="truncate">
-                            <h4 className="font-display text-xs font-bold text-amber-100 truncate">
-                              {inspectedItem.name}
-                            </h4>
+                            <div className="flex items-center gap-1">
+                              <h4 className="font-display text-xs font-bold text-amber-100 truncate">
+                                {inspectedItem.name}
+                              </h4>
+                              <span className="font-mono-num font-bold text-[9px] text-amber-300 px-1 py-0.2 rounded bg-amber-950/80 border border-amber-500/40">
+                                +{inspectedItemLevel}
+                              </span>
+                            </div>
                             <span
                               className="text-[9.5px] font-semibold"
                               style={{ color: inspectedCol.themeColor }}
@@ -559,28 +591,65 @@ export function EquipmentModal({
 
                       {/* Drop Boss Source */}
                       <div className="text-[9.5px] text-stone-400 bg-stone-950/60 border border-stone-800/80 rounded px-2 py-0.5">
-                        <span className="font-semibold text-amber-200/90">Drop: </span>
+                        <span className="font-semibold text-amber-200/90">Drop Source: </span>
                         <span>{inspectedCol.bossName}</span>
                       </div>
 
                       {/* Stat Power */}
                       <div className="text-[10px] font-semibold text-amber-200 bg-amber-950/20 border border-amber-500/30 rounded p-1.5 leading-snug">
                         <div className="text-[8.5px] uppercase tracking-wider text-amber-400 font-bold mb-0.5">
-                          Relic Effect:
+                          Base Relic Effect:
                         </div>
                         {inspectedItem.effectDescription}
                       </div>
 
-                      {/* Synergy Preview */}
+                      {/* Unlocked Milestone Perks */}
+                      {inspectedMilestones.length > 0 && (
+                        <div className="rounded border border-emerald-500/30 bg-emerald-950/20 p-1.5 text-[9.5px] space-y-1">
+                          <span className="font-bold text-emerald-300 uppercase tracking-wider text-[8.5px] block">
+                            Unlocked Milestone Perks (+{inspectedItemLevel}):
+                          </span>
+                          {inspectedMilestones.map((m) => (
+                            <div key={m.level} className="text-stone-300 flex items-start gap-1">
+                              <span className="font-mono-num font-bold text-emerald-400 shrink-0">
+                                [+{m.level}]
+                              </span>
+                              <span>
+                                <strong className="text-amber-200">{m.title}: </strong>
+                                {m.description}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Next Milestone Preview */}
+                      {inspectedNextMilestone && (
+                        <div className="rounded border border-stone-800 bg-stone-950/60 p-1.5 text-[9px] text-stone-400">
+                          <span className="font-bold text-orange-400">
+                            Next Milestone Perk (+{inspectedNextMilestone.level}):{' '}
+                          </span>
+                          <span>
+                            {inspectedNextMilestone.title} – {inspectedNextMilestone.description}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Synergy Preview: 2-pc, 4-pc, 6-pc */}
                       <div className="rounded border border-stone-800 bg-stone-950/70 p-1.5 text-[9.5px]">
                         <div className="font-bold text-stone-300 flex items-center justify-between">
-                          <span>Set Pieces:</span>
-                          <span className="font-mono-num text-amber-300">
-                            {currentCount}/4 Pieces
+                          <span>Set Pieces Equipped:</span>
+                          <span className="font-mono-num text-amber-300 font-bold">
+                            {currentCount}/6 Pieces
                           </span>
                         </div>
 
-                        {activatesFourPiece ? (
+                        {activatesSixPiece ? (
+                          <div className="mt-0.5 font-bold text-purple-300 flex items-center gap-1">
+                            <Sparkles className="h-2.5 w-2.5 text-purple-400 shrink-0" />
+                            <span>Activates 6-Pc: {inspectedCol.sixPieceBonus.name}!</span>
+                          </div>
+                        ) : activatesFourPiece ? (
                           <div className="mt-0.5 font-bold text-cyan-300 flex items-center gap-1">
                             <Sparkles className="h-2.5 w-2.5 text-cyan-400 shrink-0" />
                             <span>Activates 4-Pc: {inspectedCol.fourPieceBonus.name}!</span>
@@ -591,17 +660,21 @@ export function EquipmentModal({
                             <span>Activates 2-Pc: {inspectedCol.twoPieceBonus.name}!</span>
                           </div>
                         ) : (
-                          <div className="mt-0.5 text-stone-400">
-                            {countAfterEquip >= 2
-                              ? `✓ ${inspectedCol.twoPieceBonus.name} active`
-                              : `Need 2 for: ${inspectedCol.twoPieceBonus.name}`}
+                          <div className="mt-0.5 text-stone-400 text-[8.5px]">
+                            {currentCount >= 6
+                              ? `✓ 2-Pc, 4-Pc, and 6-Pc bonuses fully active!`
+                              : currentCount >= 4
+                                ? `✓ 2-Pc & 4-Pc active. Need ${6 - currentCount} for 6-Pc: ${inspectedCol.sixPieceBonus.name}`
+                                : currentCount >= 2
+                                  ? `✓ 2-Pc active. Need ${4 - currentCount} for 4-Pc: ${inspectedCol.fourPieceBonus.name}`
+                                  : `Need 2 for: ${inspectedCol.twoPieceBonus.name}`}
                           </div>
                         )}
                       </div>
                     </div>
 
                     {/* Bottom Action Button: Always anchored & visible */}
-                    <div className="pt-1.5 border-t border-stone-800/80 shrink-0">
+                    <div className="pt-1.5 border-t border-stone-800/80 shrink-0 flex items-center gap-1.5">
                       {isOwned ? (
                         isEquippedOnCurrentHero ? (
                           <button
@@ -639,19 +712,19 @@ export function EquipmentModal({
                 )}
               </div>
 
-              {/* Active Synergies Summary Card (Compact, max-h-[85px]) */}
-              <div className="rounded-xl border border-stone-800 bg-stone-950/70 p-2 shrink-0 max-h-[90px] overflow-y-auto">
+              {/* Active Synergies Summary Card (2-pc, 4-pc, 6-pc) */}
+              <div className="rounded-xl border border-stone-800 bg-stone-950/70 p-2 shrink-0 max-h-[100px] overflow-y-auto">
                 <div className="flex items-center justify-between mb-1 pb-0.5 border-b border-stone-800/80">
                   <span className="text-[9.5px] font-bold uppercase tracking-wider text-amber-300/90 flex items-center gap-1">
                     <Sparkles className="h-3 w-3 text-amber-400" />
                     Active Synergies
                   </span>
-                  <span className="text-[8.5px] text-stone-500">2-pc & 4-pc</span>
+                  <span className="text-[8px] text-stone-500">2-pc · 4-pc · 6-pc</span>
                 </div>
 
                 {snapshot.activeSetBonuses.length === 0 ? (
                   <div className="text-[9.5px] text-stone-500 italic py-0.5">
-                    Equip 2 or 4 matching relics to trigger set synergy bonuses.
+                    Equip 2, 4, or 6 matching relics to trigger set synergy bonuses.
                   </div>
                 ) : (
                   <div className="space-y-1">
@@ -666,13 +739,15 @@ export function EquipmentModal({
                           <div className="flex items-center justify-between font-bold">
                             <span className="text-amber-100">{bonus.collectionName}</span>
                             <span className="text-amber-400 font-mono-num text-[9px]">
-                              {bonus.piecesEquipped}/4 Pcs
+                              {bonus.piecesEquipped}/6 Pcs
                             </span>
                           </div>
                           <div className="text-emerald-300 text-[9px] mt-0.5 leading-tight">
-                            {bonus.hasFourPiece
-                              ? `${col.twoPieceBonus.name} & ${col.fourPieceBonus.name}`
-                              : `${col.twoPieceBonus.name}: ${col.twoPieceBonus.description}`}
+                            {bonus.hasSixPiece
+                              ? `6-Pc: ${col.sixPieceBonus.name} (All 3 Tiers Active!)`
+                              : bonus.hasFourPiece
+                                ? `4-Pc: ${col.fourPieceBonus.name} & 2-Pc: ${col.twoPieceBonus.name}`
+                                : `2-Pc: ${col.twoPieceBonus.name}`}
                           </div>
                         </div>
                       );
@@ -687,7 +762,7 @@ export function EquipmentModal({
         )}
 
         {/* ========================================================
-            SEPARATE SECTION 2: RELIC CODEX (ALL 7 SETS / 28 RELICS)
+            SEPARATE SECTION 2: RELIC CODEX (ALL 7 SETS / 42 RELICS)
            ======================================================== */}
         {activeSection === 'codex' && (
           <div className="flex flex-col flex-1 min-h-0 p-2 sm:p-2.5 overflow-hidden">
@@ -697,10 +772,10 @@ export function EquipmentModal({
               <div>
                 <h3 className="text-xs sm:text-sm font-bold text-amber-100 flex items-center gap-1.5">
                   <BookOpen className="h-3.5 w-3.5 text-indigo-400" />
-                  Relic Compendium (All 7 Sets · 28 Relics)
+                  Relic Compendium (All 7 Sets · 42 Relics)
                 </h3>
                 <p className="text-[9.5px] text-stone-400">
-                  Collect pieces from crypt bosses to unlock 2-Piece and 4-Piece synergies.
+                  Collect pieces from crypt bosses to unlock 2-Piece, 4-Piece, and 6-Piece synergies.
                 </p>
               </div>
 
@@ -710,10 +785,10 @@ export function EquipmentModal({
                   type="button"
                   onClick={handleUnlockAll}
                   className="flex items-center gap-1 px-2 py-1 rounded-lg border border-amber-500/40 bg-amber-950/40 text-amber-300 hover:bg-amber-900/60 text-[11px] font-semibold active:scale-95 transition-all"
-                  title="Unlock all 28 relics to test synergies"
+                  title="Unlock all 42 relics to test synergies"
                 >
                   <Sparkles className="h-3 w-3" />
-                  <span>Unlock All 28</span>
+                  <span>Unlock All 42</span>
                 </button>
 
                 <button
@@ -729,7 +804,7 @@ export function EquipmentModal({
             </div>
 
             {/* All 7 Collections Scrollable Grid */}
-            <div className="flex-1 min-h-0 overflow-y-auto pt-1.5 space-y-2 pr-1">
+            <div className="flex-1 min-h-0 overflow-y-auto pt-1.5 space-y-2.5 pr-1">
               {Object.values(EQUIPMENT_COLLECTIONS).map((col) => {
                 const pieces: EquipmentItemDef[] = getEquipmentForCollection(col.id);
                 const ownedInCol = pieces.filter((p) => snapshot.ownedEquipmentIds.includes(p.id)).length;
@@ -755,12 +830,12 @@ export function EquipmentModal({
                       </div>
 
                       <span className="text-[11px] font-mono-num font-bold text-amber-300">
-                        {ownedInCol}/4 Discovered
+                        {ownedInCol}/6 Discovered
                       </span>
                     </div>
 
-                    {/* Set Synergy Bonuses */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 mb-1.5 text-[9.5px]">
+                    {/* Set Synergy Bonuses (2-pc, 4-pc, 6-pc) */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 mb-1.5 text-[9px]">
                       <div className="rounded bg-stone-900/60 border border-stone-800/80 p-1.5">
                         <span className="font-bold text-amber-300">2-Pc: </span>
                         <span className="text-stone-300 font-semibold">{col.twoPieceBonus.name}</span>
@@ -772,13 +847,20 @@ export function EquipmentModal({
                         <span className="text-stone-300 font-semibold">{col.fourPieceBonus.name}</span>
                         <p className="text-stone-400 leading-snug">{col.fourPieceBonus.description}</p>
                       </div>
+
+                      <div className="rounded bg-stone-900/60 border border-stone-800/80 p-1.5">
+                        <span className="font-bold text-purple-300">6-Pc: </span>
+                        <span className="text-stone-300 font-semibold">{col.sixPieceBonus.name}</span>
+                        <p className="text-stone-400 leading-snug">{col.sixPieceBonus.description}</p>
+                      </div>
                     </div>
 
-                    {/* 4 Items in this Set */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1">
+                    {/* 6 Items in this Set */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-1">
                       {pieces.map((item) => {
                         const isOwnedPiece = snapshot.ownedEquipmentIds.includes(item.id);
                         const isEquippedPiece = loadout[item.slot] === item.id;
+                        const itemLvl = equipmentManager.getEnhancementLevel(item.id);
 
                         return (
                           <div
@@ -787,7 +869,7 @@ export function EquipmentModal({
                               setInspectedItemId(item.id);
                               setActiveSection('equipment_bag');
                             }}
-                            className={`flex items-center justify-between p-1.5 rounded-lg border transition-all cursor-pointer ${
+                            className={`flex flex-col justify-between p-1.5 rounded-lg border transition-all cursor-pointer h-[66px] ${
                               !isOwnedPiece
                                 ? 'border-stone-850 bg-stone-950/40 opacity-50 hover:opacity-80'
                                 : isEquippedPiece
@@ -795,7 +877,7 @@ export function EquipmentModal({
                                   : 'border-stone-800 bg-stone-900/80 hover:border-stone-600'
                             }`}
                           >
-                            <div className="flex items-center gap-1.5 min-w-0">
+                            <div className="flex items-center justify-between w-full">
                               <div
                                 className="flex h-5 w-5 items-center justify-center rounded border bg-stone-950 shrink-0"
                                 style={{
@@ -806,21 +888,30 @@ export function EquipmentModal({
                                 {getSlotIcon(item.slot, 'h-3 w-3')}
                               </div>
 
-                              <div className="min-w-0">
-                                <div className="text-[8px] uppercase font-bold text-stone-500 leading-none">
-                                  {EQUIPMENT_SLOT_LABELS[item.slot]}
-                                </div>
-                                <div className="text-[9.5px] font-bold text-amber-100 truncate leading-tight">
-                                  {item.name}
-                                </div>
+                              <span className="text-[7.5px] uppercase font-bold text-stone-500">
+                                {item.slot.slice(0, 3)}
+                              </span>
+
+                              {isOwnedPiece ? (
+                                <span className="text-[7.5px] font-mono-num font-bold text-amber-300 bg-amber-950/60 px-0.5 rounded border border-amber-500/30">
+                                  +{itemLvl}
+                                </span>
+                              ) : (
+                                <Lock className="h-2.5 w-2.5 text-stone-600" />
+                              )}
+                            </div>
+
+                            <div className="w-full text-center mt-0.5">
+                              <div className="text-[9px] font-bold text-amber-100 truncate leading-tight">
+                                {item.name}
                               </div>
                             </div>
 
-                            <div className="shrink-0 pl-1">
+                            <div className="w-full flex justify-center">
                               {isOwnedPiece ? (
                                 isEquippedPiece ? (
-                                  <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                                    <Check className="h-2 w-2 stroke-[3]" />
+                                  <span className="text-[7.5px] font-bold text-emerald-300">
+                                    Equipped
                                   </span>
                                 ) : (
                                   <button
@@ -830,14 +921,13 @@ export function EquipmentModal({
                                       handleEquip(item.id);
                                       setInspectedItemId(item.id);
                                     }}
-                                    className="text-[8.5px] font-bold text-stone-950 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 px-1.5 py-0.5 rounded shadow-sm transition-all active:scale-95 cursor-pointer"
-                                    title={`Equip ${item.name}`}
+                                    className="text-[7.5px] font-bold text-stone-950 bg-amber-400 hover:bg-amber-300 px-1 py-0.2 rounded shadow-sm transition-all"
                                   >
                                     Equip
                                   </button>
                                 )
                               ) : (
-                                <Lock className="h-2.5 w-2.5 text-stone-600" />
+                                <span className="text-[7.5px] text-stone-600">Locked</span>
                               )}
                             </div>
                           </div>

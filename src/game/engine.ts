@@ -138,6 +138,7 @@ export class GameEngine {
   private onPromptBlessing?: (options: Blessing[]) => void;
   private onPortalWarp?: (kind: 'next' | 'lobby') => void;
   private onEquipmentDrop?: (drop: EquipmentDropPayload) => void;
+  private onOpenBlacksmith?: () => void;
   private currentAttackIsBasic = false;
 
   private baseMaxHp = HERO_PROFILES.human.baseHp;
@@ -819,6 +820,20 @@ export class GameEngine {
 
   public setOnEquipmentDrop(cb: (drop: EquipmentDropPayload) => void) {
     this.onEquipmentDrop = cb;
+  }
+
+  public setOnOpenBlacksmith(cb: () => void) {
+    this.onOpenBlacksmith = cb;
+  }
+
+  public enhanceEquipment(itemId: string) {
+    const res = equipmentManager.enhanceItem(itemId, this.boneShards);
+    if (res.cost > 0) {
+      this.boneShards = Math.max(0, this.boneShards - res.cost);
+      this.recalcStats(false);
+      this.emitHudSnapshot();
+    }
+    return res;
   }
 
   public applyEquipmentChanges() {
@@ -6987,6 +7002,11 @@ export class GameEngine {
       }
       if (prop.kind === 'portal_guild') {
         this.triggerPortalTransition(prop);
+        return true;
+      }
+      if (prop.kind === 'blacksmith_npc' || prop.kind === 'anvil') {
+        soundEngine.playSkill('shield');
+        this.onOpenBlacksmith?.();
         return true;
       }
     }
@@ -14095,6 +14115,10 @@ export class GameEngine {
           else if (prop.kind === 'blessing_statue' && !prop.opened) nearInteraction = 'blessing_statue';
           else if (prop.kind === 'portal_next') nearInteraction = 'portal_next';
           else if (prop.kind === 'portal_guild') nearInteraction = 'portal_guild';
+          else if (prop.kind === 'blacksmith_npc' || prop.kind === 'anvil') {
+            nearInteraction = 'blacksmith';
+            nearInteractionLabel = prop.kind === 'blacksmith_npc' ? 'Master Grimforge (Blacksmith)' : 'Anvil (Forge Relics)';
+          }
         }
       }
     }

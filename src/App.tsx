@@ -1,6 +1,7 @@
-import { Maximize2, Minimize2, Settings, Shield, Sparkles, Swords, Users } from 'lucide-react';
+import { Hammer, Maximize2, Minimize2, Settings, Shield, Sparkles, Swords, Users } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { soundEngine } from './audio/soundEngine';
+import { BlacksmithModal } from './components/BlacksmithModal';
 import { BlessingSelectionModal } from './components/BlessingSelectionModal';
 import { BlessingsTrayModal } from './components/BlessingsTrayModal';
 import { EquipmentDropBanner } from './components/EquipmentDropBanner';
@@ -103,6 +104,7 @@ export default function App() {
   const [showSkillTree, setShowSkillTree] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showEquipment, setShowEquipment] = useState(false);
+  const [showBlacksmith, setShowBlacksmith] = useState(false);
   const [equipmentDrop, setEquipmentDrop] = useState<EquipmentDropPayload | null>(null);
   const [portalWarp, setPortalWarp] = useState<{ kind: 'next' | 'lobby'; seq: number } | null>(null);
   const [blessingOptions, setBlessingOptions] = useState<Blessing[] | null>(null);
@@ -136,7 +138,7 @@ export default function App() {
   const multiplayerReplacedMapRef = useRef<boolean>(false);
   const pausedRef = useRef<boolean>(false);
   pausedRef.current =
-    (showSkillTree || showSettings || Boolean(blessingOptions) || showBlessingsTray || showEquipment) &&
+    (showSkillTree || showSettings || Boolean(blessingOptions) || showBlessingsTray || showEquipment || showBlacksmith) &&
     !isMultiplayer;
 
   if (!engineRef.current) {
@@ -161,6 +163,10 @@ export default function App() {
     });
     engineRef.current?.setOnEquipmentDrop((drop) => {
       setEquipmentDrop(drop);
+    });
+    engineRef.current?.setOnOpenBlacksmith(() => {
+      soundEngine.playSkill('shield');
+      setShowBlacksmith(true);
     });
     let warpTimer: number | null = null;
     engineRef.current?.setOnPortalWarp((kind) => {
@@ -371,7 +377,7 @@ export default function App() {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return;
       }
-      if (showSkillTree || showSettings || showEquipment || Boolean(blessingOptions) || showBlessingsTray) {
+      if (showSkillTree || showSettings || showEquipment || showBlacksmith || Boolean(blessingOptions) || showBlessingsTray) {
         return;
       }
       if (e.code === 'KeyE' || e.code === 'KeyF') {
@@ -380,7 +386,7 @@ export default function App() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showSkillTree, showSettings, showEquipment, blessingOptions, showBlessingsTray]);
+  }, [showSkillTree, showSettings, showEquipment, showBlacksmith, blessingOptions, showBlessingsTray]);
 
   const isForcedCssLandscape = settings.landscapeLock && isWindowPortrait;
 
@@ -524,6 +530,7 @@ export default function App() {
     setShowSkillTree(false);
     setShowBlessingsTray(false);
     setShowEquipment(false);
+    setShowBlacksmith(false);
     setMultiplayerError(null);
     setIsMultiplayerLoading(false);
     setMultiplayerReturnPhase(returnPhase);
@@ -1124,8 +1131,21 @@ export default function App() {
               >
                 <Shield className="h-4 w-4 text-amber-400" />
                 <span>
-                  Equipment ({equipmentManager.getEquippedCountForHero(heroId)}/4)
+                  Relics ({equipmentManager.getEquippedCountForHero(heroId)}/6)
                 </span>
+              </button>
+
+              <button
+                type="button"
+                aria-label="Cryptfire Forge Blacksmith"
+                onClick={() => {
+                  soundEngine.playUiTap();
+                  setShowBlacksmith(true);
+                }}
+                className="flex min-h-[42px] items-center gap-1.5 rounded-xl border border-orange-500/80 bg-stone-950/85 px-3 py-2 text-xs font-semibold text-orange-200 shadow-[0_0_12px_rgba(249,115,22,0.2)] backdrop-blur-md active:scale-95 hover:bg-orange-950/40"
+              >
+                <Hammer className="h-4 w-4 text-orange-400" />
+                <span className="hidden sm:inline">Forge</span>
               </button>
 
               <button
@@ -1218,6 +1238,7 @@ export default function App() {
             onSkillCast={handleSkillCast}
             onInteract={handleInteract}
             onOpenSkillTree={handleOpenSkillTree}
+            onOpenBlacksmith={() => setShowBlacksmith(true)}
           />
         </>
       )}
@@ -1349,6 +1370,27 @@ export default function App() {
         <EquipmentModal
           heroId={heroId}
           onClose={() => setShowEquipment(false)}
+          onEquipmentChanged={() => {
+            engineRef.current?.applyEquipmentChanges();
+          }}
+          onOpenBlacksmith={() => {
+            setShowEquipment(false);
+            setShowBlacksmith(true);
+          }}
+        />
+      )}
+
+      {showBlacksmith && (
+        <BlacksmithModal
+          heroId={heroId}
+          boneShards={hud.boneShards}
+          onEnhance={(itemId) => {
+            if (!engineRef.current) {
+              return { success: false, newLevel: 0, cost: 0, error: 'Engine unavailable' };
+            }
+            return engineRef.current.enhanceEquipment(itemId);
+          }}
+          onClose={() => setShowBlacksmith(false)}
           onEquipmentChanged={() => {
             engineRef.current?.applyEquipmentChanges();
           }}

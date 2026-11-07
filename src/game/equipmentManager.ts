@@ -151,6 +151,9 @@ export class EquipmentManager {
 
   public loadFromStorage() {
     try {
+      if (typeof localStorage === 'undefined') {
+        return;
+      }
       // 1. Inventory loading with backward compatibility
       let invRaw = localStorage.getItem(INVENTORY_STORAGE_KEY);
       if (!invRaw) {
@@ -162,10 +165,14 @@ export class EquipmentManager {
           this.ownedEquipmentIds = new Set(parsed.filter((id) => EQUIPMENT_BY_ID[id]));
         }
       }
-      // Guarantee starting starter relics if empty
-      if (this.ownedEquipmentIds.size === 0) {
-        this.ownedEquipmentIds.add('bonebreaker_emblem');
-        this.ownedEquipmentIds.add('scrappers_gloves');
+
+      // Starting inventory is empty before entering the dungeon.
+      // Equipment drops exclusively from Corrupted Hero bosses inside dungeons.
+      const STARTER_PURGE_KEY = 'bonehearth_starter_items_removed_v3';
+      if (localStorage.getItem(STARTER_PURGE_KEY) !== 'true') {
+        this.ownedEquipmentIds.delete('bonebreaker_emblem');
+        this.ownedEquipmentIds.delete('scrappers_gloves');
+        localStorage.setItem(STARTER_PURGE_KEY, 'true');
       }
 
       // 2. Enhancement levels loading
@@ -201,6 +208,18 @@ export class EquipmentManager {
             };
           }
         }
+
+        // Validate that equipped items are actually owned
+        for (const h of ALL_HERO_IDS) {
+          const ld = this.equippedByHero[h];
+          if (ld) {
+            for (const s of ALL_EQUIPMENT_SLOTS) {
+              if (ld[s] && !this.ownedEquipmentIds.has(ld[s]!)) {
+                ld[s] = null;
+              }
+            }
+          }
+        }
       }
     } catch (e) {
       console.warn('Failed to load equipment data from storage:', e);
@@ -209,6 +228,7 @@ export class EquipmentManager {
 
   public saveToStorage() {
     this.invalidateCache();
+    if (typeof localStorage === 'undefined') return;
     try {
       localStorage.setItem(INVENTORY_STORAGE_KEY, JSON.stringify([...this.ownedEquipmentIds]));
       localStorage.setItem(EQUIPPED_STORAGE_KEY, JSON.stringify(this.equippedByHero));
