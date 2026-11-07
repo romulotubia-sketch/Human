@@ -114,19 +114,23 @@ function MinimapComponent({ minimap, heroId, floor }: MinimapProps) {
                 : '#7f1d1d'
               : rm.kind === 'treasure'
                 ? '#78350f'
-                : rm.kind === 'start'
-                  ? '#1e293b'
-                  : rm.cleared
-                    ? '#14532d'
-                    : '#292524';
+                : rm.kind === 'blacksmith'
+                  ? '#431407'
+                  : rm.kind === 'start'
+                    ? '#1e293b'
+                    : rm.cleared
+                      ? '#14532d'
+                      : '#292524';
           const stroke =
             rm.kind === 'boss'
               ? '#fb7185'
               : rm.kind === 'treasure'
                 ? '#fbbf24'
-                : rm.cleared
-                  ? '#34d399'
-                  : '#64748b';
+                : rm.kind === 'blacksmith'
+                  ? '#f97316'
+                  : rm.cleared
+                    ? '#34d399'
+                    : '#64748b';
 
           return (
             <rect
@@ -175,6 +179,27 @@ function MinimapComponent({ minimap, heroId, floor }: MinimapProps) {
                   cy={mk.y}
                   r={unit * 0.55}
                   fill="#38bdf8"
+                  stroke="#fde047"
+                  strokeWidth={unit * 0.16}
+                />
+              </g>
+            );
+          }
+          if (mk.kind === 'blacksmith') {
+            return (
+              <g key={`mk_${idx}`}>
+                <circle
+                  cx={mk.x}
+                  cy={mk.y}
+                  r={unit * 0.9}
+                  fill="#ea580c"
+                  fillOpacity="0.45"
+                />
+                <circle
+                  cx={mk.x}
+                  cy={mk.y}
+                  r={unit * 0.62}
+                  fill="#f97316"
                   stroke="#fde047"
                   strokeWidth={unit * 0.16}
                 />

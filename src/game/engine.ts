@@ -955,11 +955,13 @@ export class GameEngine {
       if (e.hp <= 0 || e.kind === EnemyKind.TRAINING_DUMMY) continue;
       const d = Math.hypot(e.x - this.player.x, e.y - this.player.y);
       if (d <= 120 + e.radius) {
-        const ka = Math.atan2(e.y - this.player.y, e.x - this.player.x);
-        this.tryMoveEntity(e.x, e.y, Math.cos(ka) * 75, Math.sin(ka) * 75, e.radius, (nx, ny) => {
-          e.x = nx;
-          e.y = ny;
-        });
+        if (!isBossKind(e.kind) && !e.isLegionBoss) {
+          const ka = Math.atan2(e.y - this.player.y, e.x - this.player.x);
+          this.tryMoveEntity(e.x, e.y, Math.cos(ka) * 75, Math.sin(ka) * 75, e.radius, (nx, ny) => {
+            e.x = nx;
+            e.y = ny;
+          });
+        }
         this.damageEnemy(e, Math.round(this.getEffectiveAtk() * 1.2), false, '#fb923c');
       }
     }
@@ -977,13 +979,15 @@ export class GameEngine {
       if (e.hp <= 0 || e.kind === EnemyKind.TRAINING_DUMMY) continue;
       const d = Math.hypot(e.x - this.player.x, e.y - this.player.y);
       if (d <= 210 + e.radius) {
-        const pullX = (this.player.x - e.x) * 0.35;
-        const pullY = (this.player.y - e.y) * 0.35;
-        this.tryMoveEntity(e.x, e.y, pullX, pullY, e.radius, (nx, ny) => {
-          e.x = nx;
-          e.y = ny;
-        });
-        e.slowTimer = Math.max(e.slowTimer, 2.5);
+        if (!isBossKind(e.kind) && !e.isLegionBoss) {
+          const pullX = (this.player.x - e.x) * 0.35;
+          const pullY = (this.player.y - e.y) * 0.35;
+          this.tryMoveEntity(e.x, e.y, pullX, pullY, e.radius, (nx, ny) => {
+            e.x = nx;
+            e.y = ny;
+          });
+          e.slowTimer = Math.max(e.slowTimer, 2.5);
+        }
         this.damageEnemy(e, dmg, true, '#38bdf8');
       }
     }
@@ -1001,8 +1005,8 @@ export class GameEngine {
     for (const e of this.enemies) {
       if (e.hp <= 0 || e.kind === EnemyKind.TRAINING_DUMMY) continue;
       if (Math.hypot(e.x - this.player.x, e.y - this.player.y) <= 220 + e.radius) {
-        e.slowTimer = Math.max(e.slowTimer, 3.5);
-        if (!isBossKind(e.kind)) {
+        if (!isBossKind(e.kind) && !e.isLegionBoss) {
+          e.slowTimer = Math.max(e.slowTimer, 3.5);
           e.staggerTimer = Math.max(e.staggerTimer, 1.5);
         }
         this.damageEnemy(e, dmg, true, '#fbbf24');
@@ -8069,9 +8073,11 @@ export class GameEngine {
           if (e.hp <= 0) continue;
           const d = Math.hypot(e.x - this.player.x, e.y - this.player.y);
           if (d <= slamRad + e.radius) {
-            e.windupTimer = 0;
-            if (e.kind !== EnemyKind.TRAINING_DUMMY) {
-              e.staggerTimer = Math.max(e.staggerTimer, isBossKind(e.kind) ? 1.1 : 1.9);
+            if (!isBossKind(e.kind) && !e.isLegionBoss) {
+              e.windupTimer = 0;
+              if (e.kind !== EnemyKind.TRAINING_DUMMY) {
+                e.staggerTimer = Math.max(e.staggerTimer, 1.9);
+              }
             }
             const { dmg, isCrit } = this.rollPlayerDamage(this.lastStandMult * 0.72, 0.28);
             this.damageEnemy(e, dmg, isCrit, '#fde047');
@@ -10615,6 +10621,15 @@ export class GameEngine {
       if (e.fearTimer > 0) e.fearTimer = Math.max(0, e.fearTimer - dt);
       if (e.possessedTimer > 0) e.possessedTimer = Math.max(0, e.possessedTimer - dt);
       if (e.staggerTimer > 0) e.staggerTimer = Math.max(0, e.staggerTimer - dt);
+
+      // Bosses are completely immune to any kind of crowd control (slow, stagger/stun, fear, possession)
+      if (isBossKind(e.kind) || e.isLegionBoss) {
+        e.slowTimer = 0;
+        e.staggerTimer = 0;
+        e.fearTimer = 0;
+        e.possessedTimer = 0;
+      }
+
       if (e.bossTransformTimer && e.bossTransformTimer > 0) e.bossTransformTimer = Math.max(0, e.bossTransformTimer - dt);
       if (e.bossBuffTimer && e.bossBuffTimer > 0) e.bossBuffTimer = Math.max(0, e.bossBuffTimer - dt);
       if (e.bossStealthTimer && e.bossStealthTimer > 0) e.bossStealthTimer = Math.max(0, e.bossStealthTimer - dt);
@@ -10649,6 +10664,19 @@ export class GameEngine {
 
       if (e.kind === EnemyKind.TRAINING_DUMMY) {
         if (e.hp < e.maxHp * 0.5) e.hp = e.maxHp;
+        if (e.dummyStats && e.dummyStats.isActive) {
+          if (this.elapsedTime - e.dummyStats.lastHitTime <= 6.5) {
+            e.dummyStats.combatDuration += dt;
+            e.dummyStats.recentHits = (e.dummyStats.recentHits || []).filter((h) => this.elapsedTime - h.time <= 4.0);
+            const rollingSum = e.dummyStats.recentHits.reduce((acc, h) => acc + h.damage, 0);
+            const rollingWindow = Math.min(4.0, Math.max(1.0, e.dummyStats.combatDuration));
+            e.dummyStats.rollingDps = Math.round(rollingSum / rollingWindow);
+            e.dummyStats.dps = Math.round(e.dummyStats.totalDamage / Math.max(0.5, e.dummyStats.combatDuration));
+            e.dummyStats.peakDps = Math.max(e.dummyStats.peakDps, e.dummyStats.rollingDps, e.dummyStats.dps);
+          } else {
+            e.dummyStats.isActive = false;
+          }
+        }
         continue;
       }
 
@@ -10786,7 +10814,10 @@ export class GameEngine {
           e.weaponSwing = 1.65;
           const isBoss = isBossKind(e.kind);
 
-          if (e.windupType === 'slash') {
+          // Elite Enemy Signature Attacks!
+          if (e.isElite && e.eliteAffix && !isBoss) {
+            this.executeEliteEnemyAttack(e, enemyAtk, angToPlayer, dist);
+          } else if (e.windupType === 'slash') {
             e.attackAnimDuration = 0.25;
             e.attackAnimTimer = 0.25;
             e.comboCount = ((e.comboCount || 0) % 3) + 1;
@@ -11307,7 +11338,11 @@ export class GameEngine {
             }
           }
 
-          e.attackCooldown = isBoss ? 1.32 : 1.05 + Math.random() * 0.35;
+          e.attackCooldown = isBoss
+            ? 1.32
+            : e.isElite
+              ? 0.78 + Math.random() * 0.22
+              : 1.05 + Math.random() * 0.35;
         }
         continue;
       }
@@ -11324,6 +11359,29 @@ export class GameEngine {
       // Undead Legion Member Boss AI: intelligent rotation of 5 skills and 3 ultimates!
       if (e.isLegionBoss) {
         this.stepUndeadLegionBoss(e, dt, dist, angToPlayer, enemyAtk);
+      } else if (e.isElite && e.eliteAffix && !isBossKind(e.kind)) {
+        const isRangedElite = e.eliteAffix === 'molten' || e.eliteAffix === 'vampiric' || e.eliteAffix === 'tempest';
+        const targetDist = isRangedElite ? 130 : 48;
+        if (dist > targetDist) {
+          this.moveEnemyWithSeparation(e, Math.cos(angToPlayer), Math.sin(angToPlayer), dt);
+        } else {
+          e.walkPhase = 0;
+        }
+        if (dist <= (isRangedElite ? 260 : 175) && e.attackCooldown <= 0) {
+          e.windupType =
+            e.eliteAffix === 'ironclad'
+              ? 'slam'
+              : e.eliteAffix === 'molten'
+                ? 'nova'
+                : e.eliteAffix === 'swift'
+                  ? 'dash'
+                  : e.eliteAffix === 'vampiric'
+                    ? 'spell'
+                    : 'whirlwind';
+          e.windupDuration = 0.44;
+          e.windupTimer = 0.44;
+          e.windupAngle = angToPlayer;
+        }
       } else if (e.kind === EnemyKind.NECROMANCER) {
         if (dist > 220) {
           this.moveEnemyWithSeparation(e, Math.cos(angToPlayer), Math.sin(angToPlayer), dt);
@@ -12985,6 +13043,7 @@ export class GameEngine {
     } else {
       e.hp = Math.max(0, e.hp - remaining);
     }
+    this.recordDummyDamage(e, dmg, false);
     this.spawnFloatingText(
       e.x + (Math.random() - 0.5) * 14,
       e.y - e.radius - 10,
@@ -13101,6 +13160,7 @@ export class GameEngine {
     } else {
       e.hp = Math.max(0, e.hp - hpDmg);
     }
+    this.recordDummyDamage(e, finalDmg, isCrit);
 
     if (this.heroId === 'zombie') {
       this.applyZombieInfection(e);
@@ -13225,6 +13285,170 @@ export class GameEngine {
 
     if (!this.isMultiplayer && e.hp <= 0 && e.kind !== EnemyKind.TRAINING_DUMMY) {
       this.handleEnemyDefeated(e);
+    }
+  }
+
+  private recordDummyDamage(e: EnemyEntity, dmg: number, isCrit: boolean) {
+    if (e.kind !== EnemyKind.TRAINING_DUMMY) return;
+    if (!e.dummyStats) {
+      e.dummyStats = {
+        isActive: true,
+        totalDamage: 0,
+        dps: 0,
+        rollingDps: 0,
+        peakDps: 0,
+        hitCount: 0,
+        critCount: 0,
+        critRate: 0,
+        lastHitDamage: 0,
+        maxHitDamage: 0,
+        combatDuration: 0.05,
+        lastHitTime: this.elapsedTime,
+        recentHits: [],
+      };
+    }
+
+    if (!e.dummyStats.isActive || this.elapsedTime - e.dummyStats.lastHitTime > 6.5) {
+      e.dummyStats.totalDamage = 0;
+      e.dummyStats.hitCount = 0;
+      e.dummyStats.critCount = 0;
+      e.dummyStats.combatDuration = 0.05;
+      e.dummyStats.peakDps = 0;
+      e.dummyStats.recentHits = [];
+      e.dummyStats.isActive = true;
+    }
+
+    e.dummyStats.totalDamage += dmg;
+    e.dummyStats.hitCount += 1;
+    if (isCrit) e.dummyStats.critCount += 1;
+    e.dummyStats.critRate = Math.round((e.dummyStats.critCount / Math.max(1, e.dummyStats.hitCount)) * 100);
+    e.dummyStats.lastHitDamage = dmg;
+    e.dummyStats.maxHitDamage = Math.max(e.dummyStats.maxHitDamage, dmg);
+    e.dummyStats.lastHitTime = this.elapsedTime;
+    e.dummyStats.recentHits = (e.dummyStats.recentHits || []).filter((h) => this.elapsedTime - h.time <= 4.0);
+    e.dummyStats.recentHits.push({ time: this.elapsedTime, damage: dmg });
+
+    const dur = Math.max(0.5, e.dummyStats.combatDuration);
+    e.dummyStats.dps = Math.round(e.dummyStats.totalDamage / dur);
+    const rollingSum = e.dummyStats.recentHits.reduce((acc, h) => acc + h.damage, 0);
+    const rollingWindow = Math.min(4.0, Math.max(1.0, e.dummyStats.combatDuration));
+    e.dummyStats.rollingDps = Math.round(rollingSum / rollingWindow);
+    e.dummyStats.peakDps = Math.max(e.dummyStats.peakDps, e.dummyStats.rollingDps, e.dummyStats.dps);
+  }
+
+  private executeEliteEnemyAttack(e: EnemyEntity, enemyAtk: number, angToPlayer: number, dist: number) {
+    const affix = e.eliteAffix || 'berserker';
+    e.attackAnimDuration = 0.35;
+    e.attackAnimTimer = 0.35;
+    this.triggerShake(0.16, 4.5);
+
+    if (affix === 'molten') {
+      soundEngine.playSlash(0.9);
+      this.spawnRingEffect(e.x, e.y, 140, '#f97316');
+      this.spawnRingEffect(e.x, e.y, 80, '#ef4444');
+      this.spawnFloatingText(e.x, e.y - e.radius - 28, 'MOLTEN SURGE!', '#f97316', true);
+
+      for (let k = 0; k < 6; k++) {
+        const fa = e.windupAngle + (k * Math.PI * 2) / 6;
+        this.spawnProjectile({
+          fromPlayer: false,
+          kind: 'enemy_fireball',
+          x: e.x + Math.cos(fa) * 22,
+          y: e.y + Math.sin(fa) * 22,
+          vx: Math.cos(fa) * 280,
+          vy: Math.sin(fa) * 280,
+          angle: fa,
+          radius: 11,
+          damage: Math.round(enemyAtk * 1.25),
+          isCrit: true,
+          pierce: false,
+          maxLife: 1.6,
+          color: '#f97316',
+        });
+      }
+      if (dist <= 135) {
+        this.damagePlayer(Math.round(enemyAtk * 1.35));
+      }
+    } else if (affix === 'ironclad') {
+      soundEngine.playPipeClang(0.85, true);
+      this.triggerShake(0.25, 6.5);
+      this.spawnRingEffect(e.x, e.y, 135, '#38bdf8');
+      this.spawnRingEffect(e.x, e.y, 85, '#ffffff');
+      this.spawnBurstParticles(e.x, e.y, '#38bdf8', 16, true);
+      this.spawnFloatingText(e.x, e.y - e.radius - 28, 'TITAN QUAKE!', '#38bdf8', true);
+
+      if (dist <= 135) {
+        this.damagePlayer(Math.round(enemyAtk * 1.5));
+      }
+      if ((e.shieldHp || 0) < (e.maxShieldHp || 100) * 0.3) {
+        e.shieldHp = (e.shieldHp || 0) + Math.round(e.maxHp * 0.15);
+      }
+    } else if (affix === 'berserker') {
+      soundEngine.playSlash(1.35);
+      const arcRadius = e.radius + 75;
+      this.spawnSlashWave('boss_cleave', e.x, e.y - 8, e.windupAngle, arcRadius, Math.PI * 1.3, 1, 0.28, '#fee2e2', '#ef4444');
+      this.spawnArcBurst(e.x, e.y, e.windupAngle, arcRadius - 10, '#ef4444', 16);
+      this.spawnFloatingText(e.x, e.y - e.radius - 28, 'FRENZY RAVAGE!', '#ef4444', true);
+
+      let diff = angToPlayer - e.windupAngle;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      if (dist <= arcRadius + 12 && (Math.abs(diff) <= 1.15 || dist <= e.radius + 28)) {
+        this.damagePlayer(Math.round(enemyAtk * 1.45));
+      }
+      e.speed = Math.round(e.speed * 1.15);
+    } else if (affix === 'swift') {
+      soundEngine.playSlash(1.45);
+      this.tryMoveEntity(e.x, e.y, Math.cos(e.windupAngle) * 140, Math.sin(e.windupAngle) * 140, e.radius, (nx, ny) => {
+        e.x = nx;
+        e.y = ny;
+      });
+      this.spawnSlashWave('feral_whirl', e.x, e.y - 8, e.windupAngle, 125, Math.PI * 1.95, 1, 0.26, '#f3e8ff', '#a855f7');
+      this.spawnRingEffect(e.x, e.y, 125, '#a855f7');
+      this.spawnFloatingText(e.x, e.y - e.radius - 28, 'PHANTOM CYCLONE!', '#a855f7', true);
+
+      const postDist = Math.hypot(this.player.x - e.x, this.player.y - e.y);
+      if (postDist <= 135) {
+        this.damagePlayer(Math.round(enemyAtk * 1.35));
+      }
+    } else if (affix === 'vampiric') {
+      soundEngine.playGhostWisp(0.95);
+      this.spawnRingEffect(e.x, e.y, 110, '#e11d48');
+      this.spawnFloatingText(e.x, e.y - e.radius - 28, 'CRIMSON LEACH!', '#e11d48', true);
+
+      for (let k = 0; k < 4; k++) {
+        const sa = e.windupAngle + (k - 1.5) * 0.45;
+        this.spawnProjectile({
+          fromPlayer: false,
+          kind: 'ghost_soul_orb',
+          x: e.x + Math.cos(sa) * 20,
+          y: e.y + Math.sin(sa) * 20,
+          vx: Math.cos(sa) * 290,
+          vy: Math.sin(sa) * 290,
+          angle: sa,
+          radius: 12,
+          damage: Math.round(enemyAtk * 0.8),
+          isCrit: false,
+          pierce: false,
+          maxLife: 1.6,
+          color: '#e11d48',
+          homing: true,
+        });
+      }
+      if (dist <= 110) {
+        const leechDmg = Math.round(enemyAtk * 1.3);
+        this.damagePlayer(leechDmg);
+        e.hp = Math.min(e.maxHp, e.hp + Math.round(leechDmg * 0.85));
+      }
+    } else if (affix === 'tempest') {
+      soundEngine.playSkyScreech(1.2);
+      this.spawnRingEffect(this.player.x, this.player.y, 95, '#facc15');
+      this.spawnRingEffect(this.player.x, this.player.y, 55, '#38bdf8');
+      this.spawnFloatingText(e.x, e.y - e.radius - 28, 'THUNDERBOLT!', '#facc15', true);
+
+      if (dist <= 140) {
+        this.damagePlayer(Math.round(enemyAtk * 1.4));
+      }
     }
   }
 

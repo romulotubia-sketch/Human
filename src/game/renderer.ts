@@ -307,7 +307,7 @@ export function renderGameWorld(
     } else if (item.type === 'remote_player') {
       drawRemotePlayerAndEffects(ctx, item.player, time);
     } else if (item.type === 'enemy') {
-      drawEnemy(ctx, item.enemy, time, player.heroId === 'ghoul');
+      drawEnemy(ctx, item.enemy, time, player.heroId === 'ghoul', player);
     } else if (item.type === 'minion') {
       drawMinion(ctx, item.minion, time);
     }
@@ -2510,6 +2510,168 @@ function drawProp(ctx: CanvasRenderingContext2D, prop: WorldProp, time: number) 
       isBlessed ? 'Ancient Statue (Blessed)' : 'Ancient Statue of Blessing',
       isBlessed ? '#a8a29e' : '#fde047'
     );
+  } else if (kind === 'forge') {
+    const cx = x + w / 2;
+    // Chimney & Stone oven body
+    ctx.fillStyle = '#1c1917';
+    ctx.strokeStyle = '#0c0a09';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.roundRect(x, y + 10, w, h - 10, 8);
+    ctx.fill();
+    ctx.stroke();
+
+    // Brick pattern
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+    ctx.lineWidth = 1;
+    for (let by = y + 18; by < y + h - 10; by += 14) {
+      ctx.beginPath();
+      ctx.moveTo(x + 4, by);
+      ctx.lineTo(x + w - 4, by);
+      ctx.stroke();
+    }
+
+    // Fiery furnace hearth opening
+    const fireGrad = ctx.createRadialGradient(cx, y + h - 22, 4, cx, y + h - 22, 40);
+    fireGrad.addColorStop(0, '#fef08a');
+    fireGrad.addColorStop(0.35, '#f97316');
+    fireGrad.addColorStop(0.8, '#b91c1c');
+    fireGrad.addColorStop(1, 'rgba(185, 28, 28, 0)');
+    ctx.fillStyle = fireGrad;
+    ctx.beginPath();
+    ctx.arc(cx, y + h - 20, 36, Math.PI, 0);
+    ctx.fill();
+
+    // Dancing fire embers
+    const fl1 = Math.sin(time * 14) * 4;
+    const fl2 = Math.cos(time * 11) * 3;
+    ctx.fillStyle = '#fef08a';
+    ctx.beginPath();
+    ctx.arc(cx + fl1, y + h - 26, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#fb923c';
+    ctx.beginPath();
+    ctx.arc(cx - 10 + fl2, y + h - 22, 6, 0, Math.PI * 2);
+    ctx.arc(cx + 12 - fl1, y + h - 20, 5.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    drawWorldLabel(ctx, cx, y - 10, 'Infernal Forge', '#fb923c');
+  } else if (kind === 'anvil') {
+    const cx = x + w / 2;
+    // Wooden log stump base
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+    ctx.beginPath();
+    ctx.ellipse(cx, y + h, 24, 8, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#451a03';
+    ctx.strokeStyle = '#291102';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(cx - 16, y + h - 22, 32, 20, 4);
+    ctx.fill();
+    ctx.stroke();
+
+    // Heavy cast iron anvil body
+    ctx.fillStyle = '#334155';
+    ctx.strokeStyle = '#0f172a';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.moveTo(cx - 18, y + h - 14);
+    ctx.lineTo(cx - 10, y + h - 24);
+    ctx.lineTo(cx - 8, y + 14);
+    ctx.lineTo(cx - 24, y + 10);
+    ctx.lineTo(cx + 18, y + 10);
+    ctx.lineTo(cx + 20, y + 16);
+    ctx.lineTo(cx + 8, y + 16);
+    ctx.lineTo(cx + 10, y + h - 24);
+    ctx.lineTo(cx + 18, y + h - 14);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Gleaming polished striking face
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillRect(cx - 6, y + 10, 22, 4);
+
+    // Glowing forge sparks around anvil
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const spkHover = Math.sin(time * 6) * 3;
+    ctx.fillStyle = '#fde047';
+    ctx.beginPath();
+    ctx.arc(cx + 4, y + 4 + spkHover, 2.5, 0, Math.PI * 2);
+    ctx.arc(cx - 8, y + 2 - spkHover, 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    drawWorldLabel(ctx, cx, y - 10, '✦ Anvil', '#fde047');
+  } else if (kind === 'blacksmith_npc') {
+    const cx = x + w / 2;
+    const cy = y + h / 2;
+
+    // Shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.beginPath();
+    ctx.ellipse(cx, y + h - 4, 18, 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Chibi Blacksmith Body: stout dwarf frame
+    // Legs & boots
+    ctx.fillStyle = '#292524';
+    ctx.fillRect(cx - 12, cy + 8, 9, 12);
+    ctx.fillRect(cx + 3, cy + 8, 9, 12);
+
+    // Heavy leather smithing apron & tunic
+    ctx.fillStyle = '#78350f';
+    ctx.strokeStyle = '#451a03';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.roundRect(cx - 16, cy - 8, 32, 22, 6);
+    ctx.fill();
+    ctx.stroke();
+
+    // Brass apron buckle
+    ctx.fillStyle = '#f59e0b';
+    ctx.fillRect(cx - 4, cy + 1, 8, 6);
+
+    // Chibi Head
+    ctx.fillStyle = '#fbcfe8';
+    ctx.beginPath();
+    ctx.arc(cx, cy - 14, 13, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Braided copper/fiery beard
+    ctx.fillStyle = '#ea580c';
+    ctx.beginPath();
+    ctx.moveTo(cx - 12, cy - 12);
+    ctx.quadraticCurveTo(cx - 14, cy + 8, cx, cy + 12);
+    ctx.quadraticCurveTo(cx + 14, cy + 8, cx + 12, cy - 12);
+    ctx.closePath();
+    ctx.fill();
+
+    // Smithing goggles / eyes
+    ctx.fillStyle = '#38bdf8';
+    ctx.beginPath();
+    ctx.arc(cx - 4, cy - 15, 3.2, 0, Math.PI * 2);
+    ctx.arc(cx + 4, cy - 15, 3.2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Floating smithing hammer
+    const hamY = cy - 4 + Math.sin(time * 5) * 3;
+    ctx.save();
+    ctx.translate(cx + 18, hamY);
+    ctx.rotate(0.35 + Math.sin(time * 5) * 0.15);
+    ctx.fillStyle = '#78350f';
+    ctx.fillRect(-2, -14, 4, 20);
+    ctx.fillStyle = '#94a3b8';
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 1.5;
+    ctx.fillRect(-6, -18, 12, 8);
+    ctx.strokeRect(-6, -18, 12, 8);
+    ctx.restore();
+
+    drawWorldLabel(ctx, cx, y - 12, '✦ Master Grimforge', '#f59e0b');
   }
 }
 
@@ -6939,7 +7101,127 @@ function drawEnemyTelegraph(ctx: CanvasRenderingContext2D, e: EnemyEntity) {
   ctx.restore();
 }
 
-function drawEnemy(ctx: CanvasRenderingContext2D, e: EnemyEntity, time: number, isGhoulHero = false) {
+function drawDummyDamageStatistics(ctx: CanvasRenderingContext2D, e: EnemyEntity, time: number) {
+  const stats = e.dummyStats;
+  const cardW = 252;
+  const cardH = 88;
+  const cardX = e.x - cardW / 2;
+  const cardY = e.y - 124;
+
+  ctx.save();
+  // Card Backdrop with obsidian glass and golden rim
+  ctx.fillStyle = 'rgba(15, 12, 10, 0.93)';
+  const isCombatActive = Boolean(stats && stats.isActive);
+  ctx.strokeStyle = isCombatActive ? '#f59e0b' : 'rgba(245, 158, 11, 0.45)';
+  ctx.lineWidth = 1.75;
+  ctx.shadowColor = isCombatActive ? 'rgba(245, 158, 11, 0.35)' : 'rgba(0, 0, 0, 0.6)';
+  ctx.shadowBlur = isCombatActive ? 12 : 6;
+  ctx.beginPath();
+  ctx.roundRect(cardX, cardY, cardW, cardH, 9);
+  ctx.fill();
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Header Bar
+  // Pulsing Live Indicator
+  ctx.fillStyle = isCombatActive ? '#22c55e' : '#eab308';
+  ctx.beginPath();
+  ctx.arc(cardX + 14, cardY + 16, 4, 0, Math.PI * 2);
+  ctx.fill();
+  if (isCombatActive) {
+    ctx.strokeStyle = 'rgba(34, 197, 94, 0.55)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(cardX + 14, cardY + 16, 6 + Math.sin(time * 8) * 1.5, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // Header Title
+  ctx.font = '700 11px "Plus Jakarta Sans", sans-serif';
+  ctx.fillStyle = '#fef3c7';
+  ctx.textAlign = 'left';
+  ctx.fillText('DAMAGE STATISTICS', cardX + 25, cardY + 20);
+
+  // Combat Time badge on top-right
+  const timeText = stats && stats.combatDuration > 0
+    ? `${stats.combatDuration.toFixed(1)}s`
+    : 'READY';
+  ctx.font = 'bold 10px "JetBrains Mono", monospace';
+  ctx.fillStyle = isCombatActive ? '#38bdf8' : '#94a3b8';
+  ctx.textAlign = 'right';
+  ctx.fillText(timeText, cardX + cardW - 12, cardY + 20);
+
+  // Subtle divider
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(cardX + 10, cardY + 27);
+  ctx.lineTo(cardX + cardW - 10, cardY + 27);
+  ctx.stroke();
+
+  if (!stats || stats.hitCount === 0) {
+    ctx.textAlign = 'center';
+    ctx.font = '500 11px "Plus Jakarta Sans", sans-serif';
+    ctx.fillStyle = '#fde68a';
+    ctx.fillText('Strike dummy to measure DPS & Combat Stats', e.x, cardY + 52);
+    ctx.font = '400 9px "Plus Jakarta Sans", sans-serif';
+    ctx.fillStyle = '#a8a29e';
+    ctx.fillText('Floating interface vanishes when leaving range (220px)', e.x, cardY + 68);
+  } else {
+    // Primary Stats Row: DPS & Total Damage
+    ctx.textAlign = 'left';
+    ctx.font = 'bold 16px "JetBrains Mono", monospace';
+    ctx.fillStyle = '#fde047';
+    ctx.fillText(`${stats.dps.toLocaleString()}`, cardX + 12, cardY + 47);
+
+    ctx.font = 'bold 10px "Plus Jakarta Sans", sans-serif';
+    ctx.fillStyle = '#d97706';
+    const dpsW = ctx.measureText(`${stats.dps.toLocaleString()}`).width;
+    ctx.fillText(' DPS', cardX + 12 + dpsW, cardY + 47);
+
+    ctx.font = '10px "JetBrains Mono", monospace';
+    ctx.fillStyle = '#f59e0b';
+    ctx.fillText(`Peak: ${stats.peakDps.toLocaleString()}`, cardX + 12, cardY + 61);
+
+    // Right column: Total Damage & Hits / Crit
+    ctx.textAlign = 'right';
+    ctx.font = 'bold 14px "JetBrains Mono", monospace';
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillText(`${stats.totalDamage.toLocaleString()} DMG`, cardX + cardW - 12, cardY + 47);
+
+    ctx.font = '500 10px "Plus Jakarta Sans", sans-serif';
+    ctx.fillStyle = '#cbd5e1';
+    ctx.fillText(`${stats.hitCount} hits · ${stats.critRate}% crit`, cardX + cardW - 12, cardY + 61);
+
+    // Bottom subtle info row
+    ctx.textAlign = 'center';
+    ctx.font = '500 9px "JetBrains Mono", monospace';
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillText(`Max Hit: ${stats.maxHitDamage.toLocaleString()}  |  Last: ${stats.lastHitDamage.toLocaleString()}`, e.x, cardY + 77);
+  }
+
+  // Pointer triangle pointing towards dummy
+  ctx.fillStyle = 'rgba(15, 12, 10, 0.93)';
+  ctx.strokeStyle = isCombatActive ? '#f59e0b' : 'rgba(245, 158, 11, 0.45)';
+  ctx.lineWidth = 1.75;
+  ctx.beginPath();
+  ctx.moveTo(e.x - 7, cardY + cardH);
+  ctx.lineTo(e.x, cardY + cardH + 7);
+  ctx.lineTo(e.x + 7, cardY + cardH);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function drawEnemy(
+  ctx: CanvasRenderingContext2D,
+  e: EnemyEntity,
+  time: number,
+  isGhoulHero = false,
+  player?: PlayerRenderState
+) {
   if (e.kind === EnemyKind.TRAINING_DUMMY) {
     ctx.save();
     ctx.translate(e.x, e.y);
@@ -6974,7 +7256,14 @@ function drawEnemy(ctx: CanvasRenderingContext2D, e: EnemyEntity, time: number, 
     ctx.arc(4, -24, 2, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
-    drawWorldLabel(ctx, e.x, e.y - 46, 'Practice Dummy', '#fcd34d');
+
+    // Floating damage statistics interface above dummy (only in range)
+    const distToPlayer = player ? Math.hypot(player.x - e.x, player.y - e.y) : 9999;
+    if (distToPlayer <= 220) {
+      drawDummyDamageStatistics(ctx, e, time);
+    } else {
+      drawWorldLabel(ctx, e.x, e.y - 46, 'Practice Dummy', '#fcd34d');
+    }
     return;
   }
 
@@ -7049,6 +7338,23 @@ function drawEnemy(ctx: CanvasRenderingContext2D, e: EnemyEntity, time: number, 
     }
   }
 
+  if (e.isElite && !isBossKind(e.kind)) {
+    scale *= 1.25;
+    if (e.eliteAffix === 'molten') {
+      crown = '#f97316';
+    } else if (e.eliteAffix === 'ironclad') {
+      crown = '#38bdf8';
+    } else if (e.eliteAffix === 'swift') {
+      crown = '#a855f7';
+    } else if (e.eliteAffix === 'vampiric') {
+      crown = '#e11d48';
+    } else if (e.eliteAffix === 'tempest') {
+      crown = '#facc15';
+    } else {
+      crown = '#ef4444';
+    }
+  }
+
   const isWindingUp = e.windupTimer > 0;
   const windProg = isWindingUp
     ? Math.min(1, Math.max(0, 1 - e.windupTimer / Math.max(0.01, e.windupDuration)))
@@ -7075,6 +7381,38 @@ function drawEnemy(ctx: CanvasRenderingContext2D, e: EnemyEntity, time: number, 
 
   const drawX = e.x + bodyOffX;
   const drawY = e.y + bodyOffY;
+
+  // Elite Enemy: Pulsing Runic Aura under feet
+  if (e.isElite && !isBossKind(e.kind)) {
+    const affixColor =
+      e.eliteAffix === 'molten'
+        ? '#f97316'
+        : e.eliteAffix === 'ironclad'
+          ? '#38bdf8'
+          : e.eliteAffix === 'swift'
+            ? '#a855f7'
+            : e.eliteAffix === 'vampiric'
+              ? '#e11d48'
+              : e.eliteAffix === 'tempest'
+                ? '#facc15'
+                : '#ef4444';
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const pulse = 0.88 + Math.sin(time * 3.5) * 0.12;
+    ctx.strokeStyle = affixColor;
+    ctx.lineWidth = 1.8;
+    ctx.shadowColor = affixColor;
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.ellipse(drawX, drawY + 13 * scale, 24 * scale * pulse, 9 * scale * pulse, 0, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+    ctx.ellipse(drawX, drawY + 13 * scale, 30 * scale, 11 * scale, time * 1.8, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
 
   // Ghoul Feral Instinct Passive: Pulsing crimson heartbeat ring under vulnerable (<45% HP) prey!
   const isVulnerable = e.hp > 0 && e.hp / e.maxHp <= 0.45;
@@ -8399,18 +8737,51 @@ function drawEnemy(ctx: CanvasRenderingContext2D, e: EnemyEntity, time: number, 
     ctx.restore();
   }
 
-  if (!isBossKind(e.kind) && (e.hp < e.maxHp || (e.shieldHp || 0) > 0)) {
-    const bw = 38 * scale;
+  if (!isBossKind(e.kind) && (e.hp < e.maxHp || (e.shieldHp || 0) > 0 || e.isElite)) {
+    const isElite = Boolean(e.isElite);
+    const bw = (isElite ? 52 : 38) * scale;
     const bx = drawX - bw / 2;
-    const by = drawY - 39 * scale;
-    ctx.fillStyle = 'rgba(0,0,0,0.65)';
-    ctx.fillRect(bx - 1, by - 1, bw + 2, 6);
-    ctx.fillStyle = e.poisonTimer > 0 ? '#84cc16' : '#ef4444';
-    ctx.fillRect(bx, by, bw * Math.max(0, Math.min(1, e.hp / e.maxHp)), 4);
+    const by = drawY - (isElite ? 46 : 39) * scale;
+    ctx.fillStyle = 'rgba(0,0,0,0.72)';
+    ctx.fillRect(bx - 1, by - 1, bw + 2, isElite ? 7 : 6);
+
+    if (isElite) {
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 1.2;
+      ctx.strokeRect(bx - 1.5, by - 1.5, bw + 3, 7.5);
+    }
+
+    ctx.fillStyle = e.poisonTimer > 0 ? '#84cc16' : isElite ? '#f97316' : '#ef4444';
+    ctx.fillRect(bx, by, bw * Math.max(0, Math.min(1, e.hp / e.maxHp)), isElite ? 5 : 4);
     if ((e.shieldHp || 0) > 0) {
       const shFrac = Math.min(1, (e.shieldHp || 0) / Math.max(1, e.maxShieldHp || e.maxHp * 0.4));
       ctx.fillStyle = '#fde047';
-      ctx.fillRect(bx, by, bw * shFrac, 2.2);
+      ctx.fillRect(bx, by, bw * shFrac, isElite ? 3 : 2.2);
+    }
+
+    if (isElite) {
+      const affixColor =
+        e.eliteAffix === 'molten'
+          ? '#f97316'
+          : e.eliteAffix === 'ironclad'
+            ? '#38bdf8'
+            : e.eliteAffix === 'swift'
+              ? '#a855f7'
+              : e.eliteAffix === 'vampiric'
+                ? '#e11d48'
+                : e.eliteAffix === 'tempest'
+                  ? '#facc15'
+                  : '#ef4444';
+      ctx.save();
+      ctx.translate(drawX, by - 11);
+      ctx.textAlign = 'center';
+      ctx.font = 'bold 9px "Plus Jakarta Sans", sans-serif';
+      ctx.fillStyle = affixColor;
+      ctx.shadowColor = affixColor;
+      ctx.shadowBlur = 6;
+      const affixLabel = e.eliteAffix ? e.eliteAffix.toUpperCase() : 'ELITE';
+      ctx.fillText(`★ ELITE ${affixLabel} ★`, 0, 0);
+      ctx.restore();
     }
   }
 
@@ -9146,6 +9517,25 @@ function drawProjectile(ctx: CanvasRenderingContext2D, p: Projectile, time: numb
       ctx.stroke();
     }
     ctx.restore();
+  } else if (p.kind === 'enemy_fireball') {
+    // Molten Elite fireball projectile
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = 'rgba(249, 115, 22, 0.45)';
+    ctx.beginPath();
+    ctx.arc(0, 0, p.radius + 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.fillStyle = '#f97316';
+    ctx.beginPath();
+    ctx.arc(0, 0, p.radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#fef08a';
+    ctx.beginPath();
+    ctx.arc(2, 0, p.radius * 0.55, 0, Math.PI * 2);
+    ctx.fill();
   } else {
     // High Warden Ossian 'boss_shard' spinning crimson crystal!
     ctx.save();
@@ -9247,14 +9637,26 @@ function drawAmbientGlows(
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
   for (const prop of map.props) {
-    if (prop.kind !== 'hearth' && prop.kind !== 'torch') continue;
+    if (prop.kind !== 'hearth' && prop.kind !== 'torch' && prop.kind !== 'forge') continue;
     const gx = prop.x + prop.w / 2;
     const gy = prop.y + prop.h / 2;
-    const rad = prop.kind === 'hearth' ? 210 + Math.sin(time * 6) * 8 : 95 + Math.sin(time * 8 + gx) * 5;
+    const rad =
+      prop.kind === 'forge'
+        ? 230 + Math.sin(time * 7) * 10
+        : prop.kind === 'hearth'
+          ? 210 + Math.sin(time * 6) * 8
+          : 95 + Math.sin(time * 8 + gx) * 5;
     if (gx + rad < cullL || gx - rad > cullR || gy + rad < cullT || gy - rad > cullB) continue;
 
     const grad = ctx.createRadialGradient(gx, gy, 4, gx, gy, rad);
-    grad.addColorStop(0, prop.kind === 'hearth' ? 'rgba(251, 146, 60, 0.22)' : 'rgba(251, 146, 60, 0.14)');
+    grad.addColorStop(
+      0,
+      prop.kind === 'forge'
+        ? 'rgba(249, 115, 22, 0.28)'
+        : prop.kind === 'hearth'
+          ? 'rgba(251, 146, 60, 0.22)'
+          : 'rgba(251, 146, 60, 0.14)'
+    );
     grad.addColorStop(1, 'rgba(251, 146, 60, 0)');
     ctx.fillStyle = grad;
     ctx.beginPath();

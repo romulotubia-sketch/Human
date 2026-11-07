@@ -8,6 +8,14 @@ import { roomManager } from './src/server/roomManager';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+process.on('uncaughtException', (err) => {
+  console.error('[Process Uncaught Exception]:', err);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[Process Unhandled Rejection]:', reason);
+});
+
 const app = express();
 app.use(express.json());
 
@@ -21,9 +29,19 @@ app.get('/api/multiplayer/rooms', (_req, res) => {
 });
 
 const server = http.createServer(app);
+server.on('error', (err) => {
+  console.error('[HTTP Server Error]:', err);
+});
+
 const wss = new WebSocketServer({ noServer: true });
+wss.on('error', (err) => {
+  console.error('[WebSocket Server Error]:', err);
+});
 
 server.on('upgrade', (req, socket, head) => {
+  socket.on('error', (err) => {
+    console.error('[Socket Upgrade Error]:', err);
+  });
   const pathname = req.url ? req.url.split('?')[0] : '';
   if (pathname === '/ws') {
     wss.handleUpgrade(req, socket, head, (ws) => {
@@ -33,6 +51,10 @@ server.on('upgrade', (req, socket, head) => {
 });
 
 wss.on('connection', (ws: WebSocket) => {
+  ws.on('error', (err) => {
+    console.error('[WS Client Error]:', err);
+  });
+
   let attachedPlayerId: string | null = null;
   let attachedRoomCode: string | null = null;
 
@@ -258,6 +280,19 @@ wss.on('connection', (ws: WebSocket) => {
   });
 });
 
+function getPort(): number {
+  const portArgIndex = process.argv.indexOf('--port');
+  if (portArgIndex !== -1 && process.argv[portArgIndex + 1]) {
+    const parsed = Number(process.argv[portArgIndex + 1]);
+    if (!Number.isNaN(parsed) && parsed > 0) return parsed;
+  }
+  if (process.env.PORT && process.env.PORT !== '8080') {
+    const parsed = Number(process.env.PORT);
+    if (!Number.isNaN(parsed) && parsed > 0) return parsed;
+  }
+  return 3000;
+}
+
 async function startServer() {
   const isProduction = process.env.NODE_ENV === 'production';
 
@@ -267,8 +302,7 @@ async function startServer() {
     const vite = await createViteServer({
       server: {
         middlewareMode: true,
-        hmr: disableHmr ? false : undefined,
-        ws: disableHmr ? false : { server },
+        hmr: disableHmr ? false : { server },
         watch: disableHmr ? null : {},
       },
       appType: 'spa',
@@ -281,7 +315,7 @@ async function startServer() {
     });
   }
 
-  const PORT = Number(process.env.PORT) || 3000;
+  const PORT = getPort();
   server.listen(PORT, '0.0.0.0', () => {
     console.log(
       `Bonehearth server running at http://0.0.0.0:${PORT} [${isProduction ? 'PROD' : 'DEV'}]`

@@ -186,7 +186,7 @@ interface GridNode {
   id: number;
   gx: number;
   gy: number;
-  kind: 'start' | 'combat' | 'treasure' | 'boss';
+  kind: 'start' | 'combat' | 'treasure' | 'boss' | 'blacksmith';
   depth: number;
   parentId: number | null;
 }
@@ -353,6 +353,37 @@ export function buildProceduralDungeon(floor: number): {
     }
   }
 
+  // 3b. On every even floor (Floor 2, 4, 6, 8, 10...), attach exactly ONE Blacksmith special room!
+  // Odd-numbered floors must not generate a Blacksmith room.
+  let blacksmithPlaced = false;
+  if (floor % 2 === 0) {
+    const bsParents = shuffleInPlace(nodes.filter((n) => n.kind === 'combat' || n.kind === 'start'));
+    for (const pNode of bsParents) {
+      const dirs = shuffleInPlace([...DIRS]);
+      for (const d of dirs) {
+        const bgx = pNode.gx + d.dx;
+        const bgy = pNode.gy + d.dy;
+        if (bgx < 0 || bgx >= GRID_COLS || bgy < 0 || bgy >= GRID_ROWS) continue;
+        if (occupied.has(cellKey(bgx, bgy))) continue;
+
+        const bNode: GridNode = {
+          id: nodes.length,
+          gx: bgx,
+          gy: bgy,
+          kind: 'blacksmith',
+          depth: pNode.depth + 1,
+          parentId: pNode.id,
+        };
+        nodes.push(bNode);
+        occupied.set(cellKey(bgx, bgy), bNode);
+        edges.push([pNode.id, bNode.id]);
+        blacksmithPlaced = true;
+        break;
+      }
+      if (blacksmithPlaced) break;
+    }
+  }
+
   // 4. Materialize DungeonRooms with randomized dimensions & sub-cell (x, y) jitter
   const rawRoomsById = new Map<number, DungeonRoom>();
   for (const n of nodes) {
@@ -375,6 +406,11 @@ export function buildProceduralDungeon(floor: number): {
     } else if (n.kind === 'treasure') {
       rw = randRange(600, 690);
       rh = randRange(490, 560);
+    } else if (n.kind === 'blacksmith') {
+      rw = randRange(640, 720);
+      rh = randRange(520, 580);
+      jx = randRange(-30, 30);
+      jy = randRange(-30, 30);
     } else if (n.kind === 'boss') {
       rw = 960;
       rh = 860;
@@ -389,7 +425,7 @@ export function buildProceduralDungeon(floor: number): {
       y: Math.round(cy - rh / 2 + jy),
       w: rw,
       h: rh,
-      cleared: n.kind === 'start',
+      cleared: n.kind === 'start' || n.kind === 'blacksmith',
     };
     rawRoomsById.set(n.id, rm);
   }
@@ -804,17 +840,22 @@ export function buildProceduralDungeon(floor: number): {
       if (e) {
         e.isElite = true;
         e.eliteAffix = eliteAffix || 'berserker';
-        e.radius = Math.round(e.radius * 1.25);
-        e.hp = Math.round(e.hp * 2.35);
+        e.radius = Math.round(e.radius * 1.3);
+        e.hp = Math.round(e.hp * 2.5);
         e.maxHp = e.hp;
-        e.atk = Math.round(e.atk * 1.35);
+        e.atk = Math.round(e.atk * 1.45);
         const affixName = e.eliteAffix.toUpperCase();
         e.name = `[Elite] ${e.name} ★ ${affixName}`;
         if (e.eliteAffix === 'ironclad') {
-          e.shieldHp = Math.round(e.maxHp * 0.45);
+          e.shieldHp = Math.round(e.maxHp * 0.5);
           e.maxShieldHp = e.shieldHp;
         } else if (e.eliteAffix === 'swift' || e.eliteAffix === 'berserker') {
-          e.speed = Math.round(e.speed * 1.22);
+          e.speed = Math.round(e.speed * 1.25);
+        } else if (e.eliteAffix === 'tempest') {
+          e.speed = Math.round(e.speed * 1.15);
+        } else if (e.eliteAffix === 'vampiric') {
+          e.shieldHp = Math.round(e.maxHp * 0.25);
+          e.maxShieldHp = e.shieldHp;
         }
       }
     }
@@ -892,13 +933,14 @@ export function buildProceduralDungeon(floor: number): {
         EnemyKind.ARCHER,
       ];
 
-      const affixes: EliteAffix[] = ['ironclad', 'berserker', 'molten', 'swift', 'vampiric'];
+      const affixes: EliteAffix[] = ['ironclad', 'berserker', 'molten', 'swift', 'vampiric', 'tempest'];
       const eliteIndices = new Set<number>();
+      // Guarantee at least 1 elite enemy in EVERY combat room!
       eliteIndices.add(0);
-      if (floor >= 2 && baseCount > 3) {
-        eliteIndices.add(2);
+      if (baseCount >= 4) {
+        eliteIndices.add(Math.min(2, baseCount - 1));
       }
-      if (floor >= 4 && baseCount > 5) {
+      if (floor >= 3 && baseCount >= 6) {
         eliteIndices.add(4);
       }
 
@@ -983,6 +1025,75 @@ export function buildProceduralDungeon(floor: number): {
         const affix = isElite ? affixes[(treasureIndex + floor + g) % affixes.length] : undefined;
         spawnSkeletonMob(gKind, rm, gx, gy, isElite, affix);
       }
+    } else if (rm.kind === 'blacksmith') {
+      const centerX = rm.x + Math.floor(rm.w * 0.5);
+      const centerY = rm.y + Math.floor(rm.h * 0.5);
+      props.push(
+        // The Great Cryptfire Forge along the north wall
+        {
+          id: `bs_forge_${rm.id}`,
+          kind: 'forge',
+          x: centerX - 60,
+          y: rm.y + 36,
+          w: 120,
+          h: 74,
+          solid: true,
+          label: 'Infernal Cryptfire Forge',
+        },
+        // The Master Blacksmith NPC
+        {
+          id: `bs_npc_${rm.id}`,
+          kind: 'blacksmith_npc',
+          x: centerX - 56,
+          y: centerY - 24,
+          w: 52,
+          h: 52,
+          solid: true,
+          label: '✦ Master Grimforge (Blacksmith)',
+        },
+        // The Grand Anvil
+        {
+          id: `bs_anvil_${rm.id}`,
+          kind: 'anvil',
+          x: centerX + 28,
+          y: centerY - 20,
+          w: 56,
+          h: 46,
+          solid: true,
+          label: '✦ Enhance Equipment at Anvil',
+        },
+        // Equipment Display Racks
+        {
+          id: `bs_rack_${rm.id}_l`,
+          kind: 'bookshelf',
+          x: rm.x + 46,
+          y: rm.y + 60,
+          w: 80,
+          h: 50,
+          solid: true,
+          label: 'Relic Weapon Rack',
+        },
+        {
+          id: `bs_rack_${rm.id}_r`,
+          kind: 'counter',
+          x: rm.x + rm.w - 126,
+          y: rm.y + 60,
+          w: 80,
+          h: 50,
+          solid: true,
+          label: 'Blacksmith Anvil Supply',
+        },
+        // Hearth rug in center of workshop
+        {
+          id: `bs_rug_${rm.id}`,
+          kind: 'rug',
+          x: centerX - 110,
+          y: centerY - 45,
+          w: 220,
+          h: 120,
+          solid: false,
+        }
+      );
     } else if (rm.kind === 'boss') {
       const bOff = 170;
       props.push(

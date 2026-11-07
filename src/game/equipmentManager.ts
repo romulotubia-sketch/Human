@@ -2,10 +2,14 @@ import {
   ALL_EQUIPMENT_ITEMS,
   EQUIPMENT_BY_ID,
   EQUIPMENT_COLLECTIONS,
+  getEnhancementCost,
+  getEnhancementSuccessRate,
   getEquipmentForCollection,
+  getNextMilestone,
   HERO_TO_COLLECTION,
 } from '../data/equipmentData';
 import {
+  ALL_EQUIPMENT_SLOTS,
   EquipmentCollectionId,
   EquipmentDropPayload,
   EquipmentItemDef,
@@ -15,8 +19,11 @@ import {
 } from '../types/equipment';
 import { HeroId } from '../types/game';
 
-const INVENTORY_STORAGE_KEY = 'bonehearth_equipment_inventory_v1';
-const EQUIPPED_STORAGE_KEY = 'bonehearth_hero_equipped_v1';
+const INVENTORY_STORAGE_KEY = 'bonehearth_equipment_inventory_v2';
+const LEGACY_INVENTORY_KEY = 'bonehearth_equipment_inventory_v1';
+const EQUIPPED_STORAGE_KEY = 'bonehearth_hero_equipped_v2';
+const LEGACY_EQUIPPED_KEY = 'bonehearth_hero_equipped_v1';
+const ENHANCEMENT_STORAGE_KEY = 'bonehearth_equipment_enhancements_v1';
 
 const ALL_HERO_IDS: HeroId[] = [
   'human',
@@ -34,6 +41,8 @@ function createDefaultLoadout(): HeroEquipmentLoadout {
     armor: null,
     spirit: null,
     ancient: null,
+    accessory: null,
+    core: null,
   };
 }
 
@@ -57,10 +66,22 @@ const EMPTY_STATS = Object.freeze({
   seekingSpiritOnSkill: false,
   explosiveOnPoisonDefeat: false,
   explosiveSkillProc: false,
+  // 6-slot additions
+  critBoneFragmentChance: 0,
+  spectralEchoOnSkill: false,
+  healingEssenceOnPoisonKill: false,
+  consecutiveHealChance: 0,
+  hunterMarkOnHit: false,
+  energyBurstProc: false,
+  windBladeOnHit: false,
+  projectileRangeMultiplier: 1.0,
+  meleeProximityMultiplier: 1.0,
+  shockwaveOnConsecutive: false,
 });
 
 export class EquipmentManager {
   private ownedEquipmentIds: Set<string> = new Set();
+  private enhancementLevels: Record<string, number> = {};
   private equippedByHero: Record<HeroId, HeroEquipmentLoadout> = {
     human: createDefaultLoadout(),
     skeleton: createDefaultLoadout(),
@@ -89,11 +110,14 @@ export class EquipmentManager {
   public beastsTrophyTimer = 0;
   public improvisedTacticsReady = false; // Human 2-pc: next basic attack empowered
   public lastSurvivorCooldown = 0; // Human 4-pc: 30s recovery period
-  public windCharges = 0; // Eaglekin 4-pc: 0-5
-  public feralDominanceStacks = 0; // Tigerkin 2-pc/4-pc: 0-5
+  public adaptationEnergy = 0; // Human 6-pc: 0-3
+  public lastSkillUsedId: string | null = null;
+  public windCharges = 0; // Eaglekin 4-pc / 6-pc: 0-5
+  public feralDominanceStacks = 0; // Tigerkin 2-pc/4-pc/6-pc: 0-5
   public feralDominanceTimer = 0;
   public consecutiveHitCount = 0; // Savage Claw / Savage Bracers
   public consecutiveHitTimer = 0;
+  public targetHitCounts: Map<number, number> = new Map(); // Hunter's Markstone tracking
   public plagueIncarnateTick = 2.0; // Zombie 4-pc: periodic toxic bursts
 
   // Callbacks for visual & combat procs into engine
@@ -107,6 +131,19 @@ export class EquipmentManager {
   public onTriggerShrapnelExplosion?: (x: number, y: number) => void;
   public onTriggerToxicBurst?: (x: number, y: number) => void;
   public onTriggerWindBlade?: (x: number, y: number, angle: number) => void;
+  // 6-Piece Set Callbacks
+  public onTriggerSpectralWarrior?: () => void; // Skeleton 6-pc
+  public onTriggerEternalApparition?: () => void; // Ghost 6-pc
+  public onTriggerWalkingPlague?: (x: number, y: number) => void; // Zombie 6-pc
+  public onTriggerEndlessPursuit?: () => void; // Ghoul 6-pc
+  public onTriggerResourcefulGenius?: () => void; // Human 6-pc
+  public onTriggerSovereignBarrage?: () => void; // Eaglekin 6-pc
+  public onTriggerPrimalOverlord?: () => void; // Tigerkin 6-pc
+  // Core/Accessory Procs
+  public onTriggerBoneFragments?: (x: number, y: number) => void;
+  public onTriggerSpectralEcho?: (x: number, y: number, angle: number) => void;
+  public onTriggerEnergyBurst?: (x: number, y: number) => void;
+  public onTriggerConsecutiveShockwave?: (x: number, y: number) => void;
 
   constructor() {
     this.loadFromStorage();
@@ -114,27 +151,53 @@ export class EquipmentManager {
 
   public loadFromStorage() {
     try {
-      const invRaw = localStorage.getItem(INVENTORY_STORAGE_KEY);
+      // 1. Inventory loading with backward compatibility
+      let invRaw = localStorage.getItem(INVENTORY_STORAGE_KEY);
+      if (!invRaw) {
+        invRaw = localStorage.getItem(LEGACY_INVENTORY_KEY);
+      }
       if (invRaw) {
         const parsed = JSON.parse(invRaw);
         if (Array.isArray(parsed)) {
           this.ownedEquipmentIds = new Set(parsed.filter((id) => EQUIPMENT_BY_ID[id]));
         }
       }
+      // Guarantee starting starter relics if empty
       if (this.ownedEquipmentIds.size === 0) {
         this.ownedEquipmentIds.add('bonebreaker_emblem');
-        this.ownedEquipmentIds.add('scavenger_pipe');
+        this.ownedEquipmentIds.add('scrappers_gloves');
       }
-      const eqRaw = localStorage.getItem(EQUIPPED_STORAGE_KEY);
+
+      // 2. Enhancement levels loading
+      const enhRaw = localStorage.getItem(ENHANCEMENT_STORAGE_KEY);
+      if (enhRaw) {
+        const parsed = JSON.parse(enhRaw);
+        if (parsed && typeof parsed === 'object') {
+          for (const [id, lvl] of Object.entries(parsed)) {
+            if (EQUIPMENT_BY_ID[id] && typeof lvl === 'number' && lvl >= 0) {
+              this.enhancementLevels[id] = Math.floor(lvl);
+            }
+          }
+        }
+      }
+
+      // 3. Equipped loadouts loading with 6-slot migration
+      let eqRaw = localStorage.getItem(EQUIPPED_STORAGE_KEY);
+      if (!eqRaw) {
+        eqRaw = localStorage.getItem(LEGACY_EQUIPPED_KEY);
+      }
       if (eqRaw) {
         const parsed = JSON.parse(eqRaw);
         for (const h of ALL_HERO_IDS) {
           if (parsed[h]) {
+            const hLoadout = parsed[h];
             this.equippedByHero[h] = {
-              weapon: parsed[h].weapon && EQUIPMENT_BY_ID[parsed[h].weapon] ? parsed[h].weapon : null,
-              armor: parsed[h].armor && EQUIPMENT_BY_ID[parsed[h].armor] ? parsed[h].armor : null,
-              spirit: parsed[h].spirit && EQUIPMENT_BY_ID[parsed[h].spirit] ? parsed[h].spirit : null,
-              ancient: parsed[h].ancient && EQUIPMENT_BY_ID[parsed[h].ancient] ? parsed[h].ancient : null,
+              weapon: hLoadout.weapon && EQUIPMENT_BY_ID[hLoadout.weapon] ? hLoadout.weapon : null,
+              armor: hLoadout.armor && EQUIPMENT_BY_ID[hLoadout.armor] ? hLoadout.armor : null,
+              spirit: hLoadout.spirit && EQUIPMENT_BY_ID[hLoadout.spirit] ? hLoadout.spirit : null,
+              ancient: hLoadout.ancient && EQUIPMENT_BY_ID[hLoadout.ancient] ? hLoadout.ancient : null,
+              accessory: hLoadout.accessory && EQUIPMENT_BY_ID[hLoadout.accessory] ? hLoadout.accessory : null,
+              core: hLoadout.core && EQUIPMENT_BY_ID[hLoadout.core] ? hLoadout.core : null,
             };
           }
         }
@@ -149,6 +212,7 @@ export class EquipmentManager {
     try {
       localStorage.setItem(INVENTORY_STORAGE_KEY, JSON.stringify([...this.ownedEquipmentIds]));
       localStorage.setItem(EQUIPPED_STORAGE_KEY, JSON.stringify(this.equippedByHero));
+      localStorage.setItem(ENHANCEMENT_STORAGE_KEY, JSON.stringify(this.enhancementLevels));
     } catch (e) {
       console.warn('Failed to save equipment data to storage:', e);
     }
@@ -167,11 +231,14 @@ export class EquipmentManager {
       this.beastsTrophyStacks = 0;
       this.beastsTrophyTimer = 0;
       this.improvisedTacticsReady = false;
+      this.adaptationEnergy = 0;
+      this.lastSkillUsedId = null;
       this.windCharges = 0;
       this.feralDominanceStacks = 0;
       this.feralDominanceTimer = 0;
       this.consecutiveHitCount = 0;
       this.consecutiveHitTimer = 0;
+      this.targetHitCounts.clear();
     }
   }
 
@@ -181,6 +248,58 @@ export class EquipmentManager {
 
   public get isDungeonActive(): boolean {
     return this._isDungeonActive;
+  }
+
+  public getEnhancementLevel(itemId: string): number {
+    return this.enhancementLevels[itemId] || 0;
+  }
+
+  public enhanceItem(
+    itemId: string,
+    availableShards: number
+  ): {
+    success: boolean;
+    newLevel: number;
+    cost: number;
+    milestoneUnlocked?: string;
+    error?: string;
+  } {
+    const item = EQUIPMENT_BY_ID[itemId];
+    if (!item) {
+      return { success: false, newLevel: 0, cost: 0, error: 'Item not found' };
+    }
+    const currentLvl = this.getEnhancementLevel(itemId);
+    const cost = getEnhancementCost(currentLvl);
+
+    if (availableShards < cost) {
+      return { success: false, newLevel: currentLvl, cost, error: 'Insufficient Boneshards' };
+    }
+
+    const successRate = getEnhancementSuccessRate(currentLvl);
+    const roll = Math.random();
+    const success = roll <= successRate;
+
+    if (success) {
+      const nextLvl = currentLvl + 1;
+      this.enhancementLevels[itemId] = nextLvl;
+      this.saveToStorage();
+
+      // Check if a milestone was unlocked at this level
+      const milestone = item.milestones.find((m) => m.level === nextLvl);
+      return {
+        success: true,
+        newLevel: nextLvl,
+        cost,
+        milestoneUnlocked: milestone ? `${milestone.title}: ${milestone.description}` : undefined,
+      };
+    } else {
+      // Failure rules: Consume cost, but do NOT destroy equipment, reduce level, or strip stats
+      return {
+        success: false,
+        newLevel: currentLvl,
+        cost,
+      };
+    }
   }
 
   public getEquippedCountForHero(heroId: HeroId): number {
@@ -210,7 +329,7 @@ export class EquipmentManager {
   public isItemEquippedAnywhere(itemId: string): { heroId: HeroId; slot: EquipmentSlot } | null {
     for (const h of ALL_HERO_IDS) {
       const loadout = this.equippedByHero[h];
-      for (const slot of ['weapon', 'armor', 'spirit', 'ancient'] as EquipmentSlot[]) {
+      for (const slot of ALL_EQUIPMENT_SLOTS) {
         if (loadout[slot] === itemId) {
           return { heroId: h, slot };
         }
@@ -228,7 +347,16 @@ export class EquipmentManager {
     if (!this.equippedByHero[heroId]) {
       this.equippedByHero[heroId] = createDefaultLoadout();
     }
-    this.equippedByHero[heroId][item.slot] = itemId;
+
+    // Players cannot equip the same unique item in multiple slots simultaneously
+    const currentLoadout = this.equippedByHero[heroId];
+    for (const s of ALL_EQUIPMENT_SLOTS) {
+      if (currentLoadout[s] === itemId) {
+        currentLoadout[s] = null;
+      }
+    }
+
+    currentLoadout[item.slot] = itemId;
     this.saveToStorage();
     return true;
   }
@@ -243,7 +371,7 @@ export class EquipmentManager {
   public unequipItemById(heroId: HeroId, itemId: string): boolean {
     if (!this.equippedByHero[heroId]) return false;
     const loadout = this.equippedByHero[heroId];
-    for (const slot of ['weapon', 'armor', 'spirit', 'ancient'] as EquipmentSlot[]) {
+    for (const slot of ALL_EQUIPMENT_SLOTS) {
       if (loadout[slot] === itemId) {
         loadout[slot] = null;
         this.saveToStorage();
@@ -271,7 +399,7 @@ export class EquipmentManager {
     };
     const loadout = this.equippedByHero[heroId];
     if (loadout) {
-      for (const slot of ['weapon', 'armor', 'spirit', 'ancient'] as EquipmentSlot[]) {
+      for (const slot of ALL_EQUIPMENT_SLOTS) {
         const itemId = loadout[slot];
         if (itemId && EQUIPMENT_BY_ID[itemId]) {
           const item = EQUIPMENT_BY_ID[itemId];
@@ -295,6 +423,12 @@ export class EquipmentManager {
     return counts[collectionId] >= 4;
   }
 
+  public hasSixPieceBonus(heroId: HeroId, collectionId: EquipmentCollectionId): boolean {
+    if (!this.isDungeonActive) return false;
+    const counts = this.getSetCountsForHero(heroId);
+    return counts[collectionId] >= 6;
+  }
+
   /**
    * Returns list of currently equipped item definitions for a hero
    */
@@ -302,7 +436,7 @@ export class EquipmentManager {
     const loadout = this.equippedByHero[heroId];
     if (!loadout) return [];
     const items: EquipmentItemDef[] = [];
-    for (const slot of ['weapon', 'armor', 'spirit', 'ancient'] as EquipmentSlot[]) {
+    for (const slot of ALL_EQUIPMENT_SLOTS) {
       const id = loadout[slot];
       if (id && EQUIPMENT_BY_ID[id]) {
         items.push(EQUIPMENT_BY_ID[id]);
@@ -314,6 +448,7 @@ export class EquipmentManager {
   /**
    * Calculates total stat modifiers for a hero.
    * STRICT RULE: Returns completely flat/zero bonuses outside dungeons.
+   * Scales base stats and incorporates milestone perk upgrades based on enhancement level.
    */
   public getComputedStats(heroId: HeroId) {
     if (!this.isDungeonActive) {
@@ -340,28 +475,58 @@ export class EquipmentManager {
     let seekingSpirit = false;
     let expPoison = false;
     let expSkill = false;
+    let critBoneFragments = 0;
+    let spectralEcho = false;
+    let healingEssence = false;
+    let consecutiveHeal = 0;
+    let hunterMark = false;
+    let energyBurst = false;
+    let windBlade = false;
+    let projRange = 1.0;
+    let meleeProximity = 1.0;
+    let shockwaveConsecutive = false;
 
     for (const item of items) {
+      const level = this.getEnhancementLevel(item.id);
+      // Enhancement scaling: original stats gain +8% per level
+      const statScale = 1 + level * 0.08;
+
       const s = item.stats;
-      if (s.atkBonusPercent) atkPercent += s.atkBonusPercent;
-      if (s.maxHpBonus) flatHp += s.maxHpBonus;
-      if (s.defensePercent) defense += s.defensePercent;
-      if (s.critChancePercent) critChance += s.critChancePercent;
-      if (s.critDamagePercent) critDmgPercent += s.critDamagePercent;
-      if (s.moveSpeedPercent) speedPercent += s.moveSpeedPercent;
-      if (s.cooldownReductionPercent) cdr += s.cooldownReductionPercent;
-      if (s.resourceBonusPercent) resourcePercent += s.resourceBonusPercent;
-      if (s.onKillHealPercent) onKillHeal += s.onKillHealPercent;
-      if (s.onKillAtkBoostPercent) onKillAtk += s.onKillAtkBoostPercent;
-      if (s.poisonChancePercent) poisonChance += s.poisonChancePercent;
-      if (s.consecutiveAttackSpeed) consecutiveAtkSpeed += s.consecutiveAttackSpeed;
-      if (s.basicAttackDamagePercent) basicAtkPercent += s.basicAttackDamagePercent;
-      if (s.projectileAtkBonusPercent) projAtkPercent += s.projectileAtkBonusPercent;
+      if (s.atkBonusPercent) atkPercent += s.atkBonusPercent * statScale;
+      if (s.maxHpBonus) flatHp += Math.round(s.maxHpBonus * statScale);
+      if (s.defensePercent) defense += s.defensePercent * statScale;
+      if (s.critChancePercent) critChance += s.critChancePercent * statScale;
+      if (s.critDamagePercent) critDmgPercent += s.critDamagePercent * statScale;
+      if (s.moveSpeedPercent) speedPercent += s.moveSpeedPercent * statScale;
+      if (s.cooldownReductionPercent) cdr += s.cooldownReductionPercent * statScale;
+      if (s.resourceBonusPercent) resourcePercent += s.resourceBonusPercent * statScale;
+      if (s.onKillHealPercent) onKillHeal += s.onKillHealPercent * statScale;
+      if (s.onKillAtkBoostPercent) onKillAtk += s.onKillAtkBoostPercent * statScale;
+      if (s.poisonChancePercent) poisonChance += s.poisonChancePercent * statScale;
+      if (s.consecutiveAttackSpeed) consecutiveAtkSpeed += s.consecutiveAttackSpeed * statScale;
+      if (s.basicAttackDamagePercent) basicAtkPercent += s.basicAttackDamagePercent * statScale;
+      if (s.projectileAtkBonusPercent) projAtkPercent += s.projectileAtkBonusPercent * statScale;
       if (s.projectilePierceBonus) projPierce = true;
       if (s.spectralBarrierOnHit) spectralBarrier = true;
       if (s.seekingSpiritOnSkill) seekingSpirit = true;
       if (s.explosiveOnPoisonDefeat) expPoison = true;
       if (s.explosiveSkillProc) expSkill = true;
+      if (s.critBoneFragmentChance) critBoneFragments += s.critBoneFragmentChance * (1 + level * 0.04);
+      if (s.spectralEchoOnSkill) spectralEcho = true;
+      if (s.healingEssenceOnPoisonKill) healingEssence = true;
+      if (s.consecutiveHealChance) consecutiveHeal += s.consecutiveHealChance;
+      if (s.hunterMarkOnHit) hunterMark = true;
+      if (s.energyBurstProc) energyBurst = true;
+      if (s.windBladeOnHit) windBlade = true;
+      if (s.projectileRangeBonus) projRange += s.projectileRangeBonus * statScale;
+      if (s.meleeProximityBonus) meleeProximity += s.meleeProximityBonus * statScale;
+      if (s.shockwaveOnConsecutive) shockwaveConsecutive = true;
+
+      // Specific unlocked milestone stat bonuses
+      if (level >= 3 && item.id === 'skull_of_precision') critBoneFragments += 0.2;
+      if (level >= 6 && item.id === 'ancient_marrow_ring') critDmgPercent += 0.25;
+      if (level >= 3 && item.id === 'eagles_eye') critChance += 0.05;
+      if (level >= 3 && item.id === 'apex_crown') critDmgPercent += 0.2;
     }
 
     // Dynamic runtime set bonuses & stacks
@@ -381,20 +546,20 @@ export class EquipmentManager {
       atkPercent += this.beastsTrophyStacks * 0.2;
     }
 
-    const consecutiveSpeedBonus = Math.min(0.4, this.consecutiveHitCount * consecutiveAtkSpeed);
+    const consecutiveSpeedBonus = Math.min(0.55, this.consecutiveHitCount * consecutiveAtkSpeed);
 
     return {
       atkMultiplier: 1 + Math.max(0, atkPercent),
       flatMaxHpBonus: flatHp,
-      defenseReduction: Math.min(0.65, defense),
+      defenseReduction: Math.min(0.7, defense),
       critChanceBonus: critChance,
       critDamageMultiplier: 1 + Math.max(0, critDmgPercent),
       speedMultiplier: 1 + Math.max(-0.5, speedPercent),
-      cooldownReduction: Math.min(0.45, cdr),
+      cooldownReduction: Math.min(0.5, cdr),
       resourceMultiplier: 1 + Math.max(0, resourcePercent),
       onKillHealPercent: onKillHeal,
       onKillAtkBoostPercent: onKillAtk,
-      poisonChance: Math.min(0.85, poisonChance),
+      poisonChance: Math.min(0.9, poisonChance),
       consecutiveAtkSpeedBonus: consecutiveSpeedBonus,
       basicAttackDamageMultiplier: 1 + Math.max(0, basicAtkPercent),
       projectileAtkMultiplier: 1 + Math.max(0, projAtkPercent),
@@ -403,6 +568,16 @@ export class EquipmentManager {
       seekingSpiritOnSkill: seekingSpirit,
       explosiveOnPoisonDefeat: expPoison,
       explosiveSkillProc: expSkill,
+      critBoneFragmentChance: Math.min(0.8, critBoneFragments),
+      spectralEchoOnSkill: spectralEcho,
+      healingEssenceOnPoisonKill: healingEssence,
+      consecutiveHealChance: Math.min(0.6, consecutiveHeal),
+      hunterMarkOnHit: hunterMark,
+      energyBurstProc: energyBurst,
+      windBladeOnHit: windBlade,
+      projectileRangeMultiplier: projRange,
+      meleeProximityMultiplier: meleeProximity,
+      shockwaveOnConsecutive: shockwaveConsecutive,
     };
   }
 
@@ -447,7 +622,7 @@ export class EquipmentManager {
     }
   }
 
-  public onUseSkill(heroId: HeroId) {
+  public onUseSkill(heroId: HeroId, skillId?: string) {
     if (!this.isDungeonActive) return;
 
     // Phantom Regalia 2-Piece: Spectral Flow (+30% move speed for 3s)
@@ -464,17 +639,34 @@ export class EquipmentManager {
       }
     }
 
+    // Phantom Regalia 6-Piece: Eternal Apparition (creates phantom that imitates the skill)
+    if (this.hasSixPieceBonus(heroId, 'phantom_regalia')) {
+      this.onTriggerEternalApparition?.();
+    }
+
     // Survivor's Arsenal 2-Piece: Improvised Tactics (enhances next basic attack)
     if (this.hasTwoPieceBonus(heroId, 'survivors_arsenal')) {
       this.improvisedTacticsReady = true;
     }
+
+    // Survivor's Arsenal 6-Piece: Resourceful Genius (successive different skills build Adaptation Energy)
+    if (this.hasSixPieceBonus(heroId, 'survivors_arsenal')) {
+      if (skillId && skillId !== this.lastSkillUsedId) {
+        this.adaptationEnergy = Math.min(3, this.adaptationEnergy + 1);
+        this.lastSkillUsedId = skillId;
+        if (this.adaptationEnergy >= 3) {
+          this.adaptationEnergy = 0;
+          this.onTriggerResourcefulGenius?.();
+        }
+      }
+    }
   }
 
-  public onSkillHitEnemy(heroId: HeroId, hitX: number, hitY: number) {
+  public onSkillHitEnemy(heroId: HeroId, hitX: number, hitY: number, angle = 0) {
     if (!this.isDungeonActive) return;
     const stats = this.getComputedStats(heroId);
 
-    // Soul Lantern (Phantom Regalia Weapon): 35% chance to release seeking spirit projectile
+    // Soul Lantern (Phantom Regalia Weapon): 35% chance seeking spirit projectile
     if (stats.seekingSpiritOnSkill && Math.random() < 0.35) {
       this.onTriggerSeekingSpirit?.(hitX, hitY);
     }
@@ -483,14 +675,54 @@ export class EquipmentManager {
     if (stats.explosiveSkillProc && Math.random() < 0.35) {
       this.onTriggerShrapnelExplosion?.(hitX, hitY);
     }
+
+    // Lost Soul Fragment (Phantom Regalia Core): 30% chance spectral echo
+    if (stats.spectralEchoOnSkill && Math.random() < 0.3) {
+      this.onTriggerSpectralEcho?.(hitX, hitY, angle);
+    }
+
+    // Improvised Power Cell (Survivor's Arsenal Core): 25% chance energy burst
+    if (stats.energyBurstProc && Math.random() < 0.25) {
+      this.onTriggerEnergyBurst?.(hitX, hitY);
+    }
   }
 
-  public onBasicAttackHit(heroId: HeroId, hitX: number, hitY: number, angle: number) {
+  public onBasicAttackHit(
+    heroId: HeroId,
+    hitX: number,
+    hitY: number,
+    angle: number,
+    targetEnemyId?: number,
+    onHeal?: (amount: number) => void,
+    maxHp = 100
+  ) {
     if (!this.isDungeonActive) return;
+    const stats = this.getComputedStats(heroId);
 
     // Consecutive hit ramp
     this.consecutiveHitCount = Math.min(5, this.consecutiveHitCount + 1);
     this.consecutiveHitTimer = 3.2;
+
+    // Bloodstained Charm (Ghoul Accessory): Consecutive hits chance to restore health
+    if (stats.consecutiveHealChance > 0 && Math.random() < stats.consecutiveHealChance && onHeal) {
+      onHeal(Math.max(2, Math.round(maxHp * 0.03)));
+    }
+
+    // Hunter's Markstone (Ghoul Core): Mark tracking per enemy
+    if (stats.hunterMarkOnHit && targetEnemyId) {
+      const prev = this.targetHitCounts.get(targetEnemyId) || 0;
+      this.targetHitCounts.set(targetEnemyId, Math.min(5, prev + 1));
+    }
+
+    // Improvised Power Cell (Human Core): 25% chance energy burst
+    if (stats.energyBurstProc && Math.random() < 0.25) {
+      this.onTriggerEnergyBurst?.(hitX, hitY);
+    }
+
+    // Roaring Heart (Tigerkin Core): 25% chance shockwave
+    if (stats.shockwaveOnConsecutive && Math.random() < 0.25) {
+      this.onTriggerConsecutiveShockwave?.(hitX, hitY);
+    }
 
     // Feral Hunter 2-pc / 4-pc: Hunting Momentum
     if (this.hasTwoPieceBonus(heroId, 'feral_hunter')) {
@@ -503,28 +735,41 @@ export class EquipmentManager {
       }
     }
 
-    // King of Beasts 2-pc / 4-pc: Feral Dominance & Roar of the Apex
+    // King of Beasts 2-pc / 4-pc / 6-pc: Feral Dominance, Roar of the Apex & Primal Overlord
     if (this.hasTwoPieceBonus(heroId, 'king_of_beasts')) {
-      if (this.feralDominanceStacks >= 5 && this.hasFourPieceBonus(heroId, 'king_of_beasts')) {
+      if (this.feralDominanceStacks >= 5) {
         this.feralDominanceStacks = 0;
-        this.onTriggerRoarOfApex?.();
+        if (this.hasSixPieceBonus(heroId, 'king_of_beasts')) {
+          this.onTriggerPrimalOverlord?.();
+        } else if (this.hasFourPieceBonus(heroId, 'king_of_beasts')) {
+          this.onTriggerRoarOfApex?.();
+        }
       } else {
         this.feralDominanceStacks = Math.min(5, this.feralDominanceStacks + 1);
         this.feralDominanceTimer = 4.0;
       }
     }
 
-    // Sky Sovereign 2-pc / 4-pc: Piercing Winds & Tempest Wings
+    // Sky Sovereign 2-pc / 4-pc / 6-pc: Piercing Winds, Tempest Wings & Sovereign's Barrage
     if (this.hasTwoPieceBonus(heroId, 'sky_sovereign')) {
       if (Math.random() < 0.35) {
         this.onTriggerWindBlade?.(hitX, hitY, angle);
       }
     }
+    // Stormfeather Charm: individual wind blade proc
+    if (stats.windBladeOnHit && Math.random() < 0.3) {
+      this.onTriggerWindBlade?.(hitX, hitY, angle);
+    }
+
     if (this.hasFourPieceBonus(heroId, 'sky_sovereign')) {
       this.windCharges += 1;
       if (this.windCharges >= 5) {
         this.windCharges = 0;
-        this.onTriggerTempestWingsHurricane?.();
+        if (this.hasSixPieceBonus(heroId, 'sky_sovereign')) {
+          this.onTriggerSovereignBarrage?.();
+        } else {
+          this.onTriggerTempestWingsHurricane?.();
+        }
       }
     }
 
@@ -535,8 +780,15 @@ export class EquipmentManager {
     }
   }
 
-  public onCriticalStrike(heroId: HeroId, onHeal: (amount: number) => void, maxHp: number) {
+  public onCriticalStrike(
+    heroId: HeroId,
+    onHeal: (amount: number) => void,
+    maxHp: number,
+    critX?: number,
+    critY?: number
+  ) {
     if (!this.isDungeonActive) return;
+    const stats = this.getComputedStats(heroId);
 
     // Eternal Bone 2-Piece: Bone Resonance (restore 3.5% Max HP on crit)
     if (this.hasTwoPieceBonus(heroId, 'eternal_bone')) {
@@ -548,9 +800,24 @@ export class EquipmentManager {
     if (this.hasFourPieceBonus(heroId, 'eternal_bone')) {
       this.boneEnergyStacks = Math.min(5, this.boneEnergyStacks + 1);
     }
+
+    // Eternal Bone 6-Piece: Undying Bone Sovereign (summon spectral bone warrior)
+    if (this.hasSixPieceBonus(heroId, 'eternal_bone') && Math.random() < 0.25) {
+      this.onTriggerSpectralWarrior?.();
+    }
+
+    // Bone Lord's Phylactery: 30% chance bone fragments
+    if (stats.critBoneFragmentChance > 0 && Math.random() < stats.critBoneFragmentChance && critX && critY) {
+      this.onTriggerBoneFragments?.(critX, critY);
+    }
   }
 
-  public onTakeDamage(heroId: HeroId, hp: number, maxHp: number, onGrantShield: (shieldHp: number) => void) {
+  public onTakeDamage(
+    heroId: HeroId,
+    hp: number,
+    maxHp: number,
+    onGrantShield: (shieldHp: number) => void
+  ) {
     if (!this.isDungeonActive) return;
     const stats = this.getComputedStats(heroId);
 
@@ -576,7 +843,8 @@ export class EquipmentManager {
     enemyY: number,
     isPoisoned: boolean,
     onHeal: (amt: number) => void,
-    maxHp: number
+    maxHp: number,
+    enemyId?: number
   ) {
     if (!this.isDungeonActive) return;
     const stats = this.getComputedStats(heroId);
@@ -598,26 +866,31 @@ export class EquipmentManager {
       if (stats.explosiveOnPoisonDefeat || this.hasTwoPieceBonus(heroId, 'plaguebound')) {
         this.onTriggerToxicBurst?.(enemyX, enemyY);
       }
+      // Putrid Core: Healing essence drop
+      if (stats.healingEssenceOnPoisonKill && Math.random() < 0.35) {
+        onHeal(Math.max(3, Math.round(maxHp * 0.04)));
+      }
+      // Zombie 6-pc: Walking Plague massive toxic explosion
+      if (this.hasSixPieceBonus(heroId, 'plaguebound')) {
+        this.onTriggerWalkingPlague?.(enemyX, enemyY);
+      }
+    }
+
+    // Ghoul 6-pc: Endless Pursuit (partially restores momentum + causes lunge)
+    if (this.hasSixPieceBonus(heroId, 'feral_hunter') && this.huntingMomentumTimer > 0) {
+      this.huntingMomentumStacks = Math.min(5, this.huntingMomentumStacks + 2);
+      this.huntingMomentumTimer = 4.0;
+      this.onTriggerEndlessPursuit?.();
+    }
+
+    if (enemyId) {
+      this.targetHitCounts.delete(enemyId);
     }
   }
 
   // ==========================================
-  // BOSS DROP SYSTEM
+  // BOSS DROP SYSTEM (6 PIECES PER COLLECTION)
   // ==========================================
-  /**
-   * Drops 1 piece of equipment from the Corrupted Hero's corresponding collection.
-   * Defeating Corrupted Skeleton drops Eternal Bone.
-   * Corrupted Ghost drops Phantom Regalia.
-   * Corrupted Zombie drops Plaguebound.
-   * Corrupted Ghoul drops Feral Hunter.
-   * Corrupted Human drops Survivor's Arsenal.
-   * Corrupted Eaglekin drops Sky Sovereign.
-   * Corrupted Tigerkin drops King of Beasts.
-   */
-  /**
-   * Rolls a piece of equipment from the Corrupted Hero's corresponding collection,
-   * prioritizing undiscovered items, WITHOUT immediately taking it into inventory.
-   */
   public rollBossDropItem(bossHeroId: HeroId): EquipmentItemDef {
     const colId = HERO_TO_COLLECTION[bossHeroId] || 'survivors_arsenal';
     const pieces = getEquipmentForCollection(colId);
@@ -629,16 +902,15 @@ export class EquipmentManager {
       : pieces[Math.floor(Math.random() * pieces.length)];
   }
 
-  /**
-   * Adds an equipment item to the player's permanent inventory bag.
-   * Called only when the player manually picks up the dropped equipment in the world.
-   */
   public addEquipmentToInventory(itemId: string): EquipmentDropPayload {
     const item = EQUIPMENT_BY_ID[itemId] || ALL_EQUIPMENT_ITEMS[0];
     const colDef = EQUIPMENT_COLLECTIONS[item.collection] || EQUIPMENT_COLLECTIONS.survivors_arsenal;
 
     const isFirstDiscovery = !this.ownedEquipmentIds.has(item.id);
     this.ownedEquipmentIds.add(item.id);
+    if (!this.enhancementLevels[item.id]) {
+      this.enhancementLevels[item.id] = 0;
+    }
     this.saveToStorage();
 
     return {
@@ -653,19 +925,19 @@ export class EquipmentManager {
     return this.addEquipmentToInventory(item.id);
   }
 
-  /**
-   * Debug / Testing Helper: Immediately unlocks all 28 pieces across all 7 sets
-   * so testing combinations 4, 5, 6, 7 can be verified instantly.
-   */
   public unlockAllEquipment() {
     for (const item of ALL_EQUIPMENT_ITEMS) {
       this.ownedEquipmentIds.add(item.id);
+      if (this.enhancementLevels[item.id] === undefined) {
+        this.enhancementLevels[item.id] = 0;
+      }
     }
     this.saveToStorage();
   }
 
   public resetEquipmentInventory() {
     this.ownedEquipmentIds.clear();
+    this.enhancementLevels = {};
     for (const h of ALL_HERO_IDS) {
       this.equippedByHero[h] = createDefaultLoadout();
     }
@@ -686,8 +958,10 @@ export class EquipmentManager {
           piecesEquipped: count,
           hasTwoPiece: count >= 2,
           hasFourPiece: count >= 4,
+          hasSixPiece: count >= 6,
           twoPieceName: colDef.twoPieceBonus.name,
           fourPieceName: colDef.fourPieceBonus.name,
+          sixPieceName: colDef.sixPieceBonus.name,
         });
       }
     }
@@ -695,6 +969,7 @@ export class EquipmentManager {
     return {
       ownedEquipmentIds: [...this.ownedEquipmentIds],
       equippedByHero: { ...this.equippedByHero },
+      enhancementLevels: { ...this.enhancementLevels },
       isDungeonActive: this._isDungeonActive,
       activeSetBonuses,
     };

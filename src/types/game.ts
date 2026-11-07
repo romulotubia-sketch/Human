@@ -650,9 +650,10 @@ export interface EnemyEntity {
   comboCount?: number;
   isElite?: boolean;
   eliteAffix?: EliteAffix;
+  dummyStats?: DummyCombatStats;
 }
 
-export type EliteAffix = 'ironclad' | 'berserker' | 'molten' | 'swift' | 'vampiric';
+export type EliteAffix = 'ironclad' | 'berserker' | 'molten' | 'swift' | 'vampiric' | 'tempest';
 
 export interface DummyCombatStats {
   isActive: boolean;
@@ -667,6 +668,7 @@ export interface DummyCombatStats {
   maxHitDamage: number;
   combatDuration: number;
   lastHitTime: number;
+  recentHits?: { time: number; damage: number }[];
 }
 
 export interface CombatVfxEvent {
@@ -727,7 +729,8 @@ export interface Projectile {
     | 'final_feather'
     | 'horizon_feather'
     | 'tiger_rend_wave'
-    | 'heavenly_tiger_beast';
+    | 'heavenly_tiger_beast'
+    | 'enemy_fireball';
   x: number;
   y: number;
   vx: number;
@@ -746,6 +749,7 @@ export interface Projectile {
   spinAngle?: number;
   visualOnly?: boolean;
   isBasicAttack?: boolean;
+  homing?: boolean;
 }
 
 export interface PickupOrb {
@@ -784,7 +788,10 @@ export interface WorldProp {
     | 'chest'
     | 'portal_next'
     | 'portal_guild'
-    | 'blessing_statue';
+    | 'blessing_statue'
+    | 'anvil'
+    | 'blacksmith_npc'
+    | 'forge';
   x: number;
   y: number;
   w: number;
@@ -798,7 +805,7 @@ export interface WorldProp {
 
 export interface DungeonRoom {
   id: number;
-  kind: 'start' | 'combat' | 'treasure' | 'boss' | 'guild';
+  kind: 'start' | 'combat' | 'treasure' | 'boss' | 'guild' | 'blacksmith';
   x: number;
   y: number;
   w: number;
@@ -828,7 +835,7 @@ export interface MinimapEnemyDot {
 export interface MinimapMarker {
   x: number;
   y: number;
-  kind: 'chest' | 'portal_next' | 'portal_guild' | 'blessing_statue' | 'boss_essence';
+  kind: 'chest' | 'portal_next' | 'portal_guild' | 'blessing_statue' | 'boss_essence' | 'blacksmith';
 }
 
 export interface MinimapTeammateDot {

@@ -1604,7 +1604,6 @@ export class RoomManager {
           bossScytheTimer: enemy.bossScytheTimer ? Math.round(enemy.bossScytheTimer * 100) / 100 : 0,
           isElite: enemy.isElite,
           eliteAffix: enemy.eliteAffix,
-          name: enemy.name,
         });
       }
 
@@ -2574,6 +2573,169 @@ export class RoomManager {
     const atk = e.atk;
     const originX = e.x;
     const originY = e.y;
+
+    // Authoritative Elite Enemy Special Attacks
+    if (e.isElite && e.eliteAffix && !isBossKind(e.kind)) {
+      e.attackAnimTimer = 0.35;
+      const affix = e.eliteAffix;
+      if (affix === 'molten') {
+        for (let k = 0; k < 6; k++) {
+          const fa = e.windupAngle + (k * Math.PI * 2) / 6;
+          room.enemyProjectiles.push({
+            id: this.nextProjId++,
+            x: e.x + Math.cos(fa) * 22,
+            y: e.y + Math.sin(fa) * 22,
+            vx: Math.cos(fa) * 280,
+            vy: Math.sin(fa) * 280,
+            radius: 11,
+            damage: Math.round(atk * 1.25),
+            life: 0,
+            maxLife: 1.6,
+          });
+        }
+        for (const lp of livingPlayers) {
+          if (Math.hypot(lp.state.x - e.x, lp.state.y - e.y) <= 135) {
+            this.damagePlayerAuthoritative(room, lp, Math.round(atk * 1.35));
+          }
+        }
+        this.broadcastEnemyAttack(room, {
+          enemyId: e.id,
+          kind: e.kind,
+          attackType: 'nova',
+          x: originX,
+          y: originY,
+          angle: e.windupAngle,
+          damage: Math.round(atk * 1.35),
+          isBoss: false,
+          skillLabel: 'MOLTEN SURGE!',
+          skillColor: '#f97316',
+        });
+      } else if (affix === 'ironclad') {
+        for (const lp of livingPlayers) {
+          if (Math.hypot(lp.state.x - e.x, lp.state.y - e.y) <= 135) {
+            this.damagePlayerAuthoritative(room, lp, Math.round(atk * 1.5));
+          }
+        }
+        if ((e.shieldHp || 0) < (e.maxShieldHp || 100) * 0.3) {
+          e.shieldHp = (e.shieldHp || 0) + Math.round(e.maxHp * 0.15);
+        }
+        this.broadcastEnemyAttack(room, {
+          enemyId: e.id,
+          kind: e.kind,
+          attackType: 'slam',
+          x: originX,
+          y: originY,
+          angle: e.windupAngle,
+          damage: Math.round(atk * 1.5),
+          isBoss: false,
+          skillLabel: 'TITAN QUAKE!',
+          skillColor: '#38bdf8',
+        });
+      } else if (affix === 'berserker') {
+        const arcRadius = e.radius + 75;
+        for (const lp of livingPlayers) {
+          const dx = lp.state.x - e.x;
+          const dy = lp.state.y - e.y;
+          const dist = Math.hypot(dx, dy);
+          const rawDiff = Math.atan2(dy, dx) - e.windupAngle;
+          const diff = Number.isFinite(rawDiff) ? Math.atan2(Math.sin(rawDiff), Math.cos(rawDiff)) : 0;
+          if (dist <= arcRadius + 12 && (Math.abs(diff) <= 1.15 || dist <= e.radius + 28)) {
+            this.damagePlayerAuthoritative(room, lp, Math.round(atk * 1.45));
+          }
+        }
+        e.speed = Math.round(e.speed * 1.12);
+        this.broadcastEnemyAttack(room, {
+          enemyId: e.id,
+          kind: e.kind,
+          attackType: 'slash',
+          x: originX,
+          y: originY,
+          angle: e.windupAngle,
+          damage: Math.round(atk * 1.45),
+          isBoss: false,
+          skillLabel: 'FRENZY RAVAGE!',
+          skillColor: '#ef4444',
+        });
+      } else if (affix === 'swift') {
+        this.placeEnemyOnServerMap(room, e, e.x + Math.cos(e.windupAngle) * 140, e.y + Math.sin(e.windupAngle) * 140);
+        for (const lp of livingPlayers) {
+          if (Math.hypot(lp.state.x - e.x, lp.state.y - e.y) <= 135) {
+            this.damagePlayerAuthoritative(room, lp, Math.round(atk * 1.35));
+          }
+        }
+        this.broadcastEnemyAttack(room, {
+          enemyId: e.id,
+          kind: e.kind,
+          attackType: 'whirlwind',
+          x: originX,
+          y: originY,
+          endX: e.x,
+          endY: e.y,
+          angle: e.windupAngle,
+          damage: Math.round(atk * 1.35),
+          isBoss: false,
+          skillLabel: 'PHANTOM CYCLONE!',
+          skillColor: '#a855f7',
+        });
+      } else if (affix === 'vampiric') {
+        for (let k = 0; k < 4; k++) {
+          const sa = e.windupAngle + (k - 1.5) * 0.45;
+          room.enemyProjectiles.push({
+            id: this.nextProjId++,
+            x: e.x + Math.cos(sa) * 20,
+            y: e.y + Math.sin(sa) * 20,
+            vx: Math.cos(sa) * 290,
+            vy: Math.sin(sa) * 290,
+            radius: 12,
+            damage: Math.round(atk * 0.8),
+            life: 0,
+            maxLife: 1.6,
+            homing: true,
+          });
+        }
+        let drained = 0;
+        for (const lp of livingPlayers) {
+          if (Math.hypot(lp.state.x - e.x, lp.state.y - e.y) <= 110) {
+            this.damagePlayerAuthoritative(room, lp, Math.round(atk * 1.3));
+            drained += Math.round(atk * 0.85);
+          }
+        }
+        if (drained > 0) {
+          e.hp = Math.min(e.maxHp, e.hp + drained);
+        }
+        this.broadcastEnemyAttack(room, {
+          enemyId: e.id,
+          kind: e.kind,
+          attackType: 'spell',
+          x: originX,
+          y: originY,
+          angle: e.windupAngle,
+          damage: Math.round(atk * 1.3),
+          isBoss: false,
+          skillLabel: 'CRIMSON LEACH!',
+          skillColor: '#e11d48',
+        });
+      } else {
+        for (const lp of livingPlayers) {
+          if (Math.hypot(lp.state.x - e.x, lp.state.y - e.y) <= 140) {
+            this.damagePlayerAuthoritative(room, lp, Math.round(atk * 1.4));
+          }
+        }
+        this.broadcastEnemyAttack(room, {
+          enemyId: e.id,
+          kind: e.kind,
+          attackType: 'frost_nova',
+          x: originX,
+          y: originY,
+          angle: e.windupAngle,
+          damage: Math.round(atk * 1.4),
+          isBoss: false,
+          skillLabel: 'THUNDERBOLT!',
+          skillColor: '#facc15',
+        });
+      }
+      return;
+    }
 
     if (e.windupType === 'slash') {
       e.attackAnimTimer = 0.25;
