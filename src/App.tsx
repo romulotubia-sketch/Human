@@ -1,4 +1,4 @@
-import { Hammer, Maximize2, Minimize2, Settings, Shield, Sparkles, Swords, Users } from 'lucide-react';
+import { Maximize2, Minimize2, Settings, Shield, Sparkles, Swords, Users } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { soundEngine } from './audio/soundEngine';
 import { BlacksmithModal } from './components/BlacksmithModal';
@@ -1137,19 +1137,6 @@ export default function App() {
 
               <button
                 type="button"
-                aria-label="Cryptfire Forge Blacksmith"
-                onClick={() => {
-                  soundEngine.playUiTap();
-                  setShowBlacksmith(true);
-                }}
-                className="flex min-h-[42px] items-center gap-1.5 rounded-xl border border-orange-500/80 bg-stone-950/85 px-3 py-2 text-xs font-semibold text-orange-200 shadow-[0_0_12px_rgba(249,115,22,0.2)] backdrop-blur-md active:scale-95 hover:bg-orange-950/40"
-              >
-                <Hammer className="h-4 w-4 text-orange-400" />
-                <span className="hidden sm:inline">Forge</span>
-              </button>
-
-              <button
-                type="button"
                 aria-label={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
                 onClick={handleToggleFullscreen}
                 className="flex min-h-[42px] min-w-[42px] items-center justify-center rounded-xl border border-stone-700/80 bg-stone-950/85 text-amber-200 backdrop-blur-md active:scale-95"
@@ -1372,10 +1359,6 @@ export default function App() {
           onClose={() => setShowEquipment(false)}
           onEquipmentChanged={() => {
             engineRef.current?.applyEquipmentChanges();
-          }}
-          onOpenBlacksmith={() => {
-            setShowEquipment(false);
-            setShowBlacksmith(true);
           }}
         />
       )}

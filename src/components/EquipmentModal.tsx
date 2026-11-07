@@ -15,7 +15,6 @@ import {
   Package,
   BookOpen,
   RotateCcw,
-  Hammer,
 } from 'lucide-react';
 import {
   EQUIPMENT_BY_ID,
@@ -41,7 +40,6 @@ interface EquipmentModalProps {
   heroId: HeroId;
   onClose: () => void;
   onEquipmentChanged?: () => void;
-  onOpenBlacksmith?: () => void;
 }
 
 type ModalSection = 'equipment_bag' | 'codex';
@@ -51,7 +49,6 @@ export function EquipmentModal({
   heroId,
   onClose,
   onEquipmentChanged,
-  onOpenBlacksmith,
 }: EquipmentModalProps) {
   const [activeSection, setActiveSection] = useState<ModalSection>('equipment_bag');
   const [mobileView, setMobileView] = useState<MobileViewMode>('bag');
@@ -136,12 +133,6 @@ export function EquipmentModal({
     refresh();
   };
 
-  const handleUnlockAll = () => {
-    soundEngine.playPickup();
-    equipmentManager.unlockAllEquipment();
-    refresh();
-  };
-
   const handleResetInventory = () => {
     soundEngine.playUiTap();
     equipmentManager.resetEquipmentInventory();
@@ -176,7 +167,7 @@ export function EquipmentModal({
            ======================================================== */}
         <div className="flex h-11 shrink-0 items-center justify-between border-b border-stone-800 bg-[#16110e] px-2 sm:px-3.5 gap-1.5 z-20">
           
-          {/* Prominent Back Button & Title */}
+          {/* Prominent Back to Game Button & Title */}
           <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
             <button
               type="button"
@@ -184,11 +175,12 @@ export function EquipmentModal({
                 soundEngine.playUiTap();
                 onClose();
               }}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-xl border border-amber-500/60 bg-gradient-to-r from-amber-950/80 to-stone-900 hover:from-amber-900/80 hover:to-stone-800 text-amber-200 hover:text-white font-bold text-xs shadow-md transition-all active:scale-95 shrink-0"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border-2 border-amber-400 bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 hover:from-amber-500 hover:to-amber-400 text-stone-950 font-extrabold text-xs sm:text-sm shadow-md transition-all active:scale-95 shrink-0 cursor-pointer"
               aria-label="Back to Game"
+              title="Return to Game"
             >
-              <ArrowLeft className="h-4 w-4 text-amber-300 shrink-0" />
-              <span>Back</span>
+              <ArrowLeft className="h-4 w-4 stroke-[2.5] text-stone-950 shrink-0" />
+              <span className="font-sans tracking-wide">Back to Game</span>
             </button>
 
             <div className="flex items-center gap-1.5 min-w-0">
@@ -210,23 +202,8 @@ export function EquipmentModal({
             </div>
           </div>
 
-          {/* Section Navigation Tabs & Forge Button */}
+          {/* Section Navigation Tabs (Equipment Loadout vs Codex) */}
           <div className="flex items-center gap-1 sm:gap-1.5">
-            {onOpenBlacksmith && (
-              <button
-                type="button"
-                onClick={() => {
-                  soundEngine.playUiTap();
-                  onOpenBlacksmith();
-                }}
-                className="flex items-center gap-1 px-2 py-1 rounded-lg border border-orange-500/50 bg-gradient-to-r from-orange-950/70 to-stone-900 text-orange-300 hover:text-orange-100 text-xs font-bold transition-all active:scale-95"
-                title="Open Cryptfire Forge Blacksmith"
-              >
-                <Hammer className="h-3.5 w-3.5 text-orange-400 shrink-0" />
-                <span className="hidden sm:inline">Forge</span>
-              </button>
-            )}
-
             <div className="flex bg-stone-950/90 border border-stone-800 rounded-xl p-0.5 text-xs font-semibold">
               <button
                 type="button"
@@ -374,9 +351,9 @@ export function EquipmentModal({
                                 e.stopPropagation();
                                 handleUnequip(slot);
                               }}
-                              className="text-stone-500 hover:text-rose-400 text-[10px] leading-none px-0.5"
+                              className="text-rose-300 hover:text-white bg-rose-950/80 hover:bg-rose-900 border border-rose-500/50 rounded text-[7.5px] font-bold px-1 py-0.2 leading-none active:scale-95 transition-all cursor-pointer"
                             >
-                              ×
+                              Unequip
                             </button>
                           ) : (
                             <span className="w-2.5" />
@@ -472,18 +449,22 @@ export function EquipmentModal({
                         const itemLvl = equipmentManager.getEnhancementLevel(item.id);
 
                         return (
-                          <button
-                            type="button"
+                          <div
                             key={item.id}
+                            role="button"
+                            tabIndex={0}
                             onClick={() => {
                               setInspectedItemId(item.id);
                               if (window.innerWidth < 640) setMobileView('inspect');
                             }}
-                            onDoubleClick={() => {
-                              if (isEquippedHere) handleUnequip(item.slot);
-                              else handleEquip(item.id);
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                setInspectedItemId(item.id);
+                                if (window.innerWidth < 640) setMobileView('inspect');
+                              }
                             }}
-                            className={`flex items-center justify-between p-1.5 rounded-lg border text-left transition-all ${
+                            className={`flex items-center justify-between p-1.5 rounded-lg border text-left transition-all cursor-pointer ${
                               isEquippedHere
                                 ? 'border-emerald-500/70 bg-emerald-950/30 ring-1 ring-emerald-500/30'
                                 : isSelected
@@ -520,16 +501,33 @@ export function EquipmentModal({
 
                             <div className="flex items-center gap-1 shrink-0 pl-1">
                               {isEquippedHere ? (
-                                <span className="text-[8px] font-bold uppercase px-1 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                                  Equipped
-                                </span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleUnequip(item.slot);
+                                  }}
+                                  className="px-2 py-1 rounded-md text-[9px] font-bold border border-rose-500/60 bg-gradient-to-r from-rose-950/90 to-rose-900/80 hover:from-rose-900 hover:to-rose-800 text-rose-200 hover:text-white shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-0.5"
+                                  title={`Unequip ${item.name} from ${heroProfile.name}`}
+                                >
+                                  <span>Unequip</span>
+                                </button>
                               ) : (
-                                <span className="text-[8px] font-semibold text-stone-400 px-1 py-0.5 rounded bg-stone-800 border border-stone-700">
-                                  Bag
-                                </span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleEquip(item.id);
+                                    setInspectedItemId(item.id);
+                                  }}
+                                  className="px-2.5 py-1 rounded-md text-[9px] font-bold border border-amber-400/80 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-stone-950 font-bold shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-0.5"
+                                  title={`Equip ${item.name} on ${heroProfile.name}`}
+                                >
+                                  <span>Equip</span>
+                                </button>
                               )}
                             </div>
-                          </button>
+                          </div>
                         );
                       })}
                     </div>
@@ -557,6 +555,15 @@ export function EquipmentModal({
                       {/* Name & Badge */}
                       <div className="flex items-center justify-between gap-1">
                         <div className="flex items-center gap-1.5 truncate">
+                          <button
+                            type="button"
+                            onClick={() => setMobileView('bag')}
+                            className="flex items-center gap-0.5 px-2 py-0.5 rounded-lg border border-amber-400/80 bg-gradient-to-r from-amber-600 to-amber-500 text-stone-950 font-bold text-[9px] shadow-sm transition-all active:scale-95 shrink-0 sm:hidden cursor-pointer"
+                            title="Back to Bag"
+                          >
+                            <ArrowLeft className="h-3 w-3 stroke-[2.5] text-stone-950 shrink-0" />
+                            <span>Bag</span>
+                          </button>
                           <div
                             className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border bg-stone-950 shadow-inner"
                             style={{
@@ -779,18 +786,8 @@ export function EquipmentModal({
                 </p>
               </div>
 
-              {/* Developer / Testing Tools */}
+              {/* Inventory Management Tools */}
               <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={handleUnlockAll}
-                  className="flex items-center gap-1 px-2 py-1 rounded-lg border border-amber-500/40 bg-amber-950/40 text-amber-300 hover:bg-amber-900/60 text-[11px] font-semibold active:scale-95 transition-all"
-                  title="Unlock all 42 relics to test synergies"
-                >
-                  <Sparkles className="h-3 w-3" />
-                  <span>Unlock All 42</span>
-                </button>
-
                 <button
                   type="button"
                   onClick={handleResetInventory}
@@ -798,7 +795,7 @@ export function EquipmentModal({
                   title="Reset inventory"
                 >
                   <RotateCcw className="h-3 w-3" />
-                  <span>Reset</span>
+                  <span>Reset Inventory</span>
                 </button>
               </div>
             </div>
@@ -910,9 +907,18 @@ export function EquipmentModal({
                             <div className="w-full flex justify-center">
                               {isOwnedPiece ? (
                                 isEquippedPiece ? (
-                                  <span className="text-[7.5px] font-bold text-emerald-300">
-                                    Equipped
-                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleUnequip(item.slot);
+                                      setInspectedItemId(item.id);
+                                    }}
+                                    className="text-[7.5px] font-bold text-rose-200 bg-rose-950/80 hover:bg-rose-900 border border-rose-500/50 px-1.5 py-0.2 rounded shadow-sm transition-all active:scale-95 cursor-pointer"
+                                    title="Unequip from slot"
+                                  >
+                                    Unequip
+                                  </button>
                                 ) : (
                                   <button
                                     type="button"
@@ -921,7 +927,8 @@ export function EquipmentModal({
                                       handleEquip(item.id);
                                       setInspectedItemId(item.id);
                                     }}
-                                    className="text-[7.5px] font-bold text-stone-950 bg-amber-400 hover:bg-amber-300 px-1 py-0.2 rounded shadow-sm transition-all"
+                                    className="text-[7.5px] font-bold text-stone-950 bg-amber-400 hover:bg-amber-300 px-1.5 py-0.2 rounded shadow-sm transition-all active:scale-95 cursor-pointer"
+                                    title="Equip to slot"
                                   >
                                     Equip
                                   </button>

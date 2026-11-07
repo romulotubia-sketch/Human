@@ -187,31 +187,32 @@ export function BlacksmithModal({
   };
 
   return (
-    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/85 p-1 sm:p-2.5 backdrop-blur-md select-none overflow-hidden">
-      {/* Fixed Compact Container: Guaranteed to fit in viewport without outer or inner scrolling */}
-      <div className="relative flex w-full max-w-4xl h-[92dvh] max-h-[440px] sm:max-h-[430px] flex-col rounded-2xl border border-orange-500/40 bg-gradient-to-b from-[#1a120c] via-[#120d09] to-[#0a0705] shadow-2xl text-stone-200 overflow-hidden shrink-0">
+    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/85 p-2 sm:p-4 backdrop-blur-md select-none overflow-y-auto">
+      {/* Compact Modal Card: tightly hugs content, eliminating giant blank space */}
+      <div className="relative flex w-full max-w-3xl flex-col rounded-2xl border border-orange-500/40 bg-gradient-to-b from-[#1a120c] via-[#120d09] to-[#0a0705] shadow-2xl text-stone-200 overflow-hidden my-auto shrink-0">
         
-        {/* ================= HEADER BAR (Height: 38px with prominent Back button) ================= */}
-        <div className="flex h-[38px] shrink-0 items-center justify-between border-b border-orange-950/80 bg-gradient-to-r from-orange-950/90 via-[#18100b] to-stone-950 px-2 sm:px-3.5 gap-1.5 z-20">
-          <div className="flex items-center gap-1.5 min-w-0">
-            {/* Prominent Back Button matching EquipmentModal styling */}
+        {/* ================= HEADER BAR (Height: 44px with prominent Back to Game button) ================= */}
+        <div className="flex h-11 shrink-0 items-center justify-between border-b border-orange-950/80 bg-gradient-to-r from-orange-950/90 via-[#18100b] to-stone-950 px-2 sm:px-3.5 gap-2 z-20">
+          <div className="flex items-center gap-2 min-w-0">
+            {/* Prominent, Clearly Visible Back to Game Button */}
             <button
               type="button"
               onClick={() => {
                 soundEngine.playUiTap();
                 onClose();
               }}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-xl border border-orange-500/60 bg-gradient-to-r from-orange-950/90 to-stone-900 hover:from-orange-900/90 hover:to-stone-800 text-orange-200 hover:text-white font-bold text-xs shadow-md transition-all active:scale-95 shrink-0"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border-2 border-orange-400 bg-gradient-to-r from-orange-600 via-amber-600 to-orange-500 hover:from-orange-500 hover:to-amber-500 text-white font-extrabold text-xs sm:text-sm shadow-md shadow-orange-950/70 ring-1 ring-orange-300/40 transition-all active:scale-95 shrink-0 cursor-pointer"
               aria-label="Back to Game"
+              title="Return to Game"
             >
-              <ArrowLeft className="h-4 w-4 text-orange-400 shrink-0" />
-              <span>Back</span>
+              <ArrowLeft className="h-4 w-4 stroke-[2.5] text-white shrink-0" />
+              <span className="font-sans tracking-wide">Back to Game</span>
             </button>
 
-            <div className="flex h-6 w-6 items-center justify-center rounded-lg border border-orange-500/50 bg-orange-950/80 text-orange-400 shadow-sm shrink-0">
+            <div className="flex h-6 w-6 items-center justify-center rounded-lg border border-orange-500/50 bg-orange-950/80 text-orange-400 shadow-sm shrink-0 hidden xs:flex">
               <Hammer className="h-3.5 w-3.5" />
             </div>
-            <h2 className="font-display text-xs sm:text-sm font-bold text-amber-100 truncate">
+            <h2 className="font-display text-xs sm:text-sm font-bold text-amber-100 truncate hidden sm:inline">
               Master Grimforge
             </h2>
             <span className="text-[8.5px] uppercase font-bold px-1.5 py-0.2 rounded border border-orange-500/40 bg-orange-950/60 text-orange-300 hidden md:inline shrink-0">
@@ -277,8 +278,8 @@ export function BlacksmithModal({
           </div>
         </div>
 
-        {/* ================= MAIN ZERO-SCROLL BODY ================= */}
-        <div className="grid grid-cols-1 sm:grid-cols-12 flex-1 min-h-0 overflow-hidden p-1.5 sm:p-2.5 gap-1.5 sm:gap-2">
+        {/* ================= MAIN RESPONSIVE BODY ================= */}
+        <div className="grid grid-cols-1 sm:grid-cols-12 flex-1 min-h-0 overflow-y-auto sm:overflow-hidden p-1.5 sm:p-2.5 gap-1.5 sm:gap-2">
           
           {/* LEFT PANE: Relic Selector (5 cols on desktop, responsive tab on mobile) */}
           <div className={`sm:col-span-5 flex-col min-h-0 rounded-xl border border-stone-800 bg-stone-950/70 p-1.5 overflow-hidden ${
@@ -332,9 +333,10 @@ export function BlacksmithModal({
                   const equippedHere = loadout[item.slot] === item.id;
 
                   return (
-                    <button
+                    <div
                       key={item.id}
-                      type="button"
+                      role="button"
+                      tabIndex={0}
                       onClick={() => {
                         soundEngine.playUiTap();
                         setSelectedItemId(item.id);
@@ -342,7 +344,17 @@ export function BlacksmithModal({
                         setShowHighLevelConfirm(false);
                         setMobileTab('forge');
                       }}
-                      className={`w-full flex items-center justify-between p-1 rounded-lg border text-left transition-all ${
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          soundEngine.playUiTap();
+                          setSelectedItemId(item.id);
+                          setLastResult(null);
+                          setShowHighLevelConfirm(false);
+                          setMobileTab('forge');
+                        }
+                      }}
+                      className={`w-full flex items-center justify-between p-1 rounded-lg border text-left transition-all cursor-pointer ${
                         isSelected
                           ? 'border-orange-400 bg-orange-950/40 ring-1 ring-orange-400/50 shadow-sm'
                           : 'border-stone-800/90 bg-stone-900/60 hover:bg-stone-900 hover:border-stone-700'
@@ -365,11 +377,6 @@ export function BlacksmithModal({
                             <span className="text-[10px] font-bold text-stone-100 truncate">
                               {item.name}
                             </span>
-                            {equippedHere && (
-                              <span className="text-[7px] font-bold uppercase px-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shrink-0">
-                                Eq
-                              </span>
-                            )}
                           </div>
                           <div className="text-[8px] text-stone-400 truncate" style={{ color: col.themeColor }}>
                             {EQUIPMENT_SLOT_LABELS[item.slot]} · {col.name.replace(' Set', '')}
@@ -377,16 +384,50 @@ export function BlacksmithModal({
                         </div>
                       </div>
 
-                      <span
-                        className={`font-mono-num font-bold text-[10px] px-1 py-0.2 rounded border shrink-0 ml-1 ${
-                          itemLvl > 0
-                            ? 'bg-amber-500/20 text-amber-300 border-amber-500/50'
-                            : 'bg-stone-800 text-stone-400 border-stone-700'
-                        }`}
-                      >
-                        +{itemLvl}
-                      </span>
-                    </button>
+                      <div className="flex items-center gap-1 shrink-0 ml-1">
+                        <span
+                          className={`font-mono-num font-bold text-[10px] px-1 py-0.2 rounded border shrink-0 ${
+                            itemLvl > 0
+                              ? 'bg-amber-500/20 text-amber-300 border-amber-500/50'
+                              : 'bg-stone-800 text-stone-400 border-stone-700'
+                          }`}
+                        >
+                          +{itemLvl}
+                        </span>
+
+                        {equippedHere ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              soundEngine.playUiTap();
+                              equipmentManager.unequipItem(heroId, item.slot);
+                              refresh();
+                              onEquipmentChanged?.();
+                            }}
+                            className="text-[8px] font-bold uppercase px-1.5 py-0.5 rounded bg-rose-950/80 text-rose-200 border border-rose-500/50 hover:bg-rose-900 transition-all active:scale-95 shrink-0 cursor-pointer"
+                            title="Unequip from current hero"
+                          >
+                            Unequip
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              soundEngine.playUiTap();
+                              equipmentManager.equipItem(heroId, item.id);
+                              refresh();
+                              onEquipmentChanged?.();
+                            }}
+                            className="text-[8px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-500 text-stone-950 hover:bg-amber-400 font-bold shadow-sm transition-all active:scale-95 shrink-0 cursor-pointer"
+                            title="Equip on current hero"
+                          >
+                            Equip
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   );
                 })
               )}
@@ -394,14 +435,14 @@ export function BlacksmithModal({
           </div>
 
           {/* RIGHT PANE: Dedicated Compact Forge Anvil Stage (7 cols on desktop, responsive tab on mobile) */}
-          <div className={`sm:col-span-7 flex-col justify-between min-h-0 rounded-xl border border-stone-800 bg-stone-950/80 p-2 overflow-hidden ${
+          <div className={`sm:col-span-7 flex-col min-h-0 rounded-xl border border-stone-800 bg-stone-950/80 p-2 sm:p-2.5 ${
             mobileTab === 'forge' ? 'flex' : 'hidden sm:flex'
           }`}>
             {selectedItem && collection ? (
-              <div className="flex flex-col h-full justify-between gap-1.5 overflow-hidden">
+              <div className="flex flex-col gap-1.5 sm:gap-2">
                 
                 {/* 1. Item Header & Level Transition Strip */}
-                <div className="flex items-center justify-between border-b border-stone-800/80 pb-1.5 shrink-0">
+                <div className="flex items-center justify-between border-b border-stone-800/80 pb-1.5 shrink-0 gap-1.5">
                   <div className="flex items-center gap-2 min-w-0">
                     <div
                       className="flex h-8 w-8 items-center justify-center rounded-lg border-2 shadow shrink-0"
@@ -415,15 +456,31 @@ export function BlacksmithModal({
                     </div>
 
                     <div className="min-w-0">
-                      <div className="flex items-center gap-1 truncate">
+                      <div className="flex items-center gap-1.5 truncate">
                         <h3 className="font-display text-xs sm:text-sm font-bold text-amber-100 truncate">
                           {selectedItem.name}
                         </h3>
-                        {isEquipped && (
-                          <span className="text-[7.5px] uppercase font-bold px-1 rounded border border-emerald-500/40 bg-emerald-950/60 text-emerald-300 shrink-0">
-                            Equipped
-                          </span>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            soundEngine.playUiTap();
+                            if (isEquipped) {
+                              equipmentManager.unequipItem(heroId, selectedItem.slot);
+                            } else {
+                              equipmentManager.equipItem(heroId, selectedItem.id);
+                            }
+                            refresh();
+                            onEquipmentChanged?.();
+                          }}
+                          className={`text-[8.5px] font-bold uppercase px-2 py-0.5 rounded-md border shadow-sm transition-all active:scale-95 shrink-0 cursor-pointer ${
+                            isEquipped
+                              ? 'border-rose-500/60 bg-rose-950/80 text-rose-200 hover:bg-rose-900'
+                              : 'border-emerald-500/60 bg-emerald-950/80 text-emerald-200 hover:bg-emerald-900'
+                          }`}
+                          title={isEquipped ? 'Unequip relic' : 'Equip relic'}
+                        >
+                          {isEquipped ? 'Unequip' : 'Equip'}
+                        </button>
                       </div>
                       <div className="flex items-center gap-1 text-[8.5px] text-stone-400">
                         <span style={{ color: collection.themeColor }}>
@@ -449,46 +506,44 @@ export function BlacksmithModal({
                   </div>
                 </div>
 
-                {/* 2. Unified Compact Effects & Milestone Panel (Strictly bounded height) */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 flex-1 min-h-0 overflow-hidden">
+                {/* 2. Unified Compact Effects & Milestone Panel: Compact, no huge blank space */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 shrink-0">
                   
                   {/* Current Active Effects Box */}
-                  <div className="flex flex-col justify-between rounded-lg border border-stone-800/80 bg-stone-900/50 p-1.5 min-h-0 overflow-hidden">
-                    <div className="text-[9px] font-bold uppercase tracking-wider text-amber-300/90 flex items-center gap-1 shrink-0 mb-1">
+                  <div className="flex flex-col gap-1 rounded-lg border border-stone-800/80 bg-stone-900/60 p-2 text-[9.5px] leading-tight">
+                    <div className="text-[9px] font-bold uppercase tracking-wider text-amber-300/90 flex items-center gap-1 mb-0.5">
                       <CheckCircle2 className="h-2.5 w-2.5 text-emerald-400" />
                       Active Power (+{currentLevel})
                     </div>
                     
-                    <div className="flex-1 min-h-0 overflow-hidden text-[9.5px] leading-tight space-y-1">
-                      <div className="text-stone-200 line-clamp-2">
-                        <span className="font-semibold text-amber-200">Base: </span>
-                        {selectedItem.effectDescription}
-                      </div>
-
-                      {unlockedMilestones.length > 0 && (
-                        <div className="pt-0.5 border-t border-stone-800/60 space-y-0.5">
-                          <span className="text-[7.5px] font-bold uppercase tracking-wider text-emerald-400 block">
-                            Milestones ({unlockedMilestones.length}):
-                          </span>
-                          <div className="flex flex-wrap gap-0.5">
-                            {unlockedMilestones.map((m) => (
-                              <span
-                                key={m.level}
-                                className="text-[8px] font-semibold text-stone-300 bg-stone-950/80 px-1 py-0.2 rounded border border-emerald-500/30 truncate max-w-full"
-                                title={`${m.title}: ${m.description}`}
-                              >
-                                <span className="font-mono-num text-emerald-400">+{m.level}</span> {m.title}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
+                    <div className="text-stone-200">
+                      <span className="font-semibold text-amber-200">Base: </span>
+                      {selectedItem.effectDescription}
                     </div>
+
+                    {unlockedMilestones.length > 0 && (
+                      <div className="pt-1 mt-0.5 border-t border-stone-800/70 space-y-0.5">
+                        <span className="text-[7.5px] font-bold uppercase tracking-wider text-emerald-400 block">
+                          Milestones ({unlockedMilestones.length}):
+                        </span>
+                        <div className="flex flex-wrap gap-0.5">
+                          {unlockedMilestones.map((m) => (
+                            <span
+                              key={m.level}
+                              className="text-[8px] font-semibold text-stone-300 bg-stone-950/80 px-1 py-0.2 rounded border border-emerald-500/30 truncate max-w-full"
+                              title={`${m.title}: ${m.description}`}
+                            >
+                              <span className="font-mono-num text-emerald-400">+{m.level}</span> {m.title}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Next Upgrade Box */}
-                  <div className="flex flex-col justify-between rounded-lg border border-orange-500/30 bg-orange-950/20 p-1.5 min-h-0 overflow-hidden">
-                    <div className="text-[9px] font-bold uppercase tracking-wider text-orange-300 flex items-center justify-between shrink-0 mb-1">
+                  <div className="flex flex-col gap-1 rounded-lg border border-orange-500/30 bg-orange-950/25 p-2 text-[9.5px] leading-tight">
+                    <div className="text-[9px] font-bold uppercase tracking-wider text-orange-300 flex items-center justify-between mb-0.5">
                       <span className="flex items-center gap-1">
                         <Flame className="h-2.5 w-2.5 text-orange-400" />
                         Next Level (+{currentLevel + 1})
@@ -500,28 +555,26 @@ export function BlacksmithModal({
                       )}
                     </div>
 
-                    <div className="flex-1 min-h-0 overflow-hidden text-[9.5px] leading-tight">
-                      {nextMilestoneDef ? (
-                        <div className="p-1 rounded border border-amber-500/40 bg-amber-950/40 text-amber-100">
-                          <span className="font-bold text-amber-300 text-[8.5px] block">
-                            ✦ UNLOCKS MILESTONE (+{nextMilestoneDef.level}):
-                          </span>
-                          <span className="font-semibold text-amber-200">{nextMilestoneDef.title}</span> –{' '}
-                          <span className="text-stone-300 line-clamp-2">{nextMilestoneDef.description}</span>
-                        </div>
-                      ) : (
-                        <div className="p-1 text-stone-300 space-y-0.5">
-                          <p className="font-semibold text-amber-200">
-                            Strengthens base combat scaling & power (+6%).
+                    {nextMilestoneDef ? (
+                      <div className="p-1 rounded border border-amber-500/40 bg-amber-950/40 text-amber-100">
+                        <span className="font-bold text-amber-300 text-[8.5px] block">
+                          ✦ UNLOCKS MILESTONE (+{nextMilestoneDef.level}):
+                        </span>
+                        <span className="font-semibold text-amber-200">{nextMilestoneDef.title}</span> –{' '}
+                        <span className="text-stone-300">{nextMilestoneDef.description}</span>
+                      </div>
+                    ) : (
+                      <div className="space-y-0.5 text-stone-300">
+                        <p className="font-semibold text-amber-200">
+                          Strengthens base combat scaling & power (+6%).
+                        </p>
+                        {futureMilestone && (
+                          <p className="text-[8.5px] text-stone-400">
+                            Next milestone perk unlocks at +{futureMilestone.level} ({futureMilestone.title}).
                           </p>
-                          {futureMilestone && (
-                            <p className="text-[8.5px] text-stone-400">
-                              Next milestone perk unlocks at +{futureMilestone.level} ({futureMilestone.title}).
-                            </p>
-                          )}
-                        </div>
-                      )}
-                    </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                 </div>

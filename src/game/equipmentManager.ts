@@ -154,7 +154,26 @@ export class EquipmentManager {
       if (typeof localStorage === 'undefined') {
         return;
       }
-      // 1. Inventory loading with backward compatibility
+      // 1. Clean starter equipment purge before entering the dungeon.
+      // Equipment drops exclusively from Corrupted Hero bosses inside dungeons.
+      const CLEAN_START_V6_KEY = 'bonehearth_clean_start_v6';
+      if (localStorage.getItem(CLEAN_START_V6_KEY) !== 'true') {
+        localStorage.removeItem(INVENTORY_STORAGE_KEY);
+        localStorage.removeItem(LEGACY_INVENTORY_KEY);
+        localStorage.removeItem(EQUIPPED_STORAGE_KEY);
+        localStorage.removeItem(LEGACY_EQUIPPED_KEY);
+        localStorage.removeItem(ENHANCEMENT_STORAGE_KEY);
+        this.ownedEquipmentIds.clear();
+        for (const h of ALL_HERO_IDS) {
+          this.equippedByHero[h] = createDefaultLoadout();
+        }
+        this.enhancementLevels = {};
+        localStorage.setItem(CLEAN_START_V6_KEY, 'true');
+        this.saveToStorage();
+        return;
+      }
+
+      // 2. Inventory loading with backward compatibility
       let invRaw = localStorage.getItem(INVENTORY_STORAGE_KEY);
       if (!invRaw) {
         invRaw = localStorage.getItem(LEGACY_INVENTORY_KEY);
@@ -164,15 +183,6 @@ export class EquipmentManager {
         if (Array.isArray(parsed)) {
           this.ownedEquipmentIds = new Set(parsed.filter((id) => EQUIPMENT_BY_ID[id]));
         }
-      }
-
-      // Starting inventory is empty before entering the dungeon.
-      // Equipment drops exclusively from Corrupted Hero bosses inside dungeons.
-      const STARTER_PURGE_KEY = 'bonehearth_starter_items_removed_v3';
-      if (localStorage.getItem(STARTER_PURGE_KEY) !== 'true') {
-        this.ownedEquipmentIds.delete('bonebreaker_emblem');
-        this.ownedEquipmentIds.delete('scrappers_gloves');
-        localStorage.setItem(STARTER_PURGE_KEY, 'true');
       }
 
       // 2. Enhancement levels loading
@@ -361,8 +371,10 @@ export class EquipmentManager {
   public equipItem(heroId: HeroId, itemId: string): boolean {
     const item = EQUIPMENT_BY_ID[itemId];
     if (!item) return false;
-    // Auto-grant ownership if equipping
-    this.ownedEquipmentIds.add(itemId);
+    // Equipment must be owned (dropped from dungeon bosses) to be equipped
+    if (!this.ownedEquipmentIds.has(itemId)) {
+      return false;
+    }
 
     if (!this.equippedByHero[heroId]) {
       this.equippedByHero[heroId] = createDefaultLoadout();
