@@ -184,6 +184,7 @@ export function renderGameWorld(
   drawSpectralRifts(ctx, spectralRifts, cullLeft, cullRight, cullTop, cullBottom, time);
   drawGroundEffects(ctx, groundEffects, cullLeft, cullRight, cullTop, cullBottom, time);
   drawDelayedClawMarks(ctx, delayedClawMarks, cullLeft, cullRight, cullTop, cullBottom, time);
+  drawHollowConductorMechanics(ctx, enemies, time);
 
   // 4. Lingering Volumetric Toxic Plague Clouds (Zombie Plague Burst)
   for (let i = 0; i < toxicClouds.length; i++) {
@@ -297,6 +298,8 @@ export function renderGameWorld(
       drawChibiEaglekinBody(ctx, ghost.x, ghost.y, player.facing, 0, gScale, true);
     } else if (player.heroId === 'tigerkin') {
       drawChibiTigerkinBody(ctx, ghost.x, ghost.y, player.facing, 0, gScale, true, (player.kingOfBeastsTimer || 0) > 0);
+    } else if (player.heroId === 'batkin') {
+      drawChibiBatkinBody(ctx, ghost.x, ghost.y, player.facing, 0, gScale, true);
     } else {
       drawChibiSkeletonBody(ctx, ghost.x, ghost.y, player.facing, 0, gScale, '#67e8f9', true);
     }
@@ -5001,7 +5004,8 @@ function drawHeroAndEffects(ctx: CanvasRenderingContext2D, player: PlayerRenderS
       player.airborneHeight || 0,
       player.attackLunge,
       player.attackTwist,
-      player.attackSquash
+      player.attackSquash,
+      player.resonanceStacks || 0
     );
   } else {
     drawChibiSkeletonBody(
@@ -5693,7 +5697,8 @@ function drawChibiBatkinBody(
   airborneHeight = 0,
   attackLunge = 0,
   attackTwist = 0,
-  attackSquash = 0
+  attackSquash = 0,
+  resonanceStacks = 0
 ) {
   ctx.save();
   ctx.translate(x, y - airborneHeight);
@@ -6024,18 +6029,46 @@ function drawChibiBatkinBody(
   ctx.closePath();
   ctx.fill();
 
-  // Orbiting resonance crystal motes around crown
+  // Orbiting resonance crystal motes around crown (visibly reflects Harmonic Amplification stacks!)
   if (!isAfterimage) {
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    for (let c = 0; c < 3; c++) {
-      const cAng = nowSec * 2.8 + (c * Math.PI * 2) / 3;
-      const cx = Math.cos(cAng) * 19;
+    const numCrystals = isCorruptedBoss ? 5 : resonanceStacks > 0 ? resonanceStacks : 1;
+    const isMax = isCorruptedBoss || resonanceStacks >= 5;
+    for (let c = 0; c < numCrystals; c++) {
+      const cAng = nowSec * (isMax ? 4.2 : 2.8) + (c * Math.PI * 2) / Math.max(1, numCrystals);
+      const cx = Math.cos(cAng) * (isMax ? 21 : 19);
       const cy = -8 + Math.sin(cAng * 1.5) * 6;
-      ctx.fillStyle = '#e9d5ff';
+      ctx.fillStyle = isMax ? '#fdf4ff' : '#e9d5ff';
+      // Draw diamond crystal
       ctx.beginPath();
-      ctx.arc(cx, cy, 1.6, 0, Math.PI * 2);
+      ctx.moveTo(cx, cy - 3.2);
+      ctx.lineTo(cx + 2.2, cy);
+      ctx.lineTo(cx, cy + 3.2);
+      ctx.lineTo(cx - 2.2, cy);
+      ctx.closePath();
       ctx.fill();
+
+      // Crystal glow
+      ctx.strokeStyle = isMax ? 'rgba(233, 213, 255, 0.9)' : 'rgba(192, 132, 252, 0.6)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
+    // If at Max Resonance, draw shimmering harmonic resonance arcs between crystals
+    if (isMax && numCrystals > 1) {
+      ctx.strokeStyle = 'rgba(243, 232, 255, 0.45)';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      for (let c = 0; c < numCrystals; c++) {
+        const cAng = nowSec * 4.2 + (c * Math.PI * 2) / numCrystals;
+        const cx = Math.cos(cAng) * 21;
+        const cy = -8 + Math.sin(cAng * 1.5) * 6;
+        if (c === 0) ctx.moveTo(cx, cy);
+        else ctx.lineTo(cx, cy);
+      }
+      ctx.closePath();
+      ctx.stroke();
     }
     ctx.restore();
   }
@@ -7175,6 +7208,14 @@ function drawFloatingHeroWeapon(ctx: CanvasRenderingContext2D, player: PlayerRen
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
+  } else if (player.heroId === 'batkin') {
+    drawFloatingResonanceStaff(
+      ctx,
+      player.swordGlowColor || '#c084fc',
+      player.swordGlowIntensity || 1.0,
+      (player.resonanceStacks || 0) >= 5,
+      time
+    );
   } else {
     // Floating Sharpened Bone Sword
     ctx.fillStyle = '#e7e5e4';
@@ -7839,6 +7880,10 @@ function drawEnemy(
       eyeColor = '#f43f5e';
       scarfColor = '#881337';
       crown = null;
+    } else if (e.kind === EnemyKind.BOSS_LEGION_BATKIN) {
+      eyeColor = '#c084fc';
+      scarfColor = '#3b0764';
+      crown = '#a855f7';
     } else {
       eyeColor = '#5eead4';
       scarfColor = '#312e81';
@@ -8005,7 +8050,9 @@ function drawEnemy(
           ? `rgba(244, 63, 94, ${bossGlow})`
           : e.kind === EnemyKind.BOSS_LEGION_GHOST
             ? `rgba(94, 234, 212, ${bossGlow})`
-            : `rgba(103, 232, 249, ${bossGlow})`;
+            : e.kind === EnemyKind.BOSS_LEGION_BATKIN
+              ? `rgba(192, 132, 252, ${bossGlow})`
+              : `rgba(103, 232, 249, ${bossGlow})`;
     ctx.lineWidth = 2.6;
     const br = 30 * scale;
     ctx.beginPath();
@@ -8222,6 +8269,32 @@ function drawEnemy(
       0,
       0
     );
+  } else if (e.kind === EnemyKind.BOSS_LEGION_BATKIN) {
+    drawChibiBatkinBody(
+      ctx,
+      drawX + fearShakeX,
+      drawY,
+      aimAng,
+      e.walkPhase,
+      scale,
+      false,
+      true, // isCorruptedBoss
+      e.hitFlash,
+      e.airborneHeight || 0,
+      0,
+      0,
+      0,
+      5
+    );
+  } else if (e.kind === EnemyKind.SHATTERED_BELL) {
+    drawShatteredBell(ctx, drawX, drawY, e, time);
+    return;
+  } else if (e.kind === EnemyKind.HOLLOW_CHOIR_MEMBER) {
+    drawHollowChoirMember(ctx, drawX, drawY, e, time);
+    return;
+  } else if (e.kind === EnemyKind.REQUIEM_PILLAR) {
+    drawRequiemPillarEnemy(ctx, drawX, drawY, e, time);
+    return;
   } else {
     const isLegionOrMiniSkel =
       e.kind === EnemyKind.BOSS_LEGION_SKELETON || e.kind === EnemyKind.MINI_SKELETON;
@@ -9056,6 +9129,31 @@ function drawEnemy(
       ctx.stroke();
     }
     ctx.restore();
+  } else if (e.kind === EnemyKind.BOSS_LEGION_BATKIN) {
+    // Corrupted Batkin Boss: The Hollow Conductor's Corrupted Resonance Staff
+    glowColor = '#a855f7';
+    if (isWindingUp) {
+      const cockAng = aimAng - 1.45 * windProg - 0.4;
+      wx = drawX + Math.cos(cockAng) * (26 * scale);
+      wy = drawY - 9 * scale + Math.sin(cockAng) * (16 * scale);
+      wRot = cockAng;
+      wScale = scale * 1.15;
+      glowAlpha = windProg * 0.75;
+    } else if (isStriking) {
+      const sweep = -1.7 + strikeEase * 3.4;
+      const orb = aimAng + sweep;
+      wx = drawX + Math.cos(orb) * (32 * scale);
+      wy = drawY - 8 * scale + Math.sin(orb) * (20 * scale);
+      wRot = orb;
+      wScale = scale * 1.25;
+      glowAlpha = (1 - strikeProg) * 0.8;
+    }
+    ctx.save();
+    ctx.translate(wx, wy);
+    ctx.rotate(wRot);
+    ctx.scale(wScale, wScale);
+    drawFloatingResonanceStaff(ctx, '#c084fc', 1.4, true, time);
+    ctx.restore();
   } else if (e.kind === EnemyKind.MINI_SKELETON || e.kind === EnemyKind.BOSS_LEGION_SKELETON) {
     // Skeleton Mini & Corrupted Skeleton Boss: Exact Original Floating Sharpened Bone Sword (+ Reaper's Judgment Scythe!)
     const isScythe = e.kind === EnemyKind.BOSS_LEGION_SKELETON && (e.bossScytheTimer || 0) > 0;
@@ -9343,6 +9441,422 @@ function drawEnemy(
     ctx.arc(0, 0, 3, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
+  }
+}
+
+function drawShatteredBell(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  e: EnemyEntity,
+  time: number
+) {
+  ctx.save();
+  const bob = Math.sin(time * 3.5 + e.id) * 3;
+  ctx.translate(x, y + bob);
+
+  // Ground shadow
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+  ctx.beginPath();
+  ctx.ellipse(0, 16 - bob, 15, 6, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Floating dark bronze obsidian bell body
+  ctx.fillStyle = e.hitFlash > 0 ? '#ffffff' : '#2e1065';
+  ctx.strokeStyle = '#a855f7';
+  ctx.lineWidth = 2.2;
+  ctx.beginPath();
+  ctx.moveTo(0, -18);
+  ctx.quadraticCurveTo(12, -10, 14, 6);
+  ctx.quadraticCurveTo(16, 12, 17, 13);
+  ctx.lineTo(-17, 13);
+  ctx.quadraticCurveTo(-16, 12, -14, 6);
+  ctx.quadraticCurveTo(-12, -10, 0, -18);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // Jagged luminous purple cracks
+  ctx.strokeStyle = '#e9d5ff';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(-2, -12); ctx.lineTo(4, -4); ctx.lineTo(-1, 4); ctx.lineTo(6, 12);
+  ctx.stroke();
+
+  // Bell clapper
+  ctx.fillStyle = '#f3e8ff';
+  ctx.beginPath();
+  ctx.arc(Math.sin(time * 4) * 3, 14, 3.2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Expanding sound shockwave ring when winding up / attacking
+  if (e.windupTimer > 0) {
+    ctx.strokeStyle = `rgba(192, 132, 252, ${0.4 + Math.sin(time * 12) * 0.3})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, 10, 24 + (1 - e.windupTimer / 1.5) * 16, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+
+  // Overhead HP bar & Label
+  const hpPct = Math.max(0, Math.min(1, e.hp / e.maxHp));
+  ctx.save();
+  ctx.translate(x, y - 28);
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+  ctx.fillRect(-16, 0, 32, 4);
+  ctx.fillStyle = '#c084fc';
+  ctx.fillRect(-16, 0, 32 * hpPct, 4);
+  ctx.strokeStyle = '#1e1b4b';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(-16, 0, 32, 4);
+  drawWorldLabel(ctx, 0, -6, 'Shattered Bell', '#e9d5ff');
+  ctx.restore();
+}
+
+function drawHollowChoirMember(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  e: EnemyEntity,
+  time: number
+) {
+  ctx.save();
+  const bob = Math.sin(time * 3 + e.id) * 3.5;
+  ctx.translate(x, y + bob);
+
+  // Ghostly floor shadow
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
+  ctx.beginPath();
+  ctx.ellipse(0, 15 - bob, 14, 5.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Translucent ghostly purple choir robe
+  ctx.fillStyle = e.hitFlash > 0 ? '#ffffff' : 'rgba(88, 28, 135, 0.85)';
+  ctx.strokeStyle = '#c084fc';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, -18);
+  ctx.quadraticCurveTo(13, -12, 11, 4);
+  ctx.quadraticCurveTo(8, 13, 0, 16);
+  ctx.quadraticCurveTo(-8, 13, -11, 4);
+  ctx.quadraticCurveTo(-13, -12, 0, -18);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // Chibi hooded face with glowing violet eyes & choir mouth
+  ctx.fillStyle = '#1e1b4b';
+  ctx.beginPath();
+  ctx.ellipse(0, -9, 7.5, 6, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#e9d5ff';
+  ctx.beginPath();
+  ctx.arc(-2.5, -10, 1.4, 0, Math.PI * 2);
+  ctx.arc(2.5, -10, 1.4, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Chanting open mouth
+  ctx.fillStyle = '#a855f7';
+  ctx.beginPath();
+  ctx.ellipse(0, -6.5, 1.8, 2.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Musical / sound aura rising from choir member
+  ctx.strokeStyle = 'rgba(216, 180, 254, 0.6)';
+  ctx.lineWidth = 1.4;
+  for (let s = 0; s < 2; s++) {
+    const sw = (time * 2 + s * 1.5) % 3;
+    ctx.beginPath();
+    ctx.arc(0, -8 - sw * 10, 10 + sw * 5, -Math.PI * 0.7, -Math.PI * 0.3);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+
+  // Overhead HP bar & Label
+  const hpPct = Math.max(0, Math.min(1, e.hp / e.maxHp));
+  ctx.save();
+  ctx.translate(x, y - 26);
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+  ctx.fillRect(-18, 0, 36, 4.5);
+  ctx.fillStyle = '#f43f5e';
+  ctx.fillRect(-18, 0, 36 * hpPct, 4.5);
+  ctx.strokeStyle = '#1e1b4b';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(-18, 0, 36, 4.5);
+  drawWorldLabel(ctx, 0, -6, 'Hollow Choir', '#fca5a5');
+  ctx.restore();
+}
+
+function drawRequiemPillarEnemy(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  e: EnemyEntity,
+  time: number
+) {
+  ctx.save();
+  ctx.translate(x, y);
+
+  // Base stone shadow & crater
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+  ctx.beginPath();
+  ctx.ellipse(0, 6, 20, 8, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Tall obsidian resonance pillar
+  ctx.fillStyle = e.hitFlash > 0 ? '#ffffff' : '#1e1b4b';
+  ctx.strokeStyle = '#a855f7';
+  ctx.lineWidth = 2.4;
+  ctx.beginPath();
+  ctx.moveTo(-12, 4);
+  ctx.lineTo(-8, -36);
+  ctx.lineTo(0, -44);
+  ctx.lineTo(8, -36);
+  ctx.lineTo(12, 4);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // Central glowing resonance crystal facet
+  ctx.fillStyle = '#c084fc';
+  ctx.beginPath();
+  ctx.moveTo(0, -38);
+  ctx.lineTo(5, -20);
+  ctx.lineTo(0, -6);
+  ctx.lineTo(-5, -20);
+  ctx.closePath();
+  ctx.fill();
+
+  // Pulsing sound vibration wave
+  const pulse = Math.sin(time * 6 + e.id) * 3;
+  ctx.strokeStyle = `rgba(233, 213, 255, ${0.45 + pulse * 0.1})`;
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.ellipse(0, -20, 14 + pulse, 6, 0, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function drawHollowConductorMechanics(
+  ctx: CanvasRenderingContext2D,
+  enemies: EnemyEntity[],
+  time: number
+) {
+  for (let i = 0; i < enemies.length; i++) {
+    const e = enemies[i];
+    if (e.hp <= 0) continue;
+
+    // 1. Silence Zones
+    if (e.silenceZones && e.silenceZones.length > 0) {
+      for (let s = 0; s < e.silenceZones.length; s++) {
+        const sz = e.silenceZones[s];
+        if (!sz.active) continue;
+        ctx.save();
+        ctx.translate(sz.x, sz.y);
+
+        // Dark swirling void radius
+        const voidGrad = ctx.createRadialGradient(0, 0, 4, 0, 0, sz.radius);
+        voidGrad.addColorStop(0, 'rgba(15, 6, 32, 0.82)');
+        voidGrad.addColorStop(0.7, 'rgba(59, 7, 100, 0.42)');
+        voidGrad.addColorStop(1, 'rgba(147, 51, 234, 0)');
+        ctx.fillStyle = voidGrad;
+        ctx.beginPath();
+        ctx.arc(0, 0, sz.radius, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Outer boundary silencing ripple
+        ctx.strokeStyle = 'rgba(192, 132, 252, 0.72)';
+        ctx.lineWidth = 2.2;
+        ctx.setLineDash([8, 6]);
+        ctx.beginPath();
+        ctx.arc(0, 0, sz.radius, time * 0.8, time * 0.8 + Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Central Crossed Mute Runes
+        ctx.strokeStyle = 'rgba(233, 213, 255, 0.65)';
+        ctx.lineWidth = 2.0;
+        ctx.beginPath();
+        ctx.arc(0, 0, 18, 0, Math.PI * 2);
+        ctx.moveTo(-13, -13);
+        ctx.lineTo(13, 13);
+        ctx.stroke();
+
+        ctx.font = 'bold 10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#e9d5ff';
+        ctx.fillText('SILENCE ZONE', 0, 32);
+
+        ctx.restore();
+      }
+    }
+
+    // 2. Dissonant Chains
+    if (e.dissonantChains && e.dissonantChains.length > 0) {
+      for (let c = 0; c < e.dissonantChains.length; c++) {
+        const ch = e.dissonantChains[c];
+        if (!ch.active) continue;
+
+        if (ch.isTelegraph) {
+          // Warning dashed telegraph line
+          ctx.save();
+          const flash = Math.sin(time * 16) * 0.35 + 0.55;
+          ctx.strokeStyle = `rgba(244, 63, 94, ${flash})`;
+          ctx.lineWidth = 2.5;
+          ctx.setLineDash([10, 6]);
+          ctx.beginPath();
+          ctx.moveTo(ch.x1, ch.y1);
+          ctx.lineTo(ch.x2, ch.y2);
+          ctx.stroke();
+
+          // Node diamonds
+          ctx.setLineDash([]);
+          ctx.fillStyle = '#f43f5e';
+          for (const [nx, ny] of [[ch.x1, ch.y1], [ch.x2, ch.y2]]) {
+            ctx.beginPath();
+            ctx.arc(nx, ny, 6, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.restore();
+        } else {
+          // Active crackling resonance laser beam
+          ctx.save();
+          ctx.globalCompositeOperation = 'lighter';
+
+          // Outer resonant glow
+          ctx.strokeStyle = 'rgba(192, 132, 252, 0.7)';
+          ctx.lineWidth = 10;
+          ctx.beginPath();
+          ctx.moveTo(ch.x1, ch.y1);
+          ctx.lineTo(ch.x2, ch.y2);
+          ctx.stroke();
+
+          // Core hot laser
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 3.5;
+          ctx.beginPath();
+          ctx.moveTo(ch.x1, ch.y1);
+          ctx.lineTo(ch.x2, ch.y2);
+          ctx.stroke();
+
+          // Crackling jagged sparks along laser
+          ctx.strokeStyle = '#f5d0fe';
+          ctx.lineWidth = 1.6;
+          const segs = 6;
+          ctx.beginPath();
+          for (let s = 0; s <= segs; s++) {
+            const u = s / segs;
+            const sx = ch.x1 + (ch.x2 - ch.x1) * u;
+            const sy = ch.y1 + (ch.y2 - ch.y1) * u;
+            const jx = s > 0 && s < segs ? (Math.random() - 0.5) * 8 : 0;
+            const jy = s > 0 && s < segs ? (Math.random() - 0.5) * 8 : 0;
+            if (s === 0) ctx.moveTo(sx, sy);
+            else ctx.lineTo(sx + jx, sy + jy);
+          }
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+    }
+
+    // 3. Requiem Pillars shockwaves
+    if (e.requiemPillars && e.requiemPillars.length > 0) {
+      for (let p = 0; p < e.requiemPillars.length; p++) {
+        const pil = e.requiemPillars[p];
+        if (!pil.active) continue;
+        if (pil.isPulsing) {
+          ctx.save();
+          ctx.globalCompositeOperation = 'lighter';
+          const waveRadius = pil.pulseRadius || 110;
+          const waveGrad = ctx.createRadialGradient(pil.x, pil.y, 10, pil.x, pil.y, waveRadius);
+          waveGrad.addColorStop(0, 'rgba(192, 132, 252, 0.4)');
+          waveGrad.addColorStop(0.8, 'rgba(168, 85, 247, 0.6)');
+          waveGrad.addColorStop(1, 'rgba(147, 51, 234, 0)');
+          ctx.fillStyle = waveGrad;
+          ctx.beginPath();
+          ctx.arc(pil.x, pil.y, waveRadius, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.arc(pil.x, pil.y, waveRadius * 0.95, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+    }
+
+    // 4. Collapse of the Hollow Choir (Sanctuary Safe Zone & Choir Channeling Beams)
+    if (e.hollowChoir && e.hollowChoir.phase === 'channeling') {
+      const hc = e.hollowChoir;
+      // Sanctuary Floor Safe Zone
+      ctx.save();
+      ctx.translate(hc.sanctuaryX, hc.sanctuaryY);
+
+      // Protective radiant aura
+      const safeGrad = ctx.createRadialGradient(0, 0, 10, 0, 0, hc.sanctuaryRadius);
+      safeGrad.addColorStop(0, 'rgba(52, 211, 153, 0.35)');
+      safeGrad.addColorStop(0.7, 'rgba(16, 185, 129, 0.2)');
+      safeGrad.addColorStop(1, 'rgba(5, 150, 105, 0)');
+      ctx.fillStyle = safeGrad;
+      ctx.beginPath();
+      ctx.arc(0, 0, hc.sanctuaryRadius, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Glowing protective boundary
+      ctx.strokeStyle = '#34d399';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(0, 0, hc.sanctuaryRadius, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Rotating protective runes
+      ctx.save();
+      ctx.rotate(time * 0.7);
+      ctx.strokeStyle = 'rgba(167, 243, 208, 0.65)';
+      ctx.lineWidth = 1.6;
+      ctx.setLineDash([12, 8]);
+      ctx.beginPath();
+      ctx.arc(0, 0, hc.sanctuaryRadius - 8, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+
+      ctx.font = 'bold 12px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#6ee7b7';
+      ctx.fillText('SANCTUARY SAFE ZONE', 0, 5);
+
+      ctx.restore();
+
+      // Channeling beams from each HOLLOW_CHOIR_MEMBER to the boss!
+      for (let m = 0; m < enemies.length; m++) {
+        const choir = enemies[m];
+        if (choir.hp > 0 && choir.kind === EnemyKind.HOLLOW_CHOIR_MEMBER) {
+          ctx.save();
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.strokeStyle = 'rgba(192, 132, 252, 0.65)';
+          ctx.lineWidth = 4;
+          ctx.beginPath();
+          ctx.moveTo(choir.x, choir.y - 12);
+          ctx.lineTo(e.x, e.y - 20);
+          ctx.stroke();
+
+          ctx.strokeStyle = '#f3e8ff';
+          ctx.lineWidth = 1.6;
+          ctx.beginPath();
+          ctx.moveTo(choir.x, choir.y - 12);
+          ctx.lineTo(e.x, e.y - 20);
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+    }
   }
 }
 
@@ -10024,6 +10538,171 @@ function drawProjectile(ctx: CanvasRenderingContext2D, p: Projectile, time: numb
       ctx.quadraticCurveTo(-45, trailY + Math.sin(time * 8 + w) * 6, -75 - w * 8, trailY - 2);
       ctx.stroke();
     }
+    ctx.restore();
+  } else if (p.kind === 'echo_bolt') {
+    // Batkin Basic Attack (Echo Bolt): Concentrated sphere of sonic energy with expanding sound ripples
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const boltGrad = ctx.createRadialGradient(0, 0, 1, 0, 0, p.radius + 6);
+    boltGrad.addColorStop(0, '#f5d0fe');
+    boltGrad.addColorStop(0.5, '#c084fc');
+    boltGrad.addColorStop(1, 'rgba(168, 85, 247, 0)');
+    ctx.fillStyle = boltGrad;
+    ctx.beginPath();
+    ctx.arc(0, 0, p.radius + 6, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Concentric sound vibration rings
+    ctx.strokeStyle = '#e9d5ff';
+    ctx.lineWidth = 1.6;
+    for (let r = 0; r < 2; r++) {
+      const rOffset = -r * 7;
+      ctx.beginPath();
+      ctx.arc(rOffset, 0, p.radius * (0.8 + r * 0.4), -Math.PI * 0.6, Math.PI * 0.6);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(0, 0, p.radius * 0.65, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (p.kind === 'resonance_breaker') {
+    // Batkin Enhanced Attack (Resonance Breaker): High-frequency piercing sonic lance
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const waveGrad = ctx.createLinearGradient(-p.radius * 2, 0, p.radius * 2, 0);
+    waveGrad.addColorStop(0, 'rgba(192, 132, 252, 0)');
+    waveGrad.addColorStop(0.3, '#c084fc');
+    waveGrad.addColorStop(0.7, '#f5d0fe');
+    waveGrad.addColorStop(1, '#ffffff');
+    ctx.fillStyle = waveGrad;
+    ctx.beginPath();
+    ctx.moveTo(p.radius * 2.2, 0);
+    ctx.lineTo(-p.radius * 1.6, -p.radius * 0.85);
+    ctx.lineTo(-p.radius * 0.8, 0);
+    ctx.lineTo(-p.radius * 1.6, p.radius * 0.85);
+    ctx.closePath();
+    ctx.fill();
+
+    // Lateral harmonic sound ripples
+    ctx.strokeStyle = '#e9d5ff';
+    ctx.lineWidth = 2.2;
+    for (let w = -1; w <= 1; w += 2) {
+      ctx.beginPath();
+      ctx.arc(0, w * 5, p.radius * 1.2, -Math.PI * 0.35, Math.PI * 0.35);
+      ctx.stroke();
+    }
+    ctx.restore();
+  } else if (p.kind === 'sonic_crescent_wave') {
+    // Batkin Skill 1 (Sonic Crescent): Crescent sound wave slicing forward
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const waveGrad = ctx.createRadialGradient(0, 0, 4, 0, 0, p.radius * 1.5);
+    waveGrad.addColorStop(0, '#f5d0fe');
+    waveGrad.addColorStop(0.5, '#a855f7');
+    waveGrad.addColorStop(1, 'rgba(147, 51, 234, 0)');
+    ctx.fillStyle = waveGrad;
+    ctx.beginPath();
+    ctx.arc(0, 0, p.radius * 1.4, -Math.PI * 0.44, Math.PI * 0.44);
+    ctx.arc(-p.radius * 0.6, 0, p.radius * 0.9, Math.PI * 0.44, -Math.PI * 0.44, true);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2.8;
+    ctx.beginPath();
+    ctx.arc(0, 0, p.radius * 1.35, -Math.PI * 0.42, Math.PI * 0.42);
+    ctx.stroke();
+    ctx.restore();
+  } else if (p.kind === 'echoing_sound_orb') {
+    // Batkin Skill 2 (Echoing Orb): Floating compressed sound orb
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const orbGrad = ctx.createRadialGradient(0, 0, 2, 0, 0, p.radius * 1.4);
+    orbGrad.addColorStop(0, '#ffffff');
+    orbGrad.addColorStop(0.4, '#d8b4fe');
+    orbGrad.addColorStop(0.8, '#9333ea');
+    orbGrad.addColorStop(1, 'rgba(147, 51, 234, 0)');
+    ctx.fillStyle = orbGrad;
+    ctx.beginPath();
+    ctx.arc(0, 0, p.radius * 1.3, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Rotating nested harmonic rings
+    ctx.strokeStyle = '#f3e8ff';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, p.radius * 1.1, p.radius * 0.4, time * 5, 0, Math.PI * 2);
+    ctx.ellipse(0, 0, p.radius * 1.1, p.radius * 0.4, -time * 5, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  } else if (p.kind === 'phantom_sonic_bolt') {
+    // Batkin Skill 4 (Phantom Frequency Bolt): Spectral purple dart
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = '#c084fc';
+    ctx.beginPath();
+    ctx.arc(0, 0, p.radius + 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(0, 0, p.radius * 0.6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  } else if (p.kind === 'spectral_bat') {
+    // Batkin Ultimate 3 (Thousand-Winged Resonance): Spectral bat made of sonic energy!
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const flap = Math.sin(time * 26 + p.id) * 6;
+    ctx.fillStyle = 'rgba(192, 132, 252, 0.85)';
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.5;
+
+    // Chibi spectral bat body & wings
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 6, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Wings
+    ctx.beginPath();
+    ctx.moveTo(3, -2);
+    ctx.quadraticCurveTo(10, -12 + flap, 16, -4 + flap * 0.5);
+    ctx.quadraticCurveTo(11, -1, 3, 1);
+    ctx.quadraticCurveTo(10, 12 - flap, 16, 4 - flap * 0.5);
+    ctx.quadraticCurveTo(11, 1, 3, -2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Piercing sonic eyes
+    ctx.fillStyle = '#fef08a';
+    ctx.beginPath();
+    ctx.arc(4, -1.5, 1.2, 0, Math.PI * 2);
+    ctx.arc(4, 1.5, 1.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  } else if (p.kind === 'dissonant_bolt') {
+    // Boss Hollow Conductor Basic Attack: Discordant dark-purple sound needle
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.strokeStyle = '#e11d48';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.arc(0, 0, p.radius + 4, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.fillStyle = '#701a75';
+    ctx.strokeStyle = '#f43f5e';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(14, 0);
+    ctx.lineTo(-10, -4);
+    ctx.lineTo(-6, 0);
+    ctx.lineTo(-10, 4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
     ctx.restore();
   } else if (p.kind === 'enemy_fireball') {
     // Molten Elite fireball projectile

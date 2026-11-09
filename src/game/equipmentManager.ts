@@ -486,6 +486,15 @@ export class EquipmentManager {
     return counts[collectionId] >= 6;
   }
 
+  public hasPieceEquipped(heroId: HeroId, itemId: string): boolean {
+    const loadout = this.equippedByHero[heroId];
+    if (!loadout) return false;
+    for (const slot of ALL_EQUIPMENT_SLOTS) {
+      if (loadout[slot] === itemId) return true;
+    }
+    return false;
+  }
+
   /**
    * Returns list of currently equipped item definitions for a hero
    */

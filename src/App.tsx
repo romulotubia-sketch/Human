@@ -964,6 +964,49 @@ export default function App() {
                 <span aria-hidden="true">·</span>
                 <span className="text-amber-300">{hud.boneShards} Shards</span>
               </div>
+
+              {/* Batkin Harmonic Resonance Indicator */}
+              {heroId === 'batkin' && (
+                <div
+                  className={`mt-1 flex items-center justify-between gap-2 rounded-lg border px-2 py-0.5 transition-all ${
+                    (hud.resonanceStacks || 0) >= 5
+                      ? 'border-purple-300 bg-gradient-to-r from-purple-900/80 via-fuchsia-900/60 to-purple-900/80 shadow-[0_0_14px_rgba(192,132,252,0.7)] animate-pulse'
+                      : 'border-purple-950/80 bg-stone-900/60'
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <Sparkles
+                      className={`h-3 w-3 ${
+                        (hud.resonanceStacks || 0) >= 5 ? 'text-fuchsia-200 animate-spin' : 'text-purple-400'
+                      }`}
+                    />
+                    <span
+                      className={`text-[10px] font-bold uppercase tracking-wider ${
+                        (hud.resonanceStacks || 0) >= 5 ? 'text-fuchsia-100 font-black' : 'text-purple-300'
+                      }`}
+                    >
+                      {(hud.resonanceStacks || 0) >= 5 ? 'MAX RESONANCE · ECHO READY!' : `Resonance ${hud.resonanceStacks || 0}/5`}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {[1, 2, 3, 4, 5].map((pip) => {
+                      const filled = (hud.resonanceStacks || 0) >= pip;
+                      return (
+                        <div
+                          key={pip}
+                          className={`h-2.5 w-3.5 rounded-xs border transition-all ${
+                            filled
+                              ? (hud.resonanceStacks || 0) >= 5
+                                ? 'border-fuchsia-200 bg-fuchsia-300 shadow-[0_0_8px_#e879f9]'
+                                : 'border-purple-400 bg-purple-500 shadow-[0_0_4px_#c084fc]'
+                              : 'border-stone-800 bg-stone-950/80'
+                          }`}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
 
             {hud.bossInfo && (

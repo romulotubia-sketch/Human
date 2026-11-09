@@ -743,6 +743,7 @@ export class GameEngine {
 
   private resetBatkinTimers() {
     this.resonanceStacks = 0;
+    this.player.resonanceStacks = 0;
     this.echoDimensionTimer = 0;
     this.activeResonanceFields = [];
     this.activeSymphonyRings = [];
@@ -756,6 +757,7 @@ export class GameEngine {
     if (this.heroId !== 'batkin') return;
     const prev = this.resonanceStacks;
     this.resonanceStacks = Math.min(5, this.resonanceStacks + count);
+    this.player.resonanceStacks = this.resonanceStacks;
     if (this.resonanceStacks !== prev) {
       soundEngine.playResonancePulse(1 + this.resonanceStacks * 0.08);
       if (this.resonanceStacks >= 5) {
@@ -1096,6 +1098,7 @@ export class GameEngine {
         this.damageEnemy(e, Math.round(this.getEffectiveAtk() * 1.1), false, '#c084fc');
       }
     }
+  }
 
   private triggerEquipmentBoneShockwave() {
     soundEngine.playSkill('ultimate');
@@ -3976,6 +3979,7 @@ export class GameEngine {
     let mult = def.baseMultiplier + (rank - 1) * def.rankMultiplier + blessingDmg;
     if (this.heroId === 'batkin' && this.resonanceStacks >= 5) {
       this.resonanceStacks = 0;
+      this.player.resonanceStacks = 0;
       mult *= 1.75;
       soundEngine.playResonancePulse(1.4);
       this.spawnFloatingText(this.player.x, this.player.y - 48, 'HARMONIC AMPLIFICATION!', '#f3e8ff', true);
@@ -11228,6 +11232,8 @@ export class GameEngine {
         pt.active = false;
       }
     }
+  }
+
   private updateBatkinAbilities(dt: number) {
     if (this.echoDimensionTimer > 0) {
       this.echoDimensionTimer = Math.max(0, this.echoDimensionTimer - dt);
@@ -12154,6 +12160,27 @@ export class GameEngine {
                   });
                 }
               }
+            } else if (e.isLegionBoss && (e.legionHeroId === 'batkin' || e.kind === EnemyKind.BOSS_LEGION_BATKIN)) {
+              // The Hollow Conductor Basic Attack: Corrupted Dissonant Bolt from its resonance staff!
+              soundEngine.playSonicWave(0.95, true);
+              const staffX = e.x + Math.cos(e.windupAngle + 0.45) * 28;
+              const staffY = e.y - 12 + Math.sin(e.windupAngle + 0.45) * 20;
+              this.spawnRingEffect(staffX, staffY, 32, '#c084fc');
+              this.spawnProjectile({
+                fromPlayer: false,
+                kind: 'dissonant_bolt',
+                x: staffX,
+                y: staffY,
+                vx: Math.cos(e.windupAngle) * 320,
+                vy: Math.sin(e.windupAngle) * 320,
+                angle: e.windupAngle,
+                radius: 14,
+                damage: Math.round(enemyAtk * 1.15),
+                isCrit: false,
+                pierce: false,
+                maxLife: 2.2,
+                color: '#a855f7',
+              });
             } else {
               // Arcane spell cast
               this.spawnGroundEffect('astral_nova', e.x, e.y, 0, 0, 0, 75, 1.4, '#38bdf8', '#c084fc');
@@ -12550,6 +12577,12 @@ export class GameEngine {
     const cd = e.specialCooldowns;
     for (const k of Object.keys(cd)) {
       cd[k] = Math.max(0, cd[k] - dt);
+    }
+
+    // Route to unique Hollow Conductor boss logic
+    if (e.legionHeroId === 'batkin' || e.kind === EnemyKind.BOSS_LEGION_BATKIN) {
+      this.updateHollowConductorBoss(e, dt, dist, angToPlayer, effectiveAtk);
+      return;
     }
 
     const hero: 'skeleton' | 'zombie' | 'ghoul' | 'ghost' =
@@ -13300,6 +13333,459 @@ export class GameEngine {
     });
   }
 
+  // =========================================================================
+  // THE HOLLOW CONDUCTOR – UNIQUE CORRUPTED BATKIN BOSS MECHANICS
+  // =========================================================================
+  private distToSegment(px: number, py: number, x1: number, y1: number, x2: number, y2: number): number {
+    const l2 = (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1);
+    if (l2 === 0) return Math.hypot(px - x1, py - y1);
+    let t = ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / l2;
+    t = Math.max(0, Math.min(1, t));
+    return Math.hypot(px - (x1 + t * (x2 - x1)), py - (y1 + t * (y2 - y1)));
+  }
+
+  private updateHollowConductorBoss(
+    e: EnemyEntity,
+    dt: number,
+    dist: number,
+    angToPlayer: number,
+    enemyAtk: number
+  ) {
+    if (!e.specialCooldowns) {
+      e.specialCooldowns = {
+        shatteredBell: 3.5,
+        dissonantChain: 6.5,
+        silenceZone: 10.0,
+        requiemPillars: 14.0,
+        hollowChoir: 18.0,
+      };
+    }
+    const cd = e.specialCooldowns;
+    for (const k of Object.keys(cd)) {
+      cd[k] = Math.max(0, cd[k] - dt);
+    }
+
+    const hpRatio = e.hp / Math.max(1, e.maxHp);
+
+    if (!e.shatteredBells) e.shatteredBells = [];
+    if (!e.dissonantChains) e.dissonantChains = [];
+    if (!e.silenceZones) e.silenceZones = [];
+    if (!e.requiemPillars) e.requiemPillars = [];
+
+    // Phase Transitions:
+    // Phase 1 -> Phase 2 (<= 65% HP): Broken Symphony
+    if (hpRatio <= 0.65 && (e.bossPhase ?? 1) < 2) {
+      e.bossPhase = 2;
+      this.triggerShake(0.26, 6.5);
+      soundEngine.playBellChime(0.65);
+      soundEngine.playSonicWave(0.85, true);
+      this.spawnFloatingText(e.x, e.y - 50, 'PHASE II: BROKEN SYMPHONY!', '#c084fc', true);
+      this.spawnRingEffect(e.x, e.y, 160, '#c084fc');
+      this.spawnRingEffect(e.x, e.y, 100, '#e9d5ff');
+      e.speed = Math.round(e.speed * 1.15);
+    }
+    // Phase 2 -> Phase 3 (<= 35% HP): The Hollow Requiem
+    if (hpRatio <= 0.35 && (e.bossPhase ?? 1) < 3) {
+      e.bossPhase = 3;
+      this.triggerShake(0.38, 9.5);
+      soundEngine.playBellChime(0.5);
+      soundEngine.playSkill('ultimate');
+      this.spawnFloatingText(e.x, e.y - 52, 'PHASE III: THE HOLLOW REQUIEM!', '#ef4444', true);
+      this.spawnRingEffect(e.x, e.y, 220, '#ef4444');
+      this.spawnRingEffect(e.x, e.y, 150, '#c084fc');
+      e.speed = Math.round(e.speed * 1.12);
+    }
+
+    // Tick & Update Shattered Bells
+    for (let i = e.shatteredBells.length - 1; i >= 0; i--) {
+      const bell = e.shatteredBells[i];
+      if (!bell.active || bell.hp <= 0) {
+        e.shatteredBells.splice(i, 1);
+        continue;
+      }
+      bell.timer -= dt;
+      bell.pulseTimer -= dt;
+      if (bell.pulseTimer <= 0) {
+        bell.pulseTimer = 1.35;
+        soundEngine.playBellChime(1.1);
+        this.spawnRingEffect(bell.x, bell.y, 115, '#c084fc');
+        const dToP = Math.hypot(this.player.x - bell.x, this.player.y - bell.y);
+        if (dToP <= 115) {
+          this.damagePlayer(Math.round(enemyAtk * 0.42));
+          this.triggerShake(0.12, 3.0);
+        }
+      }
+      if (bell.timer <= 0) {
+        this.spawnBurstParticles(bell.x, bell.y, '#c084fc', 8, true);
+        e.shatteredBells.splice(i, 1);
+      }
+    }
+
+    // Tick & Update Dissonant Chains
+    for (let i = e.dissonantChains.length - 1; i >= 0; i--) {
+      const chain = e.dissonantChains[i];
+      chain.timer -= dt;
+      if (!chain.active && chain.timer <= 0) {
+        chain.active = true;
+        chain.timer = (e.bossPhase ?? 1) >= 3 ? 4.2 : 3.4;
+        soundEngine.playSonicWave(1.25, false);
+        this.spawnRingEffect(chain.x1, chain.y1, 28, '#a855f7');
+        this.spawnRingEffect(chain.x2, chain.y2, 28, '#a855f7');
+      } else if (chain.active) {
+        const dLine = this.distToSegment(this.player.x, this.player.y, chain.x1, chain.y1, chain.x2, chain.y2);
+        if (dLine <= 24) {
+          this.damagePlayer(Math.round(enemyAtk * 0.38));
+          this.player.vx *= 0.65;
+          this.player.vy *= 0.65;
+        }
+        if (chain.timer <= 0) {
+          e.dissonantChains.splice(i, 1);
+        }
+      }
+    }
+
+    // Tick & Update Silence Zones
+    for (let i = e.silenceZones.length - 1; i >= 0; i--) {
+      const sz = e.silenceZones[i];
+      sz.timer -= dt;
+      if (sz.active) {
+        const d = Math.hypot(this.player.x - sz.x, this.player.y - sz.y);
+        if (d <= sz.radius) {
+          this.player.vx *= 0.62;
+          this.player.vy *= 0.62;
+        }
+      }
+      if (sz.timer <= 0) {
+        e.silenceZones.splice(i, 1);
+      }
+    }
+
+    // Tick & Update Requiem Pillars (Phase 2 & 3)
+    for (let i = e.requiemPillars.length - 1; i >= 0; i--) {
+      const p = e.requiemPillars[i];
+      p.timer -= dt;
+      if (p.state === 'warning') {
+        if (p.timer <= 0) {
+          p.state = 'erupt';
+          p.timer = 7.5;
+          p.shockwaveTimer = 1.4;
+          soundEngine.playSonicWave(0.9, true);
+          this.spawnRingEffect(p.x, p.y, 45, '#c084fc');
+          this.triggerShake(0.15, 4.0);
+        }
+      } else if (p.state === 'erupt') {
+        p.shockwaveTimer -= dt;
+        if (p.shockwaveTimer <= 0) {
+          p.shockwaveTimer = 1.45;
+          soundEngine.playResonancePulse(1.15);
+          this.spawnRingEffect(p.x, p.y, 95, '#c084fc');
+          const dToP = Math.hypot(this.player.x - p.x, this.player.y - p.y);
+          if (dToP <= 95) {
+            this.damagePlayer(Math.round(enemyAtk * 0.52));
+            this.triggerShake(0.16, 4.5);
+          }
+        }
+        if (p.timer <= 0) {
+          this.spawnBurstParticles(p.x, p.y, '#c084fc', 12, true);
+          e.requiemPillars.splice(i, 1);
+        }
+      }
+    }
+
+    // Tick & Update Collapse of the Hollow Choir (Phase 3 only)
+    if (e.hollowChoir && e.hollowChoir.active) {
+      const choir = e.hollowChoir;
+      choir.timer -= dt;
+
+      let aliveCount = 0;
+      for (const m of choir.members) {
+        if (m.active && m.hp > 0) aliveCount += 1;
+        else m.active = false;
+      }
+
+      if (aliveCount === 0 && !choir.wiped) {
+        choir.wiped = true;
+        choir.active = false;
+        e.hollowChoir = null;
+        e.staggerTimer = 3.5;
+        this.damageEnemy(e, Math.round(enemyAtk * 2.8), false, '#22c55e');
+        soundEngine.playPipeClang(1.2, true);
+        this.spawnFloatingText(e.x, e.y - 50, 'CHOIR INTERRUPTED! STAGGERED!', '#22c55e', true);
+        this.triggerShake(0.28, 7.0);
+        return;
+      }
+
+      if (choir.timer <= 0) {
+        choir.active = false;
+        e.hollowChoir = null;
+        soundEngine.playSonicWave(0.55, true);
+        this.triggerShake(0.45, 12.0);
+        this.spawnRingEffect(e.x, e.y, 350, '#c084fc');
+        this.spawnRingEffect(e.x, e.y, 250, '#ef4444');
+        this.spawnFloatingText(e.x, e.y - 52, 'HOLLOW CHOIR DETONATION!', '#ef4444', true);
+
+        const sDist = Math.hypot(this.player.x - (choir.sanctuaryX || e.x), this.player.y - (choir.sanctuaryY || e.y));
+        if (sDist > (choir.sanctuaryRadius || 85)) {
+          this.damagePlayer(Math.round(enemyAtk * 2.1));
+          this.spawnFloatingText(this.player.x, this.player.y - 32, 'SANCTUARY BREACHED!', '#ef4444', true);
+        } else {
+          this.spawnFloatingText(this.player.x, this.player.y - 32, 'PROTECTED BY SANCTUARY!', '#fbbf24', true);
+        }
+        return;
+      }
+      e.walkPhase = 0;
+      return;
+    }
+
+    // --- Hollow Conductor Ability Rotation ---
+    const phase = e.bossPhase ?? 1;
+
+    // Ability 5: Collapse of the Hollow Choir (Phase 3 only, <= 35% HP)
+    if (phase >= 3 && cd.hollowChoir <= 0 && !e.hollowChoir) {
+      cd.hollowChoir = 28.0;
+      this.executeHollowChoirRitual(e);
+      return;
+    }
+
+    // Ability 4: Requiem Pillars (Phase 2 & 3)
+    if (phase >= 2 && cd.requiemPillars <= 0) {
+      cd.requiemPillars = phase >= 3 ? 14.5 : 17.5;
+      this.executeRequiemPillars(e);
+      return;
+    }
+
+    // Ability 3: Silence Zone (All phases)
+    if (cd.silenceZone <= 0) {
+      cd.silenceZone = phase >= 3 ? 13.0 : phase >= 2 ? 15.0 : 17.0;
+      this.executeSilenceZone(e);
+      return;
+    }
+
+    // Ability 2: Dissonant Chains (All phases)
+    if (cd.dissonantChain <= 0) {
+      cd.dissonantChain = phase >= 3 ? 9.0 : phase >= 2 ? 10.5 : 12.0;
+      this.executeDissonantChains(e);
+      return;
+    }
+
+    // Ability 1: Shattered Bell (All phases)
+    if (cd.shatteredBell <= 0) {
+      cd.shatteredBell = phase >= 3 ? 10.5 : phase >= 2 ? 12.0 : 14.0;
+      this.executeShatteredBell(e);
+      return;
+    }
+
+    // Boss spacing: Keeps ranged mage distance (~170-220px)
+    const preferredDist = 185;
+    if (dist > preferredDist + 35) {
+      this.moveEnemyWithSeparation(e, Math.cos(angToPlayer), Math.sin(angToPlayer), dt);
+    } else if (dist < preferredDist - 45) {
+      this.moveEnemyWithSeparation(e, -Math.cos(angToPlayer), -Math.sin(angToPlayer), dt);
+    } else {
+      e.walkPhase = 0;
+    }
+
+    // Basic Attack Windup: Ranged Dissonant Bolt
+    if (e.attackCooldown <= 0 && dist <= 290) {
+      e.windupType = 'spell';
+      e.windupDuration = phase >= 3 ? 0.32 : phase >= 2 ? 0.36 : 0.42;
+      e.windupTimer = e.windupDuration;
+      e.windupAngle = angToPlayer;
+    }
+  }
+
+  private executeShatteredBell(e: EnemyEntity) {
+    soundEngine.playBellChime(0.9);
+    this.spawnFloatingText(e.x, e.y - 48, 'SHATTERED BELLS!', '#c084fc', true);
+    this.spawnRingEffect(e.x, e.y, 65, '#c084fc');
+    e.attackAnimDuration = 0.35;
+    e.attackAnimTimer = 0.35;
+
+    const count = (e.bossPhase ?? 1) >= 3 ? 4 : 3;
+    for (let i = 0; i < count; i++) {
+      const ang = (i * Math.PI * 2) / count + Math.random() * 0.35;
+      const d = 135 + Math.random() * 65;
+      const bx = e.x + Math.cos(ang) * d;
+      const by = e.y + Math.sin(ang) * d;
+      const id = allocEntityId();
+      e.shatteredBells?.push({
+        id,
+        x: bx,
+        y: by,
+        hp: 120,
+        maxHp: 120,
+        timer: 6.0,
+        pulseTimer: 1.1 + i * 0.3,
+        active: true,
+      });
+      this.enemies.push({
+        id,
+        kind: EnemyKind.SHATTERED_BELL,
+        name: 'Shattered Bell',
+        x: bx,
+        y: by,
+        vx: 0,
+        vy: 0,
+        facing: 0,
+        walkPhase: 0,
+        hp: 120,
+        maxHp: 120,
+        atk: 0,
+        radius: 20,
+        speed: 0,
+        attackCooldown: 999,
+        hitFlash: 0,
+        staggerTimer: 0,
+        slowTimer: 0,
+        poisonTimer: 0,
+        poisonDps: 0,
+        armorCrackTimer: 0,
+        preyMarkTimer: 0,
+      });
+    }
+  }
+
+  private executeDissonantChains(e: EnemyEntity) {
+    soundEngine.playSonicWave(1.15, false);
+    this.spawnFloatingText(e.x, e.y - 48, 'DISSONANT CHAINS!', '#a855f7', true);
+    e.attackAnimDuration = 0.35;
+    e.attackAnimTimer = 0.35;
+
+    const count = (e.bossPhase ?? 1) >= 3 ? 3 : 2;
+    for (let i = 0; i < count; i++) {
+      const ang = (i * Math.PI) / count + Math.random() * 0.4;
+      const span = 190 + Math.random() * 40;
+      const cx = this.player.x + (Math.random() - 0.5) * 60;
+      const cy = this.player.y + (Math.random() - 0.5) * 60;
+      const x1 = cx - Math.cos(ang) * span;
+      const y1 = cy - Math.sin(ang) * span;
+      const x2 = cx + Math.cos(ang) * span;
+      const y2 = cy + Math.sin(ang) * span;
+      e.dissonantChains?.push({
+        id: Math.random(),
+        x1,
+        y1,
+        x2,
+        y2,
+        timer: 1.25,
+        active: false,
+      });
+      this.spawnRingEffect(x1, y1, 24, '#a855f7');
+      this.spawnRingEffect(x2, y2, 24, '#a855f7');
+    }
+  }
+
+  private executeSilenceZone(e: EnemyEntity) {
+    soundEngine.playGhostWisp(0.7);
+    this.spawnFloatingText(e.x, e.y - 48, 'SILENCE ZONE!', '#9333ea', true);
+    e.attackAnimDuration = 0.35;
+    e.attackAnimTimer = 0.35;
+
+    const zx = this.player.x;
+    const zy = this.player.y;
+    this.spawnRingEffect(zx, zy, 115, '#9333ea');
+    e.silenceZones?.push({
+      id: Math.random(),
+      x: zx,
+      y: zy,
+      radius: 115,
+      timer: 6.2,
+      active: true,
+    });
+  }
+
+  private executeRequiemPillars(e: EnemyEntity) {
+    soundEngine.playSkill('ultimate');
+    soundEngine.playSonicWave(0.8, true);
+    this.triggerShake(0.24, 6.0);
+    this.spawnFloatingText(e.x, e.y - 48, 'REQUIEM PILLARS!', '#c084fc', true);
+    e.attackAnimDuration = 0.4;
+    e.attackAnimTimer = 0.4;
+
+    for (let i = 0; i < 3; i++) {
+      const ang = (i * Math.PI * 2) / 3 + 0.3;
+      const px = e.x + Math.cos(ang) * 165;
+      const py = e.y + Math.sin(ang) * 165;
+      e.requiemPillars?.push({
+        id: Math.random(),
+        x: px,
+        y: py,
+        state: 'warning',
+        timer: 1.1,
+        shockwaveTimer: 1.4 + i * 0.45,
+        active: true,
+      });
+      this.spawnRingEffect(px, py, 45, '#c084fc');
+    }
+  }
+
+  private executeHollowChoirRitual(e: EnemyEntity) {
+    soundEngine.playSkill('ultimate');
+    soundEngine.playBellChime(0.5);
+    this.triggerShake(0.35, 9.0);
+    this.spawnFloatingText(e.x, e.y - 54, 'COLLAPSE OF THE HOLLOW CHOIR!', '#ef4444', true);
+    this.spawnRingEffect(e.x, e.y, 220, '#c084fc');
+    e.attackAnimDuration = 0.6;
+    e.attackAnimTimer = 0.6;
+
+    const sAng = Math.atan2(this.player.y - e.y, this.player.x - e.x) + Math.PI;
+    const sx = e.x + Math.cos(sAng) * 170;
+    const sy = e.y + Math.sin(sAng) * 170;
+
+    const members: Array<{ id: number; x: number; y: number; hp: number; maxHp: number; active: boolean }> = [];
+    for (let i = 0; i < 4; i++) {
+      const ang = (i * Math.PI * 2) / 4 + 0.4;
+      const mx = e.x + Math.cos(ang) * 175;
+      const my = e.y + Math.sin(ang) * 175;
+      const id = allocEntityId();
+      members.push({
+        id,
+        x: mx,
+        y: my,
+        hp: 160,
+        maxHp: 160,
+        active: true,
+      });
+      this.enemies.push({
+        id,
+        kind: EnemyKind.HOLLOW_CHOIR_MEMBER,
+        name: 'Choir Spectre',
+        x: mx,
+        y: my,
+        vx: 0,
+        vy: 0,
+        facing: 0,
+        walkPhase: 0,
+        hp: 160,
+        maxHp: 160,
+        atk: 0,
+        radius: 20,
+        speed: 0,
+        attackCooldown: 999,
+        hitFlash: 0,
+        staggerTimer: 0,
+        slowTimer: 0,
+        poisonTimer: 0,
+        poisonDps: 0,
+        armorCrackTimer: 0,
+        preyMarkTimer: 0,
+      });
+    }
+
+    e.hollowChoir = {
+      active: true,
+      centerX: e.x,
+      centerY: e.y,
+      timer: 5.2,
+      maxTimer: 5.2,
+      wiped: false,
+      sanctuaryX: sx,
+      sanctuaryY: sy,
+      sanctuaryRadius: 85,
+      members,
+    };
+  }
+
   private triggerFinalHorizonExplosion(x: number, y: number, damage: number) {
     soundEngine.playSkyScreech(1.1);
     this.triggerShake(0.2, 5.5);
@@ -13802,6 +14288,11 @@ export class GameEngine {
       critChance = 0.28 + (instRank - 1) * 0.04 + bonusCritChance;
       if ((this.player.kingOfBeastsTimer ?? 0) > 0) critChance += 0.25;
       critMult = 1.8 + (instRank - 1) * 0.08;
+    } else if (this.heroId === 'batkin') {
+      // Batkin Passive 1 (Echolocation): +15% base crit bonus + scaling
+      const echoRank = Math.max(1, this.skillRanks.echolocation || 1);
+      critChance = 0.20 + 0.15 + (echoRank - 1) * 0.03 + bonusCritChance;
+      critMult = 1.70 + (echoRank - 1) * 0.08;
     }
     let blessingCrit = 0;
     for (const b of this.activeBlessings) {
@@ -13958,6 +14449,35 @@ export class GameEngine {
         adjustedDmg = Math.round(adjustedDmg * execMult);
         if (Math.random() < 0.28) {
           this.spawnFloatingText(e.x, e.y - e.radius - 28, 'PREDATOR INSTINCT!', '#fbbf24', false);
+        }
+      }
+    }
+
+    // Batkin Passives on hit: Echolocation bonus damage + Harmonic Amplification resonance building
+    if (this.heroId === 'batkin') {
+      const echoRank = Math.max(1, this.skillRanks.echolocation || 1);
+      const echoBonus = 1 + (0.20 + (echoRank - 1) * 0.04);
+      adjustedDmg = Math.round(adjustedDmg * echoBonus);
+
+      // Build Harmonic Amplification Resonance stacks (0 to 5)
+      this.addResonanceStack(1);
+
+      // Nocturne Regalia 4-piece set bonus trigger
+      if (equipmentManager.hasFourPieceBonus(this.heroId, 'nocturne_regalia')) {
+        equipmentManager.onSkillHitEnemy(this.heroId, e.x, e.y);
+      }
+    }
+
+    // Sync summon HP to parent boss if attacking Hollow Conductor summons
+    if (e.kind === EnemyKind.SHATTERED_BELL || e.kind === EnemyKind.HOLLOW_CHOIR_MEMBER) {
+      for (const b of this.enemies) {
+        if (b.shatteredBells) {
+          const bell = b.shatteredBells.find((sb) => sb.id === e.id);
+          if (bell) bell.hp = e.hp;
+        }
+        if (b.hollowChoir?.members) {
+          const member = b.hollowChoir.members.find((m) => m.id === e.id);
+          if (member) member.hp = e.hp;
         }
       }
     }
@@ -14406,6 +14926,20 @@ export class GameEngine {
         col.themeColor,
         true
       );
+
+      // Clean up Hollow Conductor boss summons and hazards
+      if (e.kind === EnemyKind.BOSS_LEGION_BATKIN || e.legionHeroId === 'batkin') {
+        for (const other of this.enemies) {
+          if (other.kind === EnemyKind.SHATTERED_BELL || other.kind === EnemyKind.HOLLOW_CHOIR_MEMBER) {
+            other.hp = 0;
+          }
+        }
+        e.shatteredBells = [];
+        e.dissonantChains = [];
+        e.silenceZones = [];
+        e.requiemPillars = [];
+        e.hollowChoir = null;
+      }
     }
   }
 
@@ -14948,7 +15482,13 @@ export class GameEngine {
     let enemiesRemaining = 0;
     let bossInfo: HudSnapshot['bossInfo'] = null;
     for (const e of this.enemies) {
-      if (e.hp <= 0 || e.kind === EnemyKind.TRAINING_DUMMY) continue;
+      if (
+        e.hp <= 0 ||
+        e.kind === EnemyKind.TRAINING_DUMMY ||
+        e.kind === EnemyKind.SHATTERED_BELL ||
+        e.kind === EnemyKind.HOLLOW_CHOIR_MEMBER ||
+        e.kind === EnemyKind.REQUIEM_PILLAR
+      ) continue;
       enemiesRemaining += 1;
       if (isBossKind(e.kind)) {
         const dist = Math.hypot(e.x - this.player.x, e.y - this.player.y);
@@ -15046,6 +15586,8 @@ export class GameEngine {
       portalWaiting: this.portalWaitingState,
       activeBlessings: [...this.activeBlessings],
       maxBlessings: this.maxBlessings,
+      resonanceStacks: this.heroId === 'batkin' ? this.resonanceStacks : undefined,
+      maxResonanceStacks: this.heroId === 'batkin' ? 5 : undefined,
     });
   }
 }

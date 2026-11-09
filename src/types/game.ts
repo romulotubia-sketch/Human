@@ -579,6 +579,9 @@ export enum EnemyKind {
   BOSS_LEGION_EAGLEKIN = 'BOSS_LEGION_EAGLEKIN',
   BOSS_LEGION_TIGERKIN = 'BOSS_LEGION_TIGERKIN',
   BOSS_LEGION_BATKIN = 'BOSS_LEGION_BATKIN',
+  SHATTERED_BELL = 'SHATTERED_BELL',
+  HOLLOW_CHOIR_MEMBER = 'HOLLOW_CHOIR_MEMBER',
+  REQUIEM_PILLAR = 'REQUIEM_PILLAR',
 }
 
 export function isBossKind(kind: EnemyKind): boolean {
@@ -693,10 +696,22 @@ export interface EnemyEntity {
   dummyStats?: DummyCombatStats;
   // The Hollow Conductor boss mechanics
   shatteredBells?: Array<{ id: number; x: number; y: number; hp: number; maxHp: number; timer: number; pulseTimer: number; active: boolean }>;
-  dissonantChains?: Array<{ id: number; x1: number; y1: number; x2: number; y2: number; timer: number; active: boolean }>;
-  silenceZones?: Array<{ id: number; x: number; y: number; radius: number; timer: number; active: boolean }>;
-  requiemPillars?: Array<{ id: number; x: number; y: number; state: 'warning' | 'erupt'; timer: number; shockwaveTimer: number; active: boolean }>;
-  hollowChoir?: { active: boolean; centerX: number; centerY: number; timer: number; maxTimer: number; wiped: boolean; members: Array<{ id: number; x: number; y: number; hp: number; maxHp: number; active: boolean }> } | null;
+  dissonantChains?: Array<{ id: number; x1: number; y1: number; x2: number; y2: number; timer: number; active: boolean; isTelegraph?: boolean; maxDuration?: number }>;
+  silenceZones?: Array<{ id: number; x: number; y: number; radius: number; timer: number; active: boolean; maxDuration?: number }>;
+  requiemPillars?: Array<{ id: number; x: number; y: number; state: 'warning' | 'erupt'; timer: number; shockwaveTimer: number; active: boolean; isPulsing?: boolean; pulseRadius?: number; maxDuration?: number }>;
+  hollowChoir?: {
+    active: boolean;
+    centerX: number;
+    centerY: number;
+    timer: number;
+    maxTimer: number;
+    wiped: boolean;
+    phase?: 'channeling' | 'detonating' | 'done';
+    sanctuaryX?: number;
+    sanctuaryY?: number;
+    sanctuaryRadius?: number;
+    members: Array<{ id: number; x: number; y: number; hp: number; maxHp: number; active: boolean }>;
+  } | null;
 }
 
 export type EliteAffix = 'ironclad' | 'berserker' | 'molten' | 'swift' | 'vampiric' | 'tempest';
@@ -786,7 +801,8 @@ export interface Projectile {
     | 'spectral_bat'
     | 'bell_sound_wave'
     | 'chain_resonance_beam'
-    | 'requiem_wave';
+    | 'requiem_wave'
+    | 'dissonant_bolt';
   x: number;
   y: number;
   vx: number;
