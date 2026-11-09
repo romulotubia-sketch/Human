@@ -76,6 +76,11 @@ export interface PlayerRenderState {
   crushingPawTimer?: number;
   savagePursuitTimer?: number;
   apexDevastationTimer?: number;
+  resonanceStacks?: number;
+  echoDimensionTimer?: number;
+  symphonyCastTimer?: number;
+  resonanceStaffAngle?: number;
+  silentWingsTimer?: number;
   airborneHeight: number;
   attackLunge: number;
   attackTwist: number;

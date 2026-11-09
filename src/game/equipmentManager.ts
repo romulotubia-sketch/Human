@@ -6,6 +6,7 @@ import {
   getEnhancementSuccessRate,
   getEquipmentForCollection,
   getNextMilestone,
+  getUpgradedItemInfo,
   HERO_TO_COLLECTION,
 } from '../data/equipmentData';
 import {
@@ -33,6 +34,7 @@ const ALL_HERO_IDS: HeroId[] = [
   'ghost',
   'eaglekin',
   'tigerkin',
+  'batkin',
 ];
 
 function createDefaultLoadout(): HeroEquipmentLoadout {
@@ -77,6 +79,13 @@ const EMPTY_STATS = Object.freeze({
   projectileRangeMultiplier: 1.0,
   meleeProximityMultiplier: 1.0,
   shockwaveOnConsecutive: false,
+  // Nocturne Regalia
+  secondarySonicChance: 0,
+  movementPulseOnMove: false,
+  secondaryVibrationOnSkill: false,
+  criticalSoundWaveChance: 0,
+  frequencyStackProc: false,
+  resonanceBarrierOnDamage: false,
 });
 
 export class EquipmentManager {
@@ -90,6 +99,7 @@ export class EquipmentManager {
     ghost: createDefaultLoadout(),
     eaglekin: createDefaultLoadout(),
     tigerkin: createDefaultLoadout(),
+    batkin: createDefaultLoadout(),
   };
 
   private _isDungeonActive = false;
@@ -119,6 +129,13 @@ export class EquipmentManager {
   public consecutiveHitTimer = 0;
   public targetHitCounts: Map<number, number> = new Map(); // Hunter's Markstone tracking
   public plagueIncarnateTick = 2.0; // Zombie 4-pc: periodic toxic bursts
+  // Nocturne Regalia (Batkin) combat triggers & state
+  public resonantOverloadStacks = 0; // Nocturne 4-pc: 0-5
+  public echoEnergyStacks = 0; // Staff of the First Echo +12: 0-4
+  public frequencyStacks = 0; // Ring of Endless Frequencies: 0-5
+  public silentWingsMoveTimer = 0; // Mantle of Silent Wings: pulses while moving
+  public silentWingsShieldTimer = 0; // Mantle +15: moving 3s creates shield
+  public heartOfNocturneCooldown = 0; // Heart of Nocturne sound burst cd
 
   // Callbacks for visual & combat procs into engine
   public onTriggerBoneShockwave?: () => void;
@@ -139,11 +156,18 @@ export class EquipmentManager {
   public onTriggerResourcefulGenius?: () => void; // Human 6-pc
   public onTriggerSovereignBarrage?: () => void; // Eaglekin 6-pc
   public onTriggerPrimalOverlord?: () => void; // Tigerkin 6-pc
+  public onTriggerLordOfEternalEcho?: () => void; // Nocturne 6-pc bat swarm
   // Core/Accessory Procs
   public onTriggerBoneFragments?: (x: number, y: number) => void;
   public onTriggerSpectralEcho?: (x: number, y: number, angle: number) => void;
   public onTriggerEnergyBurst?: (x: number, y: number) => void;
   public onTriggerConsecutiveShockwave?: (x: number, y: number) => void;
+  public onTriggerResonantOverload?: (x: number, y: number) => void;
+  public onTriggerEchoDelayed?: (x: number, y: number, damage: number) => void;
+  public onTriggerSoundPulse?: (x: number, y: number, dmg: number) => void;
+  public onTriggerResonanceVibration?: (x: number, y: number, dmg: number) => void;
+  public onTriggerSecondarySonic?: (x: number, y: number, angle: number) => void;
+  public onTriggerDefensiveSoundBurst?: (x: number, y: number) => void;
 
   constructor() {
     this.loadFromStorage();
@@ -428,6 +452,7 @@ export class EquipmentManager {
       survivors_arsenal: 0,
       sky_sovereign: 0,
       king_of_beasts: 0,
+      nocturne_regalia: 0,
     };
     const loadout = this.equippedByHero[heroId];
     if (loadout) {
@@ -475,6 +500,16 @@ export class EquipmentManager {
       }
     }
     return items;
+  }
+
+  /**
+   * Retrieves full dynamic upgraded information for an item (stats, description, effects).
+   */
+  public getItemUpgradedInfo(itemOrId: EquipmentItemDef | string) {
+    const item = typeof itemOrId === 'string' ? EQUIPMENT_BY_ID[itemOrId] : itemOrId;
+    if (!item) return null;
+    const level = this.getEnhancementLevel(item.id);
+    return getUpgradedItemInfo(item, level);
   }
 
   /**
@@ -553,12 +588,41 @@ export class EquipmentManager {
       if (s.projectileRangeBonus) projRange += s.projectileRangeBonus * statScale;
       if (s.meleeProximityBonus) meleeProximity += s.meleeProximityBonus * statScale;
       if (s.shockwaveOnConsecutive) shockwaveConsecutive = true;
+      if (s.secondarySonicChance) secSonicChance += s.secondarySonicChance * (1 + level * 0.04);
+      if (s.movementPulseOnMove) movePulse = true;
+      if (s.secondaryVibrationOnSkill) secVibration = true;
+      if (s.criticalSoundWaveChance) critSoundWaveChance += s.criticalSoundWaveChance;
+      if (s.frequencyStackProc) freqProc = true;
+      if (s.resonanceBarrierOnDamage) resBarrier = true;
 
       // Specific unlocked milestone stat bonuses
-      if (level >= 3 && item.id === 'skull_of_precision') critBoneFragments += 0.2;
-      if (level >= 6 && item.id === 'ancient_marrow_ring') critDmgPercent += 0.25;
-      if (level >= 3 && item.id === 'eagles_eye') critChance += 0.05;
-      if (level >= 3 && item.id === 'apex_crown') critDmgPercent += 0.2;
+      if (level >= 3) {
+        if (item.id === 'skull_of_precision') critBoneFragments += 0.2;
+        if (item.id === 'eagles_eye') critChance += 0.06;
+        if (item.id === 'apex_crown') critDmgPercent += 0.15;
+        if (item.id === 'bonebreaker_emblem') atkPercent += 0.06;
+        if (item.id === 'feral_fang') atkPercent += 0.05;
+        if (item.id === 'ribcage_aegis') { flatHp += 40; defense += 0.04; }
+        if (item.id === 'crown_of_the_undying') onKillHeal += 0.02;
+        if (item.id === 'phantom_veil') speedPercent += 0.06;
+        if (item.id === 'wraith_pendant') cdr += 0.05;
+        if (item.id === 'ghoul_claws' || item.id === 'feral_pelt') speedPercent += 0.05;
+        if (item.id === 'sky_feather') speedPercent += 0.06;
+        if (item.id === 'iron_pelt') { flatHp += 50; defense += 0.04; }
+        if (item.id === 'saber_strike') basicAtkPercent += 0.10;
+        if (item.id === 'celestial_lens') projRange += 0.15;
+        if (item.id === 'striped_totem') meleeProximity += 0.10;
+        if (item.id === 'mask_night_listener') critChance += 0.06;
+        if (item.id === 'ring_endless_frequencies') cdr += 0.05;
+        if (item.id === 'mantle_silent_wings') speedPercent += 0.05;
+        if (item.id === 'resonance_crystal') projAtkPercent += 0.08;
+      }
+      if (level >= 6) {
+        if (item.id === 'ancient_marrow_ring') critDmgPercent += 0.25;
+        if (item.id === 'skull_of_precision') critDmgPercent += 0.25;
+        if (item.id === 'heart_of_nocturne') { flatHp += 45; defense += 0.03; }
+        if (item.id === 'staff_first_echo') basicAtkPercent += 0.12;
+      }
     }
 
     // Dynamic runtime set bonuses & stacks
@@ -576,6 +640,10 @@ export class EquipmentManager {
 
     if (this.beastsTrophyTimer > 0) {
       atkPercent += this.beastsTrophyStacks * 0.2;
+    }
+
+    if (this.frequencyStacks > 0) {
+      consecutiveAtkSpeed += this.frequencyStacks * 0.04;
     }
 
     const consecutiveSpeedBonus = Math.min(0.55, this.consecutiveHitCount * consecutiveAtkSpeed);
@@ -610,6 +678,12 @@ export class EquipmentManager {
       projectileRangeMultiplier: projRange,
       meleeProximityMultiplier: meleeProximity,
       shockwaveOnConsecutive: shockwaveConsecutive,
+      secondarySonicChance: Math.min(0.7, secSonicChance),
+      movementPulseOnMove: movePulse,
+      secondaryVibrationOnSkill: secVibration,
+      criticalSoundWaveChance: Math.min(0.75, critSoundWaveChance),
+      frequencyStackProc: freqProc,
+      resonanceBarrierOnDamage: resBarrier,
     };
   }
 

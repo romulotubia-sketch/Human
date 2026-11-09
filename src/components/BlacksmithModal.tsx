@@ -25,6 +25,7 @@ import {
   getEnhancementSuccessRate,
   getNextMilestone,
   getUnlockedMilestones,
+  getUpgradedItemInfo,
 } from '../data/equipmentData';
 import {
   ALL_EQUIPMENT_SLOTS,
@@ -107,6 +108,12 @@ export function BlacksmithModal({
   const currentLevel = selectedItem
     ? equipmentManager.getEnhancementLevel(selectedItem.id)
     : 0;
+  const selectedItemInfo = selectedItem
+    ? getUpgradedItemInfo(selectedItem, currentLevel)
+    : null;
+  const nextItemInfo = selectedItem
+    ? getUpgradedItemInfo(selectedItem, currentLevel + 1)
+    : null;
   const cost = getEnhancementCost(currentLevel);
   const successRate = getEnhancementSuccessRate(currentLevel);
   const successPercent = Math.round(successRate * 100);
@@ -381,6 +388,14 @@ export function BlacksmithModal({
                           <div className="text-[8px] text-stone-400 truncate" style={{ color: col.themeColor }}>
                             {EQUIPMENT_SLOT_LABELS[item.slot]} · {col.name.replace(' Set', '')}
                           </div>
+                          {(() => {
+                            const info = getUpgradedItemInfo(item, itemLvl);
+                            return (
+                              <div className="text-[7.5px] text-amber-200/90 font-medium truncate mt-0.5">
+                                {info.primaryEffectSummary}
+                              </div>
+                            );
+                          })()}
                         </div>
                       </div>
 
@@ -511,15 +526,41 @@ export function BlacksmithModal({
                   
                   {/* Current Active Effects Box */}
                   <div className="flex flex-col gap-1 rounded-lg border border-stone-800/80 bg-stone-900/60 p-2 text-[9.5px] leading-tight">
-                    <div className="text-[9px] font-bold uppercase tracking-wider text-amber-300/90 flex items-center gap-1 mb-0.5">
-                      <CheckCircle2 className="h-2.5 w-2.5 text-emerald-400" />
-                      Active Power (+{currentLevel})
+                    <div className="text-[9px] font-bold uppercase tracking-wider text-amber-300/90 flex items-center justify-between mb-0.5">
+                      <span className="flex items-center gap-1">
+                        <CheckCircle2 className="h-2.5 w-2.5 text-emerald-400" />
+                        Active Power (+{currentLevel})
+                      </span>
+                      {currentLevel > 0 && selectedItemInfo && (
+                        <span className="text-[7.5px] font-mono-num font-bold text-amber-300 bg-amber-950/80 px-1 py-0.2 rounded border border-amber-500/40">
+                          {selectedItemInfo.bonusSummary}
+                        </span>
+                      )}
                     </div>
                     
-                    <div className="text-stone-200">
-                      <span className="font-semibold text-amber-200">Base: </span>
-                      {selectedItem.effectDescription}
+                    <div className="text-stone-300 italic text-[8.5px] leading-tight bg-stone-950/70 p-1 rounded border border-stone-800/80">
+                      <span className="font-semibold text-amber-200">Description: </span>
+                      {selectedItemInfo?.dynamicDescription || selectedItem.description}
                     </div>
+
+                    <div className="text-stone-100 font-semibold">
+                      <span className="text-amber-300">Effect: </span>
+                      {selectedItemInfo?.dynamicEffectDescription || selectedItem.effectDescription}
+                    </div>
+
+                    {selectedItemInfo && selectedItemInfo.statTags.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1 pt-0.5">
+                        {selectedItemInfo.statTags.map((tag, idx) => (
+                          <span
+                            key={idx}
+                            className="text-[7.5px] font-mono-num font-bold px-1 py-0.2 rounded border bg-stone-950"
+                            style={{ borderColor: `${tag.color}50`, color: tag.color }}
+                          >
+                            {tag.label}: {tag.value}
+                          </span>
+                        ))}
+                      </div>
+                    )}
 
                     {unlockedMilestones.length > 0 && (
                       <div className="pt-1 mt-0.5 border-t border-stone-800/70 space-y-0.5">
@@ -555,8 +596,32 @@ export function BlacksmithModal({
                       )}
                     </div>
 
+                    <div className="text-stone-300 italic text-[8.5px] leading-tight bg-stone-950/70 p-1 rounded border border-stone-800/80">
+                      <span className="font-semibold text-orange-200">Upgraded Description: </span>
+                      {nextItemInfo?.dynamicDescription}
+                    </div>
+
+                    <div className="text-amber-100 font-semibold">
+                      <span className="text-orange-300">Upgraded Effect: </span>
+                      {nextItemInfo?.dynamicEffectDescription}
+                    </div>
+
+                    {nextItemInfo && nextItemInfo.statTags.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1 pt-0.5">
+                        {nextItemInfo.statTags.map((tag, idx) => (
+                          <span
+                            key={idx}
+                            className="text-[7.5px] font-mono-num font-bold px-1 py-0.2 rounded border bg-stone-950 text-orange-200"
+                            style={{ borderColor: `${tag.color}50` }}
+                          >
+                            {tag.label}: {tag.value}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
                     {nextMilestoneDef ? (
-                      <div className="p-1 rounded border border-amber-500/40 bg-amber-950/40 text-amber-100">
+                      <div className="p-1 rounded border border-amber-500/40 bg-amber-950/40 text-amber-100 mt-0.5">
                         <span className="font-bold text-amber-300 text-[8.5px] block">
                           ✦ UNLOCKS MILESTONE (+{nextMilestoneDef.level}):
                         </span>
@@ -564,15 +629,10 @@ export function BlacksmithModal({
                         <span className="text-stone-300">{nextMilestoneDef.description}</span>
                       </div>
                     ) : (
-                      <div className="space-y-0.5 text-stone-300">
-                        <p className="font-semibold text-amber-200">
-                          Strengthens base combat scaling & power (+6%).
+                      <div className="space-y-0.5 text-stone-300 mt-0.5">
+                        <p className="font-semibold text-amber-200 text-[8.5px]">
+                          Strengthens combat scaling and dynamic description power.
                         </p>
-                        {futureMilestone && (
-                          <p className="text-[8.5px] text-stone-400">
-                            Next milestone perk unlocks at +{futureMilestone.level} ({futureMilestone.title}).
-                          </p>
-                        )}
                       </div>
                     )}
                   </div>

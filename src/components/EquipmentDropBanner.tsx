@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Sparkles, Shield, Swords, Zap, Crown, Flame, Award } from 'lucide-react';
 import { EquipmentDropPayload, EquipmentSlot } from '../types/equipment';
 import { soundEngine } from '../audio/soundEngine';
+import { getUpgradedItemInfo } from '../data/equipmentData';
+import { equipmentManager } from '../game/equipmentManager';
 
 interface EquipmentDropBannerProps {
   drop: EquipmentDropPayload | null;
@@ -94,10 +96,30 @@ export function EquipmentDropBanner({ drop, onDismiss }: EquipmentDropBannerProp
             </p>
 
             <p className="mt-1 text-xs text-amber-200/90 leading-snug line-clamp-2">
-              {item.effectDescription}
+              {(() => {
+                const lvl = equipmentManager.getEnhancementLevel(item.id);
+                const info = getUpgradedItemInfo(item, lvl);
+                return info.dynamicEffectDescription;
+              })()}
             </p>
 
-            <div className="mt-2 text-[10px] text-stone-400 italic">
+            <div className="mt-1.5 flex flex-wrap items-center gap-1">
+              {(() => {
+                const lvl = equipmentManager.getEnhancementLevel(item.id);
+                const info = getUpgradedItemInfo(item, lvl);
+                return info.statTags.slice(0, 3).map((tag, idx) => (
+                  <span
+                    key={idx}
+                    className="text-[8px] font-mono-num font-bold px-1.5 py-0.2 rounded border bg-stone-950/80"
+                    style={{ borderColor: `${tag.color}50`, color: tag.color }}
+                  >
+                    {tag.label}: {tag.value}
+                  </span>
+                ));
+              })()}
+            </div>
+
+            <div className="mt-1.5 text-[10px] text-stone-400 italic">
               Stored in shared Equipment Inventory · Equip anytime inside dungeon
             </div>
           </div>

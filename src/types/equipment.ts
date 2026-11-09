@@ -27,7 +27,8 @@ export type EquipmentCollectionId =
   | 'feral_hunter'
   | 'survivors_arsenal'
   | 'sky_sovereign'
-  | 'king_of_beasts';
+  | 'king_of_beasts'
+  | 'nocturne_regalia';
 
 export interface SetBonusInfo {
   piecesRequired: 2 | 4 | 6;
@@ -96,6 +97,13 @@ export interface EquipmentItemDef {
     projectileRangeBonus?: number;     // Celestial Lens (+35% Range & Accuracy)
     meleeProximityBonus?: number;      // Striped Beast Totem (+25% melee damage to close foes)
     shockwaveOnConsecutive?: boolean;  // Roaring Heart
+    // Nocturne Regalia mechanics (Batkin)
+    secondarySonicChance?: number;     // Staff of the First Echo (chance for secondary sonic bolt)
+    movementPulseOnMove?: boolean;     // Mantle of Silent Wings (quiet sound pulse while moving)
+    secondaryVibrationOnSkill?: boolean;// Resonance Crystal (vibrations on skill cast)
+    criticalSoundWaveChance?: number;  // Mask of the Night Listener (sound wave on crit)
+    frequencyStackProc?: boolean;      // Ring of Endless Frequencies (frequency stacks on hit)
+    resonanceBarrierOnDamage?: boolean;// Heart of Nocturne (defensive sound burst & barrier on damage)
   };
 }
 

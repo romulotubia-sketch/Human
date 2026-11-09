@@ -1,4 +1,4 @@
-export type HeroId = 'human' | 'skeleton' | 'zombie' | 'ghoul' | 'ghost' | 'eaglekin' | 'tigerkin';
+export type HeroId = 'human' | 'skeleton' | 'zombie' | 'ghoul' | 'ghost' | 'eaglekin' | 'tigerkin' | 'batkin';
 
 export type HeroCategory = 'undead_legion' | 'wildborn_tribes' | 'none';
 
@@ -10,6 +10,7 @@ export const HERO_CATEGORY_MAP: Record<HeroId, { category: HeroCategory; label: 
   ghost: { category: 'undead_legion', label: 'Undead Legion', factionName: 'Undead Legion' },
   eaglekin: { category: 'wildborn_tribes', label: 'Wildborn Tribes', factionName: 'Wildborn Tribes' },
   tigerkin: { category: 'wildborn_tribes', label: 'Wildborn Tribes', factionName: 'Wildborn Tribes' },
+  batkin: { category: 'wildborn_tribes', label: 'Wildborn Tribes', factionName: 'Primal Legion' },
 };
 
 export enum GamePhase {
@@ -133,6 +134,20 @@ export type TigerkinUltimateSkillId =
 
 export type TigerkinPassiveSkillId = 'predators_instinct' | 'feral_momentum';
 
+export type BatkinNormalSkillId =
+  | 'sonic_crescent'
+  | 'echoing_orb'
+  | 'resonance_field'
+  | 'phantom_frequency'
+  | 'sonic_repulsion';
+
+export type BatkinUltimateSkillId =
+  | 'symphony_destruction'
+  | 'echo_dimension'
+  | 'thousand_winged';
+
+export type BatkinPassiveSkillId = 'echolocation' | 'harmonic_amplification';
+
 export type NormalSkillId =
   | HumanNormalSkillId
   | SkeletonNormalSkillId
@@ -140,7 +155,8 @@ export type NormalSkillId =
   | GhoulNormalSkillId
   | GhostNormalSkillId
   | EaglekinNormalSkillId
-  | TigerkinNormalSkillId;
+  | TigerkinNormalSkillId
+  | BatkinNormalSkillId;
 export type UltimateSkillId =
   | HumanUltimateSkillId
   | SkeletonUltimateSkillId
@@ -148,7 +164,8 @@ export type UltimateSkillId =
   | GhoulUltimateSkillId
   | GhostUltimateSkillId
   | EaglekinUltimateSkillId
-  | TigerkinUltimateSkillId;
+  | TigerkinUltimateSkillId
+  | BatkinUltimateSkillId;
 export type PassiveSkillId =
   | HumanPassiveSkillId
   | SkeletonPassiveSkillId
@@ -156,7 +173,8 @@ export type PassiveSkillId =
   | GhoulPassiveSkillId
   | GhostPassiveSkillId
   | EaglekinPassiveSkillId
-  | TigerkinPassiveSkillId;
+  | TigerkinPassiveSkillId
+  | BatkinPassiveSkillId;
 
 export type ActiveSkillId = NormalSkillId | UltimateSkillId;
 export type SkillId = ActiveSkillId | PassiveSkillId;
@@ -284,6 +302,16 @@ export enum SwordAnimState {
   HEAVENLY_TIGER = 'HEAVENLY_TIGER',
   APEX_DEVASTATION_RISE = 'APEX_DEVASTATION_RISE',
   APEX_DEVASTATION_SLAM = 'APEX_DEVASTATION_SLAM',
+  BATKIN_ECHO_BOLT = 'BATKIN_ECHO_BOLT',
+  BATKIN_RESONANCE_BREAKER = 'BATKIN_RESONANCE_BREAKER',
+  BATKIN_SONIC_CRESCENT = 'BATKIN_SONIC_CRESCENT',
+  BATKIN_ECHOING_ORB = 'BATKIN_ECHOING_ORB',
+  BATKIN_RESONANCE_FIELD = 'BATKIN_RESONANCE_FIELD',
+  BATKIN_PHANTOM_FREQUENCY = 'BATKIN_PHANTOM_FREQUENCY',
+  BATKIN_SONIC_REPULSION = 'BATKIN_SONIC_REPULSION',
+  BATKIN_SYMPHONY_CAST = 'BATKIN_SYMPHONY_CAST',
+  BATKIN_ECHO_DIMENSION_CAST = 'BATKIN_ECHO_DIMENSION_CAST',
+  BATKIN_THOUSAND_WINGED_CAST = 'BATKIN_THOUSAND_WINGED_CAST',
 }
 
 export interface SwordTrailPoint {
@@ -541,6 +569,7 @@ export enum EnemyKind {
   BOSS_LEGION_HUMAN = 'BOSS_LEGION_HUMAN',
   BOSS_LEGION_EAGLEKIN = 'BOSS_LEGION_EAGLEKIN',
   BOSS_LEGION_TIGERKIN = 'BOSS_LEGION_TIGERKIN',
+  BOSS_LEGION_BATKIN = 'BOSS_LEGION_BATKIN',
 }
 
 export function isBossKind(kind: EnemyKind): boolean {
@@ -552,7 +581,8 @@ export function isBossKind(kind: EnemyKind): boolean {
     kind === EnemyKind.BOSS_LEGION_GHOST ||
     kind === EnemyKind.BOSS_LEGION_HUMAN ||
     kind === EnemyKind.BOSS_LEGION_EAGLEKIN ||
-    kind === EnemyKind.BOSS_LEGION_TIGERKIN
+    kind === EnemyKind.BOSS_LEGION_TIGERKIN ||
+    kind === EnemyKind.BOSS_LEGION_BATKIN
   );
 }
 
@@ -564,7 +594,8 @@ export function isUndeadLegionBoss(kind: EnemyKind): boolean {
     kind === EnemyKind.BOSS_LEGION_GHOST ||
     kind === EnemyKind.BOSS_LEGION_HUMAN ||
     kind === EnemyKind.BOSS_LEGION_EAGLEKIN ||
-    kind === EnemyKind.BOSS_LEGION_TIGERKIN
+    kind === EnemyKind.BOSS_LEGION_TIGERKIN ||
+    kind === EnemyKind.BOSS_LEGION_BATKIN
   );
 }
 
@@ -651,6 +682,12 @@ export interface EnemyEntity {
   isElite?: boolean;
   eliteAffix?: EliteAffix;
   dummyStats?: DummyCombatStats;
+  // The Hollow Conductor boss mechanics
+  shatteredBells?: Array<{ id: number; x: number; y: number; hp: number; maxHp: number; timer: number; pulseTimer: number; active: boolean }>;
+  dissonantChains?: Array<{ id: number; x1: number; y1: number; x2: number; y2: number; timer: number; active: boolean }>;
+  silenceZones?: Array<{ id: number; x: number; y: number; radius: number; timer: number; active: boolean }>;
+  requiemPillars?: Array<{ id: number; x: number; y: number; state: 'warning' | 'erupt'; timer: number; shockwaveTimer: number; active: boolean }>;
+  hollowChoir?: { active: boolean; centerX: number; centerY: number; timer: number; maxTimer: number; wiped: boolean; members: Array<{ id: number; x: number; y: number; hp: number; maxHp: number; active: boolean }> } | null;
 }
 
 export type EliteAffix = 'ironclad' | 'berserker' | 'molten' | 'swift' | 'vampiric' | 'tempest';
@@ -730,7 +767,17 @@ export interface Projectile {
     | 'horizon_feather'
     | 'tiger_rend_wave'
     | 'heavenly_tiger_beast'
-    | 'enemy_fireball';
+    | 'enemy_fireball'
+    | 'echo_bolt'
+    | 'resonance_breaker'
+    | 'sonic_crescent_wave'
+    | 'echoing_sound_orb'
+    | 'echo_orb_shard'
+    | 'phantom_sonic_bolt'
+    | 'spectral_bat'
+    | 'bell_sound_wave'
+    | 'chain_resonance_beam'
+    | 'requiem_wave';
   x: number;
   y: number;
   vx: number;
@@ -906,5 +953,7 @@ export interface HudSnapshot {
   activeBlessings?: Blessing[];
   maxBlessings?: number;
   dummyStats?: DummyCombatStats | null;
+  resonanceStacks?: number;
+  maxResonanceStacks?: number;
 }
 

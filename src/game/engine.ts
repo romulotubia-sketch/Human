@@ -3282,6 +3282,8 @@ export class GameEngine {
           bossHeroId = 'eaglekin';
         } else if (e.kind === EnemyKind.BOSS_LEGION_TIGERKIN) {
           bossHeroId = 'tigerkin';
+        } else if (e.kind === EnemyKind.BOSS_LEGION_BATKIN) {
+          bossHeroId = 'batkin';
         }
         const droppedItem = equipmentManager.rollBossDropItem(bossHeroId);
         const col = EQUIPMENT_COLLECTIONS[droppedItem.collection];
@@ -6626,6 +6628,166 @@ export class GameEngine {
           x: this.player.x,
           y: this.player.y,
           reach: tigerReach,
+        });
+      }
+      return;
+    }
+
+    // =========================================================================
+    // BATKIN – ECHO ARCANIST BASIC ATTACK SEQUENCE (ECHO BOLT & RESONANCE BREAKER)
+    // =========================================================================
+    if (this.heroId === 'batkin') {
+      const batReach = 320;
+      const nearest = this.findNearestEnemy(batReach);
+      if (nearest) {
+        const dx = nearest.x - this.player.x;
+        const dy = nearest.y - this.player.y;
+        this.player.facing = Math.atan2(dy, dx);
+      } else if (Math.hypot(this.joyX, this.joyY) > 0.15) {
+        this.player.facing = Math.atan2(this.joyY, this.joyX);
+      }
+
+      this.comboStep = (this.comboStep % 3) + 1;
+      this.comboResetTimer = 1.4;
+
+      const isEnhanced =
+        this.comboStep === 3 ||
+        equipmentManager.echoEnergyStacks >= 4 ||
+        equipmentManager.improvisedTacticsReady;
+      if (isEnhanced) {
+        equipmentManager.echoEnergyStacks = 0;
+        equipmentManager.improvisedTacticsReady = false;
+      }
+
+      this.basicCooldown = isEnhanced ? 0.32 : 0.22;
+      this.swordCastAngle = this.player.facing;
+      this.player.swordGlowColor = isEnhanced ? '#e9d5ff' : '#c084fc';
+      this.player.swordGlowIntensity = isEnhanced ? 1.4 : 0.85;
+
+      const syncedDur = Math.max(0.16, this.basicCooldown * 1.05);
+      this.swordAnimDuration = syncedDur;
+      this.swordAnimTimer = syncedDur;
+      this.player.swordAnim = isEnhanced
+        ? SwordAnimState.BATKIN_RESONANCE_BREAKER
+        : SwordAnimState.BATKIN_ECHO_BOLT;
+
+      this.targetAttackTwist = isEnhanced ? 1.25 : 0.85;
+
+      const spawnX = this.player.x + Math.cos(this.player.facing) * 22;
+      const spawnY = this.player.y - 8 + Math.sin(this.player.facing) * 22;
+
+      if (isEnhanced) {
+        // Enhanced Attack: Resonance Breaker – Piercing resonance wave
+        soundEngine.playSkill('ultimate');
+        this.triggerShake(0.12, 3.5);
+        this.spawnBurstParticles(spawnX, spawnY, '#e9d5ff', 16, true);
+        this.spawnRingEffect(spawnX, spawnY, 48, '#c084fc');
+
+        const { dmg, isCrit } = this.rollPlayerDamage(2.1, 0.25);
+        this.spawnProjectile({
+          fromPlayer: true,
+          kind: 'resonance_breaker',
+          x: spawnX,
+          y: spawnY,
+          vx: Math.cos(this.player.facing) * 560,
+          vy: Math.sin(this.player.facing) * 560,
+          angle: this.player.facing,
+          radius: 20,
+          damage: dmg,
+          isCrit,
+          pierce: true,
+          maxLife: batReach / 560 + 0.1,
+          color: '#e9d5ff',
+          isBasicAttack: true,
+        });
+
+        // Echo Dimension or Nocturne 2-pc repeat
+        if (
+          this.echoDimensionTimer > 0 ||
+          equipmentManager.hasTwoPieceBonus(this.heroId, 'nocturne_regalia')
+        ) {
+          setTimeout(() => {
+            this.spawnProjectile({
+              fromPlayer: true,
+              kind: 'resonance_breaker',
+              x: spawnX,
+              y: spawnY,
+              vx: Math.cos(this.player.facing) * 520,
+              vy: Math.sin(this.player.facing) * 520,
+              angle: this.player.facing,
+              radius: 16,
+              damage: Math.round(dmg * 0.65),
+              isCrit: false,
+              pierce: true,
+              maxLife: batReach / 520,
+              color: '#c084fc',
+              visualOnly: false,
+            });
+          }, 180);
+        }
+      } else {
+        // Normal Attack: Echo Bolt – Concentrated sphere of sonic energy
+        soundEngine.playFeatherShoot(1.15);
+        this.spawnBurstParticles(spawnX, spawnY, '#c084fc', 8, true);
+
+        const { dmg, isCrit } = this.rollPlayerDamage(1.1, 0.12);
+        this.spawnProjectile({
+          fromPlayer: true,
+          kind: 'echo_bolt',
+          x: spawnX,
+          y: spawnY,
+          vx: Math.cos(this.player.facing) * 480,
+          vy: Math.sin(this.player.facing) * 480,
+          angle: this.player.facing,
+          radius: 14,
+          damage: dmg,
+          isCrit,
+          pierce: false,
+          maxLife: batReach / 480 + 0.1,
+          color: '#c084fc',
+          isBasicAttack: true,
+          targetEnemyId: nearest?.id,
+        });
+
+        // Staff of the First Echo: secondary sonic projectile chance
+        const eqStats = equipmentManager.getComputedStats(this.heroId);
+        if (eqStats.secondarySonicChance && Math.random() < eqStats.secondarySonicChance) {
+          const sideAng = this.player.facing + (Math.random() < 0.5 ? 0.22 : -0.22);
+          this.spawnProjectile({
+            fromPlayer: true,
+            kind: 'echo_bolt',
+            x: spawnX,
+            y: spawnY,
+            vx: Math.cos(sideAng) * 460,
+            vy: Math.sin(sideAng) * 460,
+            angle: sideAng,
+            radius: 10,
+            damage: Math.round(dmg * 0.5),
+            isCrit: false,
+            pierce: false,
+            maxLife: batReach / 460,
+            color: '#d8b4fe',
+          });
+        }
+      }
+
+      equipmentManager.onBasicAttackHit(
+        this.heroId,
+        this.player.x,
+        this.player.y,
+        this.player.facing,
+        nearest?.id,
+        (amt) => this.healPlayer(amt, true),
+        this.player.maxHp
+      );
+
+      if (this.isMultiplayer) {
+        multiplayerClient.sendAttack({
+          comboStep: this.comboStep,
+          facing: this.player.facing,
+          x: this.player.x,
+          y: this.player.y,
+          reach: batReach,
         });
       }
       return;
@@ -13563,6 +13725,8 @@ export class GameEngine {
         bossHeroId = 'eaglekin';
       } else if (e.kind === EnemyKind.BOSS_LEGION_TIGERKIN) {
         bossHeroId = 'tigerkin';
+      } else if (e.kind === EnemyKind.BOSS_LEGION_BATKIN) {
+        bossHeroId = 'batkin';
       }
 
       const droppedItem = equipmentManager.rollBossDropItem(bossHeroId);

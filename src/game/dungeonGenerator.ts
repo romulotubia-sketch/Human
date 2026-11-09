@@ -1203,6 +1203,15 @@ export function buildProceduralDungeon(floor: number): {
           radius: 44,
           speed: 134,
         },
+        {
+          kind: EnemyKind.BOSS_LEGION_BATKIN,
+          legionHeroId: 'batkin',
+          name: 'The Hollow Conductor',
+          baseHp: 2450,
+          baseAtk: 46,
+          radius: 44,
+          speed: 126,
+        },
       ];
 
       if (isLegionBossRoll) {
@@ -1210,7 +1219,7 @@ export function buildProceduralDungeon(floor: number): {
         const pickIndex = (floor - 1) % legionBossPool.length;
         const picked = legionBossPool[pickIndex];
         const bossWindupType =
-          picked.legionHeroId === 'ghost'
+          picked.legionHeroId === 'ghost' || picked.legionHeroId === 'batkin'
             ? 'spell'
             : picked.legionHeroId === 'eaglekin'
               ? 'shoot'

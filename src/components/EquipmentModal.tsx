@@ -23,6 +23,7 @@ import {
   getEquipmentForCollection,
   getUnlockedMilestones,
   getNextMilestone,
+  getUpgradedItemInfo,
 } from '../data/equipmentData';
 import {
   ALL_EQUIPMENT_SLOTS,
@@ -97,6 +98,9 @@ export function EquipmentModal({
   const inspectedItemLevel = inspectedItem
     ? equipmentManager.getEnhancementLevel(inspectedItem.id)
     : 0;
+  const inspectedItemInfo = inspectedItem
+    ? getUpgradedItemInfo(inspectedItem, inspectedItemLevel)
+    : null;
   const inspectedMilestones = inspectedItem
     ? getUnlockedMilestones(inspectedItem, inspectedItemLevel)
     : [];
@@ -360,7 +364,7 @@ export function EquipmentModal({
                           )}
                         </div>
 
-                        {/* Bottom: Item Name & Level */}
+                        {/* Bottom: Item Name & Level & Primary Upgraded Stat */}
                         {item ? (
                           <div className="w-full text-center px-0.5">
                             <div className="text-[9px] font-bold text-amber-100 truncate leading-tight">
@@ -377,6 +381,15 @@ export function EquipmentModal({
                                 +{itemLvl}
                               </span>
                             </div>
+                            {(() => {
+                              const info = getUpgradedItemInfo(item, itemLvl);
+                              const tag = info.statTags[0];
+                              return tag ? (
+                                <div className="text-[7px] font-mono-num font-bold text-emerald-300/90 truncate leading-none mt-0.5">
+                                  {tag.value}
+                                </div>
+                              ) : null;
+                            })()}
                           </div>
                         ) : (
                           <span className="text-[8.5px] text-stone-600 italic">
@@ -447,6 +460,7 @@ export function EquipmentModal({
                         const isEquippedHere = loadout[item.slot] === item.id;
                         const isSelected = inspectedItemId === item.id;
                         const itemLvl = equipmentManager.getEnhancementLevel(item.id);
+                        const itemInfo = getUpgradedItemInfo(item, itemLvl);
 
                         return (
                           <div
@@ -464,7 +478,7 @@ export function EquipmentModal({
                                 if (window.innerWidth < 640) setMobileView('inspect');
                               }
                             }}
-                            className={`flex items-center justify-between p-1.5 rounded-lg border text-left transition-all cursor-pointer ${
+                            className={`flex flex-col gap-1 p-1.5 rounded-lg border text-left transition-all cursor-pointer ${
                               isEquippedHere
                                 ? 'border-emerald-500/70 bg-emerald-950/30 ring-1 ring-emerald-500/30'
                                 : isSelected
@@ -472,59 +486,91 @@ export function EquipmentModal({
                                   : 'border-stone-800 bg-stone-900/70 hover:border-stone-600 hover:bg-stone-900'
                             }`}
                           >
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <div
-                                className="flex h-6 w-6 shrink-0 items-center justify-center rounded border"
-                                style={{
-                                  borderColor: `${col.themeColor}55`,
-                                  backgroundColor: `${col.themeColor}15`,
-                                  color: col.themeColor,
-                                }}
-                              >
-                                {getSlotIcon(item.slot, 'h-3.5 w-3.5')}
+                            {/* Top row: Icon + Name + Level + Action button */}
+                            <div className="flex items-center justify-between gap-1 w-full">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <div
+                                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded border"
+                                  style={{
+                                    borderColor: `${col.themeColor}55`,
+                                    backgroundColor: `${col.themeColor}15`,
+                                    color: col.themeColor,
+                                  }}
+                                >
+                                  {getSlotIcon(item.slot, 'h-3 w-3')}
+                                </div>
+
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-1 truncate">
+                                    <span className="text-[10px] font-bold text-amber-100 truncate">
+                                      {item.name}
+                                    </span>
+                                    <span className="font-mono-num font-bold text-[8px] text-amber-300 px-1 py-0.2 rounded bg-amber-950/60 border border-amber-500/30 shrink-0">
+                                      +{itemLvl}
+                                    </span>
+                                  </div>
+                                  <div className="text-[8px] font-semibold truncate" style={{ color: col.themeColor }}>
+                                    {EQUIPMENT_SLOT_LABELS[item.slot]} · {col.name.replace(' Set', '')}
+                                  </div>
+                                </div>
                               </div>
 
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-1">
-                                  <span className="text-[10px] font-bold text-amber-100 truncate">
-                                    {item.name}
-                                  </span>
-                                  <span className="font-mono-num font-bold text-[8.5px] text-amber-300 px-1 py-0.2 rounded bg-amber-950/60 border border-amber-500/30">
-                                    +{itemLvl}
-                                  </span>
-                                </div>
-                                <div className="text-[8.5px] font-semibold truncate" style={{ color: col.themeColor }}>
-                                  {EQUIPMENT_SLOT_LABELS[item.slot]} · {col.name.replace(' Set', '')}
-                                </div>
+                              <div className="flex items-center gap-1 shrink-0">
+                                {isEquippedHere ? (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleUnequip(item.slot);
+                                    }}
+                                    className="px-2 py-0.8 rounded text-[8.5px] font-bold border border-rose-500/60 bg-gradient-to-r from-rose-950/90 to-rose-900/80 hover:from-rose-900 hover:to-rose-800 text-rose-200 hover:text-white shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-0.5"
+                                    title={`Unequip ${item.name} from ${heroProfile.name}`}
+                                  >
+                                    <span>Unequip</span>
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleEquip(item.id);
+                                      setInspectedItemId(item.id);
+                                    }}
+                                    className="px-2.5 py-0.8 rounded text-[8.5px] font-bold border border-amber-400/80 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-stone-950 font-bold shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-0.5"
+                                    title={`Equip ${item.name} on ${heroProfile.name}`}
+                                  >
+                                    <span>Equip</span>
+                                  </button>
+                                )}
                               </div>
                             </div>
 
-                            <div className="flex items-center gap-1 shrink-0 pl-1">
-                              {isEquippedHere ? (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleUnequip(item.slot);
+                            {/* Middle: Visible Upgraded Effect in Bag */}
+                            <div className="rounded bg-stone-950/70 border border-stone-800/80 px-1.5 py-0.8 text-[8.5px] text-amber-200/95 flex items-start gap-1 leading-tight">
+                              <Zap className="h-2.5 w-2.5 text-amber-400 shrink-0 mt-0.5" />
+                              <span className="font-medium line-clamp-2">
+                                {itemInfo.primaryEffectSummary}
+                              </span>
+                            </div>
+
+                            {/* Bottom: Stat Badges & Unlocked Perks */}
+                            <div className="flex flex-wrap items-center gap-1 pt-0.5">
+                              {itemInfo.statTags.slice(0, 3).map((tag, idx) => (
+                                <span
+                                  key={idx}
+                                  className="text-[7.5px] font-mono-num font-bold px-1 py-0.2 rounded border bg-stone-950/90"
+                                  style={{
+                                    borderColor: `${tag.color}45`,
+                                    color: tag.color,
                                   }}
-                                  className="px-2 py-1 rounded-md text-[9px] font-bold border border-rose-500/60 bg-gradient-to-r from-rose-950/90 to-rose-900/80 hover:from-rose-900 hover:to-rose-800 text-rose-200 hover:text-white shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-0.5"
-                                  title={`Unequip ${item.name} from ${heroProfile.name}`}
                                 >
-                                  <span>Unequip</span>
-                                </button>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleEquip(item.id);
-                                    setInspectedItemId(item.id);
-                                  }}
-                                  className="px-2.5 py-1 rounded-md text-[9px] font-bold border border-amber-400/80 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-stone-950 font-bold shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-0.5"
-                                  title={`Equip ${item.name} on ${heroProfile.name}`}
-                                >
-                                  <span>Equip</span>
-                                </button>
+                                  {tag.label}: {tag.value}
+                                </span>
+                              ))}
+                              {itemInfo.unlockedMilestones.length > 0 && (
+                                <span className="text-[7.5px] font-semibold px-1 py-0.2 rounded bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 truncate max-w-[130px]">
+                                  ★ {itemInfo.unlockedMilestones[itemInfo.unlockedMilestones.length - 1].title}
+                                </span>
                               )}
                             </div>
                           </div>
@@ -602,12 +648,51 @@ export function EquipmentModal({
                         <span>{inspectedCol.bossName}</span>
                       </div>
 
-                      {/* Stat Power */}
-                      <div className="text-[10px] font-semibold text-amber-200 bg-amber-950/20 border border-amber-500/30 rounded p-1.5 leading-snug">
-                        <div className="text-[8.5px] uppercase tracking-wider text-amber-400 font-bold mb-0.5">
-                          Base Relic Effect:
+                      {/* Dynamic Upgraded Description (Updates with each upgrade) */}
+                      <div className="text-[9.5px] text-stone-300 bg-stone-950/70 border border-stone-800/90 rounded p-1.5 leading-snug">
+                        <div className="text-[8px] uppercase tracking-wider text-amber-300/80 font-bold mb-0.5 flex items-center justify-between">
+                          <span>Item Description ({inspectedItemLevel > 0 ? `Reforged +${inspectedItemLevel}` : 'Base'}):</span>
+                          {inspectedItemLevel > 0 && (
+                            <span className="text-[7.5px] text-emerald-400 font-mono-num font-bold bg-emerald-950/80 border border-emerald-500/30 px-1 py-0.2 rounded">
+                              Reforged +{inspectedItemLevel}
+                            </span>
+                          )}
                         </div>
-                        {inspectedItem.effectDescription}
+                        <p className="text-stone-300 italic">
+                          {inspectedItemInfo?.dynamicDescription || inspectedItem.description}
+                        </p>
+                      </div>
+
+                      {/* Dynamic Upgraded Relic Effect */}
+                      <div className="text-[10px] font-semibold text-amber-200 bg-amber-950/20 border border-amber-500/30 rounded p-1.5 leading-snug">
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="text-[8.5px] uppercase tracking-wider text-amber-400 font-bold">
+                            Active Relic Power (+{inspectedItemLevel}):
+                          </span>
+                          {inspectedItemLevel > 0 && inspectedItemInfo && (
+                            <span className="text-[7.5px] font-mono-num text-amber-300 font-bold bg-amber-950/90 px-1 py-0.2 rounded border border-amber-500/40">
+                              Boost: {inspectedItemInfo.bonusSummary}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-stone-100">
+                          {inspectedItemInfo?.dynamicEffectDescription || inspectedItem.effectDescription}
+                        </div>
+
+                        {/* Stat Badges */}
+                        {inspectedItemInfo && inspectedItemInfo.statTags.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1 mt-1.5 pt-1 border-t border-amber-500/20">
+                            {inspectedItemInfo.statTags.map((tag, idx) => (
+                              <span
+                                key={idx}
+                                className="text-[8px] font-mono-num font-bold px-1.5 py-0.2 rounded border bg-stone-950/90 shadow-sm"
+                                style={{ borderColor: `${tag.color}50`, color: tag.color }}
+                              >
+                                {tag.label}: {tag.value}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
 
                       {/* Unlocked Milestone Perks */}

@@ -187,10 +187,36 @@ export const EQUIPMENT_COLLECTIONS: Record<EquipmentCollectionId, EquipmentColle
         'At maximum Feral Energy, the next enhanced attack releases a massive spectral tiger claw that sweeps through enemies in front of the hero in a 280° arc dealing 320% damage.',
     },
   },
+  nocturne_regalia: {
+    id: 'nocturne_regalia',
+    name: 'Nocturne Regalia',
+    theme: 'Sound waves, vibration control, acoustic resonance, and spectral echoes',
+    correspondingHero: 'batkin',
+    bossName: 'The Hollow Conductor',
+    themeColor: '#c084fc',
+    twoPieceBonus: {
+      piecesRequired: 2,
+      name: 'Echo Synchronization',
+      description:
+        'Hitting enemies with skills or enhanced attacks creates a delayed echo that damages them a second time for 65% damage.',
+    },
+    fourPieceBonus: {
+      piecesRequired: 4,
+      name: 'Resonant Overload',
+      description:
+        'Dealing sonic or skill damage builds Resonant Overload (up to 5 stacks). Upon reaching full stacks, triggers an explosion of sound waves dealing 250% ATK damage to all nearby enemies.',
+    },
+    sixPieceBonus: {
+      piecesRequired: 6,
+      name: 'Lord of the Eternal Echo',
+      description:
+        'All attacks and skills create echoes. The hero gains a permanent resonance aura that continuously damages and weakens nearby enemies. When an ultimate is cast, summons spectral bats that sweep across the room.',
+    },
+  },
 };
 
 // =========================================================================
-// 42 UNIQUE EQUIPMENT PIECES (7 Collections x 6 Relic Slots)
+// 48 UNIQUE EQUIPMENT PIECES (8 Collections x 6 Relic Slots)
 // =========================================================================
 export const ALL_EQUIPMENT_ITEMS: EquipmentItemDef[] = [
   // ==========================================
@@ -1026,6 +1052,133 @@ export const ALL_EQUIPMENT_ITEMS: EquipmentItemDef[] = [
       shockwaveOnConsecutive: true,
     },
   },
+  // ==========================================
+  // H. BATKIN – NOCTURNE REGALIA (6 Pieces)
+  // ==========================================
+  {
+    id: 'staff_first_echo',
+    name: 'Staff of the First Echo',
+    collection: 'nocturne_regalia',
+    slot: 'weapon',
+    description: 'An ancient resonant staff containing a crystal that amplifies sound vibrations.',
+    effectDescription: 'Increases basic attack damage (+22%). Basic attacks have a 35% chance to release a small secondary sonic projectile.',
+    iconName: 'Sparkles',
+    milestones: [
+      { level: 3, title: 'Far-Reaching Echo', description: 'Sonic projectiles travel farther (+30% range).' },
+      { level: 6, title: 'Harmonic Force', description: 'Secondary projectiles become stronger (+40% projectile damage).' },
+      { level: 9, title: 'Oscillation Piercing', description: 'Sonic projectiles may pierce additional enemies (+1 pierce).' },
+      { level: 12, title: 'Echo Reservoir', description: 'Consecutive hits build Echo Energy (up to 4 stacks).' },
+      { level: 15, title: 'Resonance Nova', description: 'At maximum Echo Energy, the next basic attack releases a large piercing sonic wave.' },
+    ],
+    stats: {
+      basicAttackDamagePercent: 0.22,
+      secondarySonicChance: 0.35,
+      atkBonusPercent: 0.12,
+    },
+  },
+  {
+    id: 'mantle_silent_wings',
+    name: 'Mantle of Silent Wings',
+    collection: 'nocturne_regalia',
+    slot: 'armor',
+    description: 'A spectral velvet mantle woven from the wings of quiet night predators.',
+    effectDescription: 'Grants +16% movement speed. While moving, periodically releases a quiet sound pulse that slightly damages nearby enemies (55% ATK).',
+    iconName: 'Shield',
+    milestones: [
+      { level: 3, title: 'Rhythmic Cadence', description: 'Sound pulses occur more frequently while moving (+30% frequency).' },
+      { level: 6, title: 'Vibrational Amplitude', description: 'Increases pulse damage to 85% ATK.' },
+      { level: 9, title: 'Acoustic Snare', description: 'Enemies hit by pulses have their movement speed reduced by 30% for 2 seconds.' },
+      { level: 12, title: 'Damping Field', description: 'Pulses reduce incoming ranged projectile damage by 25%.' },
+      { level: 15, title: 'Sonic Aegis', description: 'Moving for 3 seconds without stopping generates a temporary sonic shield (120 HP).' },
+    ],
+    stats: {
+      moveSpeedPercent: 0.16,
+      defensePercent: 0.10,
+      movementPulseOnMove: true,
+    },
+  },
+  {
+    id: 'resonance_crystal',
+    name: 'Resonance Crystal',
+    collection: 'nocturne_regalia',
+    slot: 'spirit',
+    description: 'A floating acoustic prism humming with high-frequency cosmic vibrations.',
+    effectDescription: 'Increases skill damage (+24%). Casting a skill releases a secondary vibration that hits nearby enemies (75% ATK).',
+    iconName: 'Sparkles',
+    milestones: [
+      { level: 3, title: 'Expanding Wavefront', description: 'Vibrations affect a wider area (+35% radius).' },
+      { level: 6, title: 'Sonic Disruption', description: 'Increases vibration damage to 110% ATK.' },
+      { level: 9, title: 'Frequency Fracture', description: 'Vibrations reduce enemy defense temporarily by 20% for 3 seconds.' },
+      { level: 12, title: 'Harmonic Stun', description: 'Vibrations have a 30% chance to briefly disrupt enemy attacks.' },
+      { level: 15, title: 'Symphonic Climax', description: 'Casting an ultimate triggers multiple resonant vibrations simultaneously.' },
+    ],
+    stats: {
+      projectileAtkBonusPercent: 0.24,
+      secondaryVibrationOnSkill: true,
+    },
+  },
+  {
+    id: 'mask_night_listener',
+    name: 'Mask of the Night Listener',
+    collection: 'nocturne_regalia',
+    slot: 'ancient',
+    description: 'An ornate echolocation cowl carved from obsidian soundstone.',
+    effectDescription: 'Increases critical strike chance (+16%) and critical strike damage (+35%). Critical hits have a 35% chance to release a piercing sound wave.',
+    iconName: 'Eye',
+    milestones: [
+      { level: 3, title: 'Acuteness', description: 'Higher critical strike chance (+6% bonus crit chance).' },
+      { level: 6, title: 'Sonic Penetration', description: 'Sound waves travel through more enemies (pierces up to 3 foes).' },
+      { level: 9, title: 'Focused Frequency', description: 'Sound waves deal +30% increased damage to isolated targets.' },
+      { level: 12, title: 'Auditory Reflex', description: 'Critical hits slightly reduce skill cooldowns (-0.4s).' },
+      { level: 15, title: 'Autonomous Echo', description: 'Landing 4 critical hits triggers an automatic resonant echo dealing 180% ATK.' },
+    ],
+    stats: {
+      critChancePercent: 0.16,
+      critDamagePercent: 0.35,
+      criticalSoundWaveChance: 0.35,
+    },
+  },
+  {
+    id: 'ring_endless_frequencies',
+    name: 'Ring of Endless Frequencies',
+    collection: 'nocturne_regalia',
+    slot: 'accessory',
+    description: 'A spiraling platinum band pulsating with infinite harmonic oscillations.',
+    effectDescription: 'Increases cooldown reduction (+18%). Hitting enemies with skills builds Frequency stacks (up to 5).',
+    iconName: 'Zap',
+    milestones: [
+      { level: 3, title: 'Harmonic Drift', description: 'Higher cooldown reduction (+5% bonus CDR).' },
+      { level: 6, title: 'Rapid Modulation', description: 'Frequency stacks build faster (grants 2 stacks per skill hit).' },
+      { level: 9, title: 'Acoustic Tempo', description: 'Frequency stacks increase attack speed (+4% ASPD per stack).' },
+      { level: 12, title: 'Frequency Surge', description: 'At maximum Frequency stacks, next skill damage is amplified by +50%.' },
+      { level: 15, title: 'Periodic Resonance', description: 'Frequency stacks occasionally trigger an automatic sonic burst (140% ATK).' },
+    ],
+    stats: {
+      cooldownReductionPercent: 0.18,
+      frequencyStackProc: true,
+    },
+  },
+  {
+    id: 'heart_of_nocturne',
+    name: 'Heart of Nocturne',
+    collection: 'nocturne_regalia',
+    slot: 'core',
+    description: 'An impenetrable harmonic core humming with protective acoustic damping fields.',
+    effectDescription: 'Increases maximum health (+95 HP) and damage reduction (+14%). Taking damage releases a defensive sound burst that knocks enemies back.',
+    iconName: 'Heart',
+    milestones: [
+      { level: 3, title: 'Dilation Pulse', description: 'Defensive burst affects a larger radius (+35% radius).' },
+      { level: 6, title: 'Resonant Cushion', description: 'Grants a temporary shield (90 HP) after the defensive burst.' },
+      { level: 9, title: 'Sound Dampening', description: 'Increases damage reduction by +10% while shield is active.' },
+      { level: 12, title: 'Quick Reset', description: 'Reduces cooldown of defensive sound burst from 8s to 5s.' },
+      { level: 15, title: 'Emergency Barrier', description: 'Low health (<35% HP) triggers an emergency resonance barrier blocking several attacks.' },
+    ],
+    stats: {
+      maxHpBonus: 95,
+      defensePercent: 0.14,
+      resonanceBarrierOnDamage: true,
+    },
+  },
 ];
 
 export const EQUIPMENT_BY_ID: Record<string, EquipmentItemDef> = Object.fromEntries(
@@ -1040,6 +1193,7 @@ export const HERO_TO_COLLECTION: Record<HeroId, EquipmentCollectionId> = {
   human: 'survivors_arsenal',
   eaglekin: 'sky_sovereign',
   tigerkin: 'king_of_beasts',
+  batkin: 'nocturne_regalia',
 };
 
 export const COLLECTION_TO_HERO: Record<EquipmentCollectionId, HeroId> = {
@@ -1050,6 +1204,7 @@ export const COLLECTION_TO_HERO: Record<EquipmentCollectionId, HeroId> = {
   survivors_arsenal: 'human',
   sky_sovereign: 'eaglekin',
   king_of_beasts: 'tigerkin',
+  nocturne_regalia: 'batkin',
 };
 
 /**
@@ -1127,4 +1282,553 @@ export function getUnlockedMilestones(item: EquipmentItemDef, currentLevel: numb
 export function getNextMilestone(item: EquipmentItemDef, currentLevel: number): EnhancementMilestoneDef | null {
   const future = item.milestones.filter((m) => m.level > currentLevel).sort((a, b) => a.level - b.level);
   return future.length > 0 ? future[0] : null;
+}
+
+export interface UpgradedStatTag {
+  label: string;
+  value: string;
+  color: string;
+  isBoosted?: boolean;
+}
+
+export interface UpgradedItemInfo {
+  level: number;
+  dynamicDescription: string;
+  dynamicEffectDescription: string;
+  primaryEffectSummary: string;
+  statTags: UpgradedStatTag[];
+  unlockedMilestones: EnhancementMilestoneDef[];
+  nextMilestone: EnhancementMilestoneDef | null;
+  bonusSummary: string;
+}
+
+export function getUpgradedItemInfo(item: EquipmentItemDef, currentLevel: number): UpgradedItemInfo {
+  const level = Math.max(0, currentLevel);
+  const scale = 1 + level * 0.08;
+  const s = item.stats;
+  const statTags: UpgradedStatTag[] = [];
+  const effectParts: string[] = [];
+  const forgeGainParts: string[] = [];
+
+  const unlockedMilestones = getUnlockedMilestones(item, level);
+  const nextMilestone = getNextMilestone(item, level);
+
+  const fmtPct = (val: number) => {
+    const p = Math.round(val * 1000) / 10;
+    return p % 1 === 0 ? p.toFixed(0) : p.toFixed(1);
+  };
+
+  // 1. Move Speed
+  if (s.moveSpeedPercent !== undefined) {
+    const baseVal = s.moveSpeedPercent;
+    let milestoneBonus = 0;
+    if (level >= 3 && (item.id === 'phantom_veil' || item.id === 'sky_feather')) milestoneBonus += 0.06;
+    if (level >= 3 && (item.id === 'ghoul_claws' || item.id === 'feral_pelt')) milestoneBonus += 0.05;
+    const totalVal = baseVal * scale + milestoneBonus;
+    const gainVal = totalVal - baseVal;
+
+    statTags.push({
+      label: 'Speed',
+      value: `+${fmtPct(totalVal)}%`,
+      color: '#38bdf8',
+      isBoosted: level > 0,
+    });
+    effectParts.push(`+${fmtPct(totalVal)}% Movement Speed`);
+    if (level > 0) {
+      forgeGainParts.push(`+${fmtPct(gainVal)}% Speed`);
+    }
+  }
+
+  // 2. Attack Power
+  if (s.atkBonusPercent !== undefined) {
+    const baseVal = s.atkBonusPercent;
+    let milestoneBonus = 0;
+    if (level >= 3 && item.id === 'bonebreaker_emblem') milestoneBonus += 0.06;
+    if (level >= 3 && item.id === 'feral_fang') milestoneBonus += 0.05;
+    const totalVal = baseVal * scale + milestoneBonus;
+    const gainVal = totalVal - baseVal;
+
+    statTags.push({
+      label: 'Attack',
+      value: `+${fmtPct(totalVal)}%`,
+      color: '#f87171',
+      isBoosted: level > 0,
+    });
+    effectParts.push(`+${fmtPct(totalVal)}% Attack Power`);
+    if (level > 0) {
+      forgeGainParts.push(`+${fmtPct(gainVal)}% ATK`);
+    }
+  }
+
+  // 3. Max HP
+  if (s.maxHpBonus !== undefined) {
+    const baseVal = s.maxHpBonus;
+    let milestoneBonus = 0;
+    if (level >= 3 && item.id === 'ribcage_aegis') milestoneBonus += 40;
+    if (level >= 3 && item.id === 'iron_pelt') milestoneBonus += 50;
+    const totalVal = Math.round(baseVal * scale) + milestoneBonus;
+    const gainVal = totalVal - baseVal;
+
+    statTags.push({
+      label: 'Max HP',
+      value: `+${totalVal}`,
+      color: '#4ade80',
+      isBoosted: level > 0,
+    });
+    effectParts.push(`+${totalVal} Max HP`);
+    if (level > 0) {
+      forgeGainParts.push(`+${gainVal} HP`);
+    }
+  }
+
+  // 4. Defense Reduction
+  if (s.defensePercent !== undefined) {
+    const baseVal = s.defensePercent;
+    let milestoneBonus = 0;
+    if (level >= 3 && (item.id === 'ribcage_aegis' || item.id === 'iron_pelt')) milestoneBonus += 0.04;
+    const totalVal = baseVal * scale + milestoneBonus;
+    const gainVal = totalVal - baseVal;
+
+    statTags.push({
+      label: 'Defense',
+      value: `+${fmtPct(totalVal)}%`,
+      color: '#60a5fa',
+      isBoosted: level > 0,
+    });
+    effectParts.push(`+${fmtPct(totalVal)}% Damage Reduction`);
+    if (level > 0) {
+      forgeGainParts.push(`+${fmtPct(gainVal)}% DEF`);
+    }
+  }
+
+  // 5. Crit Chance
+  if (s.critChancePercent !== undefined) {
+    const baseVal = s.critChancePercent;
+    let milestoneBonus = 0;
+    if (level >= 3 && item.id === 'eagles_eye') milestoneBonus += 0.06;
+    const totalVal = baseVal * scale + milestoneBonus;
+    const gainVal = totalVal - baseVal;
+
+    statTags.push({
+      label: 'Crit %',
+      value: `+${fmtPct(totalVal)}%`,
+      color: '#facc15',
+      isBoosted: level > 0,
+    });
+    effectParts.push(`+${fmtPct(totalVal)}% Crit Chance`);
+    if (level > 0) {
+      forgeGainParts.push(`+${fmtPct(gainVal)}% Crit`);
+    }
+  }
+
+  // 6. Crit Damage
+  if (s.critDamagePercent !== undefined) {
+    const baseVal = s.critDamagePercent;
+    let milestoneBonus = 0;
+    if (level >= 6 && (item.id === 'ancient_marrow_ring' || item.id === 'skull_of_precision')) milestoneBonus += 0.25;
+    if (level >= 3 && item.id === 'apex_crown') milestoneBonus += 0.15;
+    const totalVal = baseVal * scale + milestoneBonus;
+    const gainVal = totalVal - baseVal;
+
+    statTags.push({
+      label: 'Crit DMG',
+      value: `+${fmtPct(totalVal)}%`,
+      color: '#fb923c',
+      isBoosted: level > 0,
+    });
+    effectParts.push(`+${fmtPct(totalVal)}% Crit Damage`);
+    if (level > 0) {
+      forgeGainParts.push(`+${fmtPct(gainVal)}% Crit DMG`);
+    }
+  }
+
+  // 7. Cooldown Reduction
+  if (s.cooldownReductionPercent !== undefined) {
+    const baseVal = s.cooldownReductionPercent;
+    let milestoneBonus = 0;
+    if (level >= 3 && item.id === 'wraith_pendant') milestoneBonus += 0.05;
+    const totalVal = baseVal * scale + milestoneBonus;
+    const gainVal = totalVal - baseVal;
+
+    statTags.push({
+      label: 'CDR',
+      value: `${fmtPct(totalVal)}%`,
+      color: '#a78bfa',
+      isBoosted: level > 0,
+    });
+    effectParts.push(`${fmtPct(totalVal)}% Cooldown Reduction`);
+    if (level > 0) {
+      forgeGainParts.push(`+${fmtPct(gainVal)}% CDR`);
+    }
+  }
+
+  // 8. Basic Attack Damage
+  if (s.basicAttackDamagePercent !== undefined) {
+    const baseVal = s.basicAttackDamagePercent;
+    let milestoneBonus = 0;
+    if (level >= 3 && item.id === 'saber_strike') milestoneBonus += 0.10;
+    const totalVal = baseVal * scale + milestoneBonus;
+    const gainVal = totalVal - baseVal;
+
+    statTags.push({
+      label: 'Basic ATK',
+      value: `+${fmtPct(totalVal)}%`,
+      color: '#fb923c',
+      isBoosted: level > 0,
+    });
+    effectParts.push(`+${fmtPct(totalVal)}% Basic ATK Damage`);
+    if (level > 0) {
+      forgeGainParts.push(`+${fmtPct(gainVal)}% Basic ATK`);
+    }
+  }
+
+  // 9. Projectile ATK
+  if (s.projectileAtkBonusPercent !== undefined) {
+    const baseVal = s.projectileAtkBonusPercent;
+    const totalVal = baseVal * scale;
+    const gainVal = totalVal - baseVal;
+
+    statTags.push({
+      label: 'Proj ATK',
+      value: `+${fmtPct(totalVal)}%`,
+      color: '#38bdf8',
+      isBoosted: level > 0,
+    });
+    effectParts.push(`+${fmtPct(totalVal)}% Projectile ATK`);
+    if (level > 0) {
+      forgeGainParts.push(`+${fmtPct(gainVal)}% Proj ATK`);
+    }
+  }
+
+  // 10. Consecutive ASPD
+  if (s.consecutiveAttackSpeed !== undefined) {
+    const baseVal = s.consecutiveAttackSpeed;
+    const totalVal = baseVal * scale;
+    const gainVal = totalVal - baseVal;
+
+    statTags.push({
+      label: 'ASPD',
+      value: `+${fmtPct(totalVal)}%/hit`,
+      color: '#f472b6',
+      isBoosted: level > 0,
+    });
+    effectParts.push(`+${fmtPct(totalVal)}% ASPD per hit (up to +${Math.round(totalVal * 500)}%)`);
+    if (level > 0) {
+      forgeGainParts.push(`+${fmtPct(gainVal)}% ASPD`);
+    }
+  }
+
+  // 11. Range Bonus
+  if (s.projectileRangeBonus !== undefined) {
+    const baseVal = s.projectileRangeBonus;
+    let milestoneBonus = 0;
+    if (level >= 3 && item.id === 'celestial_lens') milestoneBonus += 0.15;
+    const totalVal = baseVal * scale + milestoneBonus;
+    const gainVal = totalVal - baseVal;
+
+    statTags.push({
+      label: 'Range',
+      value: `+${fmtPct(totalVal)}%`,
+      color: '#67e8f9',
+      isBoosted: level > 0,
+    });
+    effectParts.push(`+${fmtPct(totalVal)}% Projectile Range`);
+    if (level > 0) {
+      forgeGainParts.push(`+${fmtPct(gainVal)}% Range`);
+    }
+  }
+
+  // 12. Melee Proximity
+  if (s.meleeProximityBonus !== undefined) {
+    const baseVal = s.meleeProximityBonus;
+    let milestoneBonus = 0;
+    if (level >= 3 && item.id === 'striped_totem') milestoneBonus += 0.10;
+    const totalVal = baseVal * scale + milestoneBonus;
+    const gainVal = totalVal - baseVal;
+
+    statTags.push({
+      label: 'Close Melee',
+      value: `+${fmtPct(totalVal)}%`,
+      color: '#f59e0b',
+      isBoosted: level > 0,
+    });
+    effectParts.push(`+${fmtPct(totalVal)}% Close Melee DMG`);
+    if (level > 0) {
+      forgeGainParts.push(`+${fmtPct(gainVal)}% Melee`);
+    }
+  }
+
+  // 13. Resource Bonus
+  if (s.resourceBonusPercent !== undefined) {
+    const totalVal = s.resourceBonusPercent * scale;
+    statTags.push({
+      label: 'Yield',
+      value: `+${fmtPct(totalVal)}%`,
+      color: '#fbbf24',
+      isBoosted: level > 0,
+    });
+    effectParts.push(`+${fmtPct(totalVal)}% Shard & XP Gain`);
+    if (level > 0) {
+      forgeGainParts.push(`+${fmtPct(totalVal - s.resourceBonusPercent)}% Yield`);
+    }
+  }
+
+  // 14. On Kill Heal
+  if (s.onKillHealPercent !== undefined) {
+    let milestoneBonus = 0;
+    if (level >= 3 && item.id === 'crown_of_the_undying') milestoneBonus += 0.02;
+    const totalVal = s.onKillHealPercent * scale + milestoneBonus;
+    statTags.push({
+      label: 'Kill Heal',
+      value: `${fmtPct(totalVal)}% HP`,
+      color: '#34d399',
+      isBoosted: level > 0,
+    });
+    effectParts.push(`Restore ${fmtPct(totalVal)}% Max HP on kill`);
+    if (level > 0) {
+      forgeGainParts.push(`+${fmtPct(totalVal - s.onKillHealPercent)}% Leech`);
+    }
+  }
+
+  // 15. Poison Chance
+  if (s.poisonChancePercent !== undefined) {
+    const totalVal = s.poisonChancePercent * scale;
+    statTags.push({
+      label: 'Poison',
+      value: `${fmtPct(totalVal)}%`,
+      color: '#a3e635',
+      isBoosted: level > 0,
+    });
+    effectParts.push(`${fmtPct(totalVal)}% Chance to Poison (35% ATK/s)`);
+    if (level > 0) {
+      forgeGainParts.push(`+${fmtPct(totalVal - s.poisonChancePercent)}% Poison`);
+    }
+  }
+
+  // 16. On Kill ATK Boost
+  if (s.onKillAtkBoostPercent !== undefined) {
+    const totalVal = s.onKillAtkBoostPercent * scale;
+    statTags.push({
+      label: 'Kill ATK',
+      value: `+${fmtPct(totalVal)}%`,
+      color: '#f87171',
+      isBoosted: level > 0,
+    });
+    effectParts.push(`+${fmtPct(totalVal)}% ATK for 4s on kill`);
+  }
+
+  // 17. Specialized Proc Tags
+  if (s.spectralBarrierOnHit) {
+    const barrierHp = Math.round(65 * scale);
+    statTags.push({
+      label: 'Barrier',
+      value: `${barrierHp} HP`,
+      color: '#818cf8',
+      isBoosted: level > 0,
+    });
+    effectParts.push(`Spectral Barrier (${barrierHp} HP, 8s cd)`);
+    if (level > 0) forgeGainParts.push(`+${barrierHp - 65} Barrier`);
+  }
+
+  if (s.seekingSpiritOnSkill) {
+    const spiritDmg = Math.round(85 * scale);
+    statTags.push({
+      label: 'Spirit',
+      value: `${spiritDmg}% ATK`,
+      color: '#c084fc',
+      isBoosted: level > 0,
+    });
+    effectParts.push(`Seeking Spirit (${spiritDmg}% ATK on skill hit)`);
+    if (level > 0) forgeGainParts.push(`+${spiritDmg - 85}% Spirit`);
+  }
+
+  if (s.windBladeOnHit) {
+    const bladeDmg = Math.round((level >= 3 ? 85 : 65) * scale);
+    statTags.push({
+      label: 'Wind Blade',
+      value: `${bladeDmg}% ATK`,
+      color: '#38bdf8',
+      isBoosted: level > 0,
+    });
+    effectParts.push(`Wind Blade (${bladeDmg}% ATK on hit)`);
+    if (level > 0) forgeGainParts.push(`+${bladeDmg - 65}% Blade`);
+  }
+
+  if (s.shockwaveOnConsecutive) {
+    const shockDmg = Math.round((level >= 3 ? 140 : 110) * scale);
+    statTags.push({
+      label: 'Shockwave',
+      value: `${shockDmg}% ATK`,
+      color: '#f59e0b',
+      isBoosted: level > 0,
+    });
+    effectParts.push(`Shockwave (${shockDmg}% ATK on consecutive hit)`);
+    if (level > 0) forgeGainParts.push(`+${shockDmg - 110}% Shockwave`);
+  }
+
+  if (s.critBoneFragmentChance !== undefined) {
+    const boneChance = Math.min(0.8, (0.30 + (level >= 3 && item.id === 'skull_of_precision' ? 0.20 : 0)) * (1 + level * 0.04));
+    statTags.push({
+      label: 'Bone Frag',
+      value: `${Math.round(boneChance * 100)}%`,
+      color: '#c084fc',
+      isBoosted: level > 0,
+    });
+    effectParts.push(`Bone Fragments (${Math.round(boneChance * 100)}% chance)`);
+  }
+
+  if (s.projectilePierceBonus) {
+    statTags.push({
+      label: 'Pierce',
+      value: '+1 Foe',
+      color: '#38bdf8',
+      isBoosted: level > 0,
+    });
+    effectParts.push('Projectile Pierce (+1 enemy)');
+  }
+
+  if (s.explosiveSkillProc) {
+    const shrapnelDmg = Math.round(65 * scale);
+    statTags.push({
+      label: 'Shrapnel',
+      value: `${shrapnelDmg}% ATK`,
+      color: '#f97316',
+      isBoosted: level > 0,
+    });
+    effectParts.push(`Shrapnel Burst (${shrapnelDmg}% ATK)`);
+  }
+
+  if (s.explosiveOnPoisonDefeat) {
+    const toxicDmg = Math.round(70 * scale);
+    statTags.push({
+      label: 'Toxic Burst',
+      value: `${toxicDmg}% ATK`,
+      color: '#84cc16',
+      isBoosted: level > 0,
+    });
+    effectParts.push(`Toxic Burst (${toxicDmg}% ATK AoE on poisoned kill)`);
+  }
+
+  if (s.energyBurstProc) {
+    const burstDmg = Math.round(90 * scale);
+    statTags.push({
+      label: 'Burst',
+      value: `${burstDmg}% ATK`,
+      color: '#eab308',
+      isBoosted: level > 0,
+    });
+    effectParts.push(`Energy Burst (${burstDmg}% ATK)`);
+  }
+
+  if (s.consecutiveHealChance !== undefined) {
+    const healChance = Math.min(0.6, 0.25 * (1 + level * 0.04));
+    statTags.push({
+      label: 'Heal Proc',
+      value: `${Math.round(healChance * 100)}%`,
+      color: '#10b981',
+      isBoosted: level > 0,
+    });
+    effectParts.push(`Consecutive Heal (${Math.round(healChance * 100)}% chance)`);
+  }
+
+  // Batkin Nocturne Regalia Procs
+  if (s.secondarySonicChance !== undefined) {
+    const sonicChance = Math.min(0.7, s.secondarySonicChance * (1 + level * 0.04));
+    statTags.push({
+      label: 'Echo Bolt',
+      value: `${Math.round(sonicChance * 100)}%`,
+      color: '#c084fc',
+      isBoosted: level > 0,
+    });
+    effectParts.push(`Secondary Sonic Projectile (${Math.round(sonicChance * 100)}% chance)`);
+  }
+
+  if (s.movementPulseOnMove) {
+    const pulseDmg = Math.round((level >= 6 ? 85 : 55) * scale);
+    statTags.push({
+      label: 'Wing Pulse',
+      value: `${pulseDmg}% ATK`,
+      color: '#a855f7',
+      isBoosted: level > 0,
+    });
+    effectParts.push(`Silent Wing Sound Pulse (${pulseDmg}% ATK AoE)`);
+    if (level > 0) forgeGainParts.push(`+${pulseDmg - 55}% Pulse`);
+  }
+
+  if (s.secondaryVibrationOnSkill) {
+    const vibDmg = Math.round((level >= 6 ? 110 : 75) * scale);
+    statTags.push({
+      label: 'Vibration',
+      value: `${vibDmg}% ATK`,
+      color: '#d8b4fe',
+      isBoosted: level > 0,
+    });
+    effectParts.push(`Harmonic Vibration (${vibDmg}% ATK on skill cast)`);
+    if (level > 0) forgeGainParts.push(`+${vibDmg - 75}% Vibration`);
+  }
+
+  if (s.criticalSoundWaveChance !== undefined) {
+    const waveChance = Math.min(0.75, (0.35 + (level >= 3 ? 0.06 : 0)) * (1 + level * 0.03));
+    statTags.push({
+      label: 'Wave Proc',
+      value: `${Math.round(waveChance * 100)}%`,
+      color: '#c084fc',
+      isBoosted: level > 0,
+    });
+    effectParts.push(`Piercing Sound Wave (${Math.round(waveChance * 100)}% chance on crit)`);
+  }
+
+  if (s.frequencyStackProc) {
+    const ampVal = level >= 12 ? 50 : 30;
+    statTags.push({
+      label: 'Frequency',
+      value: `+${ampVal}% Burst`,
+      color: '#e879f9',
+      isBoosted: level > 0,
+    });
+    effectParts.push(`Frequency Stacks (+${ampVal}% next skill damage at 5 stacks)`);
+  }
+
+  if (s.resonanceBarrierOnDamage) {
+    const barrierHp = Math.round((level >= 6 ? 90 : 60) * scale);
+    statTags.push({
+      label: 'Acoustic Aegis',
+      value: `${barrierHp} HP`,
+      color: '#c084fc',
+      isBoosted: level > 0,
+    });
+    effectParts.push(`Defensive Sound Burst & Barrier (${barrierHp} HP)`);
+    if (level > 0) forgeGainParts.push(`+${barrierHp - 60} Barrier`);
+  }
+
+  // Primary effect summary
+  const primaryEffectSummary = effectParts.length > 0 ? effectParts.join(' · ') : item.effectDescription;
+  const bonusSummary = forgeGainParts.length > 0 ? forgeGainParts.join(', ') : '+0%';
+
+  // Dynamic Effect Description (updates each upgrade!)
+  let dynamicEffectDescription = primaryEffectSummary;
+  if (level > 0) {
+    const milestoneNames = unlockedMilestones.map((m) => m.title).join(', ');
+    const milestoneNote = milestoneNames ? ` · Perks: ${milestoneNames}` : '';
+    dynamicEffectDescription = `${primaryEffectSummary} (+${bonusSummary} upgrade power${milestoneNote}).`;
+  }
+
+  // Dynamic Base Description (updates each upgrade!)
+  let dynamicDescription = item.description;
+  if (level > 0) {
+    const milestoneNames = unlockedMilestones.map((m) => m.title).join(', ');
+    const milestoneText = milestoneNames ? ` · Unlocked: ${milestoneNames}` : '';
+    dynamicDescription = `${item.description} [Reforged +${level}]: ${primaryEffectSummary} (+${bonusSummary} Forge bonus${milestoneText}).`;
+  }
+
+  return {
+    level,
+    dynamicDescription,
+    dynamicEffectDescription,
+    primaryEffectSummary,
+    statTags,
+    unlockedMilestones,
+    nextMilestone,
+    bonusSummary,
+  };
 }
