@@ -53,6 +53,7 @@ const HERO_ROSTER: HeroId[] = [
   'ghost',
   'tigerkin',
   'eaglekin',
+  'batkin',
 ];
 
 const HERO_THEME: Record<
@@ -121,6 +122,14 @@ const HERO_THEME: Record<
     badgeBg: 'border-sky-400/50 bg-sky-500/20 text-sky-200',
     textAccent: 'text-sky-300',
     ringAccent: 'ring-sky-400/50',
+  },
+  batkin: {
+    factionLabel: 'Wildborn',
+    borderActive: 'border-purple-400',
+    bgActive: 'bg-purple-500/15',
+    badgeBg: 'border-purple-400/50 bg-purple-500/20 text-purple-200',
+    textAccent: 'text-purple-300',
+    ringAccent: 'ring-purple-400/50',
   },
 };
 
@@ -234,7 +243,7 @@ export function MultiplayerLobbyScreen({
       return hId === 'skeleton' || hId === 'zombie' || hId === 'ghoul' || hId === 'ghost';
     }
     if (filterTab === 'wildborn') {
-      return hId === 'tigerkin' || hId === 'eaglekin';
+      return hId === 'tigerkin' || hId === 'eaglekin' || hId === 'batkin';
     }
     return true;
   });

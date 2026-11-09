@@ -388,7 +388,9 @@ export interface SlashWaveEffect {
     | 'tiger_rend_crescent'
     | 'rending_flurry_slash'
     | 'crushing_paw_shock'
-    | 'apex_claw_fissure';
+    | 'apex_claw_fissure'
+    | 'sonic_crescent_arc'
+    | 'resonance_breaker_wave';
   x: number;
   y: number;
   angle: number;
@@ -428,7 +430,14 @@ export interface GroundEffect {
     | 'heavenly_tiger_run'
     | 'apex_shockwave_ring'
     | 'tiger_roar_burst'
-    | 'savage_pursuit_track';
+    | 'savage_pursuit_track'
+    | 'resonance_field_zone'
+    | 'echo_dimension_zone'
+    | 'sonic_repulsion_blast'
+    | 'symphony_wave_ring'
+    | 'silence_zone_rift'
+    | 'requiem_pillar_crater'
+    | 'hollow_choir_ritual';
   x: number;
   y: number;
   x2: number;

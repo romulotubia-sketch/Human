@@ -552,6 +552,12 @@ export class EquipmentManager {
     let projRange = 1.0;
     let meleeProximity = 1.0;
     let shockwaveConsecutive = false;
+    let secSonicChance = 0;
+    let movePulse = false;
+    let secVibration = false;
+    let critSoundWaveChance = 0;
+    let freqProc = false;
+    let resBarrier = false;
 
     for (const item of items) {
       const level = this.getEnhancementLevel(item.id);

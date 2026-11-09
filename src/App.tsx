@@ -96,6 +96,7 @@ export default function App() {
     ghost: [...HERO_PROFILES.ghost.defaultLoadout],
     eaglekin: [...HERO_PROFILES.eaglekin.defaultLoadout],
     tigerkin: [...HERO_PROFILES.tigerkin.defaultLoadout],
+    batkin: [...HERO_PROFILES.batkin.defaultLoadout],
   });
 
   const [skillRanks, setSkillRanks] = useState<Record<SkillId, number>>(INITIAL_RANKS);
@@ -911,8 +912,10 @@ export default function App() {
                   width={hpBarWidth}
                   height="8"
                   fill={
-                    heroId === 'tigerkin'
-                      ? '#f59e0b'
+                    heroId === 'batkin'
+                      ? '#c084fc'
+                      : heroId === 'tigerkin'
+                        ? '#f59e0b'
                       : heroId === 'eaglekin'
                         ? '#38bdf8'
                         : heroId === 'human'
@@ -1060,8 +1063,10 @@ export default function App() {
                   setShowSkillTree(true);
                 }}
                 className={`flex min-h-[42px] items-center gap-1.5 whitespace-nowrap rounded-xl border bg-stone-950/85 px-3 py-2 text-xs font-semibold backdrop-blur-md active:scale-95 ${
-                  heroId === 'tigerkin'
-                    ? 'border-amber-400/65 text-amber-100'
+                  heroId === 'batkin'
+                    ? 'border-purple-400/65 text-purple-100'
+                    : heroId === 'tigerkin'
+                      ? 'border-amber-400/65 text-amber-100'
                     : heroId === 'eaglekin'
                       ? 'border-sky-400/65 text-sky-100'
                       : heroId === 'human'
@@ -1077,8 +1082,10 @@ export default function App() {
               >
                 <Sparkles
                   className={`h-4 w-4 ${
-                    heroId === 'tigerkin'
-                      ? 'text-amber-300'
+                    heroId === 'batkin'
+                      ? 'text-purple-300'
+                      : heroId === 'tigerkin'
+                        ? 'text-amber-300'
                       : heroId === 'eaglekin'
                         ? 'text-sky-300'
                         : heroId === 'human'

@@ -721,6 +721,7 @@ export class GameEngine {
   private celestialBarrageTimer = 0;
   private celestialBarrageTickTimer = 0;
   private celestialBarrageMult = 0.85;
+  private echoDimensionTimer = 0;
 
   private resetEaglekinTimers() {
     this.player.wingFlapTimer = 0;

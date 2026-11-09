@@ -402,6 +402,84 @@ class SoundEngine {
     });
   }
 
+  public playSonicWave(pitch = 1, heavy = false) {
+    const ctx = this.ensureContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    [heavy ? 320 : 540, heavy ? 640 : 1080].forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq * pitch, now);
+      osc.frequency.exponentialRampToValueAtTime((freq * 0.35) * pitch, now + (heavy ? 0.28 : 0.18));
+      gain.gain.setValueAtTime((idx === 0 ? 0.18 : 0.09) * this.volume, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + (heavy ? 0.3 : 0.2));
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + (heavy ? 0.31 : 0.21));
+    });
+  }
+
+  public playResonancePulse(pitch = 1) {
+    const ctx = this.ensureContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    // Harmonic crystal resonance chime
+    [440, 880, 1320].forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq * pitch, now);
+      osc.frequency.exponentialRampToValueAtTime(freq * 1.05 * pitch, now + 0.35);
+      gain.gain.setValueAtTime((0.14 / (idx + 1)) * this.volume, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.4);
+    });
+  }
+
+  public playSpectralBats() {
+    const ctx = this.ensureContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    for (let i = 0; i < 4; i++) {
+      const t = now + i * 0.05;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(900 + Math.random() * 600, t);
+      osc.frequency.exponentialRampToValueAtTime(400, t + 0.12);
+      gain.gain.setValueAtTime(0.06 * this.volume, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.15);
+    }
+  }
+
+  public playBellChime(pitch = 1) {
+    const ctx = this.ensureContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    // Corrupted bell eerie dissonant metallic chime
+    [220, 311, 466, 622].forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq * pitch, now);
+      gain.gain.setValueAtTime((0.15 / (idx + 1)) * this.volume, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.85);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.9);
+    });
+  }
+
   public playPortalSpawn() {
     const ctx = this.ensureContext();
     if (!ctx) return;

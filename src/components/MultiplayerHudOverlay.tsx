@@ -59,8 +59,10 @@ export function MultiplayerHudOverlay({
                   className={`flex h-6 w-6 items-center justify-center rounded-lg text-[10px] font-bold ${
                     isDown
                       ? 'bg-red-500 text-white'
-                      : tm.heroId === 'tigerkin'
-                        ? 'bg-amber-500/25 text-amber-200'
+                      : tm.heroId === 'batkin'
+                        ? 'bg-purple-500/25 text-purple-200'
+                        : tm.heroId === 'tigerkin'
+                          ? 'bg-amber-500/25 text-amber-200'
                         : tm.heroId === 'eaglekin'
                           ? 'bg-sky-500/25 text-sky-200'
                           : tm.heroId === 'human'

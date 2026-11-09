@@ -55,14 +55,14 @@ export function HeroSelectScreen({
 
   const [activeCategory, setActiveCategory] = useState<'none' | 'undead_legion' | 'wildborn_tribes'>(() => {
     if (heroId === 'human') return 'none';
-    if (heroId === 'eaglekin' || heroId === 'tigerkin') return 'wildborn_tribes';
+    if (heroId === 'eaglekin' || heroId === 'tigerkin' || heroId === 'batkin') return 'wildborn_tribes';
     return 'undead_legion';
   });
 
   useEffect(() => {
     if (heroId === 'human') {
       setActiveCategory('none');
-    } else if (heroId === 'eaglekin' || heroId === 'tigerkin') {
+    } else if (heroId === 'eaglekin' || heroId === 'tigerkin' || heroId === 'batkin') {
       setActiveCategory('wildborn_tribes');
     } else {
       setActiveCategory('undead_legion');
@@ -172,7 +172,7 @@ export function HeroSelectScreen({
             >
               <span className="h-2 w-2 rounded-full bg-amber-400" />
               Wildborn Tribes
-              <span className="rounded bg-amber-900/60 px-1 py-0.2 text-[10px] text-amber-300 font-mono">2</span>
+              <span className="rounded bg-amber-900/60 px-1 py-0.2 text-[10px] text-amber-300 font-mono">3</span>
             </button>
           </div>
         </div>
@@ -275,7 +275,7 @@ export function HeroSelectScreen({
             })}
 
           {activeCategory === 'wildborn_tribes' &&
-            (['tigerkin', 'eaglekin'] as HeroId[]).map((id) => {
+            (['tigerkin', 'eaglekin', 'batkin'] as HeroId[]).map((id) => {
               const active = heroId === id;
               return (
                 <button
@@ -289,7 +289,9 @@ export function HeroSelectScreen({
                     active
                       ? id === 'tigerkin'
                         ? 'bg-amber-400 text-stone-950 font-bold shadow-sm'
-                        : 'bg-sky-400 text-stone-950 font-bold shadow-sm'
+                        : id === 'batkin'
+                          ? 'bg-purple-400 text-stone-950 font-bold shadow-sm'
+                          : 'bg-sky-400 text-stone-950 font-bold shadow-sm'
                       : 'border border-stone-800 bg-stone-900/80 text-stone-300 hover:border-stone-600 hover:text-white'
                   }`}
                 >

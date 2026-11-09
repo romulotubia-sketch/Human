@@ -42,8 +42,10 @@ function MinimapComponent({ minimap, heroId, floor }: MinimapProps) {
   const unit = Math.max(vbW, vbH) / 42;
 
   const heroColor =
-    heroId === 'tigerkin'
-      ? '#f59e0b'
+    heroId === 'batkin'
+      ? '#c084fc'
+      : heroId === 'tigerkin'
+        ? '#f59e0b'
       : heroId === 'eaglekin'
         ? '#38bdf8'
         : heroId === 'human'
@@ -266,8 +268,10 @@ function MinimapComponent({ minimap, heroId, floor }: MinimapProps) {
           minimap.teammates.map((tm) => {
             const tmColor = tm.isDowned
               ? '#ef4444'
-              : tm.heroId === 'tigerkin'
-                ? '#f59e0b'
+              : tm.heroId === 'batkin'
+                ? '#c084fc'
+                : tm.heroId === 'tigerkin'
+                  ? '#f59e0b'
                 : tm.heroId === 'eaglekin'
                   ? '#38bdf8'
                   : tm.heroId === 'human'

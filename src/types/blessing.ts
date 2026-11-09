@@ -17,6 +17,8 @@ export interface BlessingModifier {
   shieldBonus?: number;           // e.g. +50 bonus shield
   staggerBonus?: number;          // stun/stagger foes
   rangeBonus?: number;            // bonus projectile / attack range
+  pierceCountBonus?: number;      // e.g. +2 bonus pierces
+  speedMultBonus?: number;        // e.g. +0.30 movement or projectile speed
 }
 
 export interface Blessing {

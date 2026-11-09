@@ -27,6 +27,7 @@ const ALL_HERO_IDS: HeroId[] = [
   'ghost',
   'tigerkin',
   'eaglekin',
+  'batkin',
 ];
 
 export function MultiplayerMenuModal({

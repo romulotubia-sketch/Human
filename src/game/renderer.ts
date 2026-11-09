@@ -387,6 +387,7 @@ export function renderHeroShowcaseCanvas(
   const isGhost = heroId === 'ghost';
   const isEaglekin = heroId === 'eaglekin';
   const isTigerkin = heroId === 'tigerkin';
+  const isBatkin = heroId === 'batkin';
   const grad = ctx.createRadialGradient(w / 2, h * 0.56, 8, w / 2, h * 0.56, w * 0.52);
   grad.addColorStop(
     0,
@@ -402,7 +403,9 @@ export function renderHeroShowcaseCanvas(
               ? 'rgba(56, 189, 248, 0.28)'
               : isTigerkin
                 ? 'rgba(245, 158, 11, 0.32)'
-                : 'rgba(56, 189, 248, 0.18)'
+                : isBatkin
+                  ? 'rgba(192, 132, 252, 0.34)'
+                  : 'rgba(56, 189, 248, 0.18)'
   );
   grad.addColorStop(0.58, 'rgba(38, 29, 24, 0.55)');
   grad.addColorStop(1, 'rgba(20, 15, 12, 0)');
@@ -422,14 +425,16 @@ export function renderHeroShowcaseCanvas(
             ? 'rgba(56, 189, 248, 0.45)'
             : isTigerkin
               ? 'rgba(245, 158, 11, 0.55)'
-              : 'rgba(251, 191, 36, 0.32)';
+              : isBatkin
+                ? 'rgba(192, 132, 252, 0.52)'
+                : 'rgba(251, 191, 36, 0.32)';
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.ellipse(w / 2, h * 0.78, 54, 17, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
 
-  const hx = isGhoul || isTigerkin ? w * 0.5 : w * 0.43;
+  const hx = isGhoul || isTigerkin || isBatkin ? w * 0.5 : w * 0.43;
   const hy = h * 0.72;
   if (isHuman) {
     drawChibiHumanBody(ctx, hx, hy, 0.25, time * 2.5, 1.74, false, false, 0, 0);
@@ -443,12 +448,14 @@ export function renderHeroShowcaseCanvas(
     drawChibiEaglekinBody(ctx, hx, hy, 0.25, time * 2.5, 1.75, false, 0, 0, Math.sin(time * 3) > 0.65 ? 0.35 : 0);
   } else if (isTigerkin) {
     drawChibiTigerkinBody(ctx, hx, hy, 0.25, time * 2.4, 1.75, false, false, 0, 0);
+  } else if (isBatkin) {
+    drawChibiBatkinBody(ctx, hx, hy, 0.25, time * 2.4, 1.75, false, false, 0, 0);
   } else {
     drawChibiSkeletonBody(ctx, hx, hy, 0.25, time * 2.4, 1.75, '#67e8f9', false, '#9a3412', null, 0);
   }
 
   const hover = Math.sin(time * 3.6) * 5;
-  const wx = isGhoul || isTigerkin ? hx + 40 : isGhost ? hx + 43 : isEaglekin ? hx + 32 : hx + 46;
+  const wx = isGhoul || isTigerkin ? hx + 40 : isGhost ? hx + 43 : isEaglekin ? hx + 32 : isBatkin ? hx + 42 : hx + 46;
   const wy = (isGhost ? h * 0.51 : h * 0.55) + hover;
   const ox = hx - 40;
   const oy = h * 0.56 - hover * 0.85;
@@ -4980,6 +4987,22 @@ function drawHeroAndEffects(ctx: CanvasRenderingContext2D, player: PlayerRenderS
       player.attackTwist,
       player.attackSquash
     );
+  } else if (player.heroId === 'batkin') {
+    drawChibiBatkinBody(
+      ctx,
+      player.x,
+      player.y,
+      player.facing,
+      player.walkPhase,
+      heroScale,
+      false, // isAfterimage
+      false, // isCorruptedBoss
+      player.hitFlash,
+      player.airborneHeight || 0,
+      player.attackLunge,
+      player.attackTwist,
+      player.attackSquash
+    );
   } else {
     drawChibiSkeletonBody(
       ctx,
@@ -5642,11 +5665,486 @@ function drawFloatingGhostLantern(
     player.swordY - player.airborneHeight,
     player.swordAngle,
     player.swordScale,
-    player.swordGlowColor,
-    player.swordGlowIntensity,
-    player.nightmareTimer > 0,
-    time
   );
+}
+
+/**
+ * Cute Chibi Batkin – Echo Arcanist (Wildborn Tribes / Primal Legion)
+ * Cute oversized round bat head with soft dark-charcoal/violet fur, large pointed ears with soft lavender inner gradient,
+ * cozy velvet purple cowl with crescent brooch, glowing luminous amethyst eyes with acoustic slit pupils,
+ * tiny bat nose & two cute little fangs, folded leathery bat wings on the back, stubby little clawed feet (NO ARMS),
+ * and orbiting resonant sound crystals!
+ */
+function drawChibiBatkinBody(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  facing: number,
+  walkPhase: number,
+  scale: number,
+  isAfterimage = false,
+  isCorruptedBoss = false,
+  hitFlash = 0,
+  airborneHeight = 0,
+  attackLunge = 0,
+  attackTwist = 0,
+  attackSquash = 0
+) {
+  ctx.save();
+  ctx.translate(x, y - airborneHeight);
+  ctx.scale(scale, scale);
+
+  const nowSec = performance.now() * 0.001;
+  const isMoving = Math.abs(Math.sin(walkPhase)) > 0.01;
+  const isAirborne = airborneHeight > 2;
+  const bob = isAirborne
+    ? Math.sin(nowSec * 16) * 3.8
+    : isMoving
+      ? Math.sin(walkPhase * 2.2) * -3.2
+      : Math.sin(nowSec * 3.8) * -1.5;
+
+  const footSwing = isAirborne ? 0 : Math.sin(walkPhase) * 5.5 + attackTwist * 3.8;
+
+  // Ground shadow
+  if (!isAfterimage) {
+    ctx.save();
+    ctx.translate(0, airborneHeight);
+    const shadowScale = isAirborne ? Math.max(0.35, 1 - airborneHeight / 70) : 1.0;
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.42)';
+    ctx.beginPath();
+    ctx.ellipse(
+      Math.cos(facing) * attackLunge * 2.4,
+      12.5,
+      (15 + attackLunge * 2) * shadowScale,
+      6.0 * shadowScale,
+      0,
+      0,
+      Math.PI * 2
+    );
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Color palette
+  const furMain = hitFlash > 0 ? '#ffffff' : isAfterimage ? '#c084fc' : isCorruptedBoss ? '#1e112a' : '#271938';
+  const furDark = hitFlash > 0 ? '#ffffff' : isAfterimage ? '#9333ea' : isCorruptedBoss ? '#0f0717' : '#170c24';
+  const earInner = hitFlash > 0 ? '#ffffff' : isAfterimage ? '#f3e8ff' : isCorruptedBoss ? '#701a75' : '#e9d5ff';
+  const eyeColor = hitFlash > 0 ? '#ffffff' : isCorruptedBoss ? '#f43f5e' : '#c084fc';
+  const eyeGlow = hitFlash > 0 ? '#ffffff' : isCorruptedBoss ? '#e11d48' : '#e879f9';
+  const wingSkin = hitFlash > 0 ? '#ffffff' : isAfterimage ? '#7e22ce' : isCorruptedBoss ? '#2e1065' : '#3b1d54';
+  const cloakPurple = hitFlash > 0 ? '#ffffff' : isAfterimage ? '#a855f7' : isCorruptedBoss ? '#4c1d95' : '#581c87';
+
+  // --- 1. Folded / Fluttering Bat Wings Behind Body ---
+  const wingTwitch = Math.sin(nowSec * 5 + walkPhase) * (isMoving ? 0.25 : 0.08);
+  const wingSpanMult = isCorruptedBoss ? 1.6 : 1.0;
+  ctx.save();
+  ctx.translate(0, -2 + bob);
+
+  // Left wing
+  ctx.save();
+  ctx.translate(-10, -2);
+  ctx.rotate(-0.35 + wingTwitch);
+  ctx.fillStyle = wingSkin;
+  ctx.strokeStyle = furDark;
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.quadraticCurveTo(-14 * wingSpanMult, -18 * wingSpanMult, -22 * wingSpanMult, -8 * wingSpanMult);
+  ctx.quadraticCurveTo(-18 * wingSpanMult, -2 * wingSpanMult, -16 * wingSpanMult, 8 * wingSpanMult);
+  ctx.quadraticCurveTo(-10 * wingSpanMult, 4 * wingSpanMult, -6 * wingSpanMult, 12 * wingSpanMult);
+  ctx.quadraticCurveTo(-2 * wingSpanMult, 6 * wingSpanMult, 0, 0);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  // Wing finger rib
+  ctx.strokeStyle = furDark;
+  ctx.lineWidth = 1.0;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(-22 * wingSpanMult, -8 * wingSpanMult);
+  ctx.moveTo(-6 * wingSpanMult, -5 * wingSpanMult);
+  ctx.lineTo(-16 * wingSpanMult, 8 * wingSpanMult);
+  ctx.stroke();
+  ctx.restore();
+
+  // Right wing
+  ctx.save();
+  ctx.translate(10, -2);
+  ctx.rotate(0.35 - wingTwitch);
+  ctx.fillStyle = wingSkin;
+  ctx.strokeStyle = furDark;
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.quadraticCurveTo(14 * wingSpanMult, -18 * wingSpanMult, 22 * wingSpanMult, -8 * wingSpanMult);
+  ctx.quadraticCurveTo(18 * wingSpanMult, -2 * wingSpanMult, 16 * wingSpanMult, 8 * wingSpanMult);
+  ctx.quadraticCurveTo(10 * wingSpanMult, 4 * wingSpanMult, 6 * wingSpanMult, 12 * wingSpanMult);
+  ctx.quadraticCurveTo(2 * wingSpanMult, 6 * wingSpanMult, 0, 0);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  // Wing finger rib
+  ctx.strokeStyle = furDark;
+  ctx.lineWidth = 1.0;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(22 * wingSpanMult, -8 * wingSpanMult);
+  ctx.moveTo(6 * wingSpanMult, -5 * wingSpanMult);
+  ctx.lineTo(16 * wingSpanMult, 8 * wingSpanMult);
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.restore();
+
+  // --- 2. Two Stubby Cute Clawed Feet (NO ARMS) ---
+  ctx.fillStyle = furDark;
+  ctx.strokeStyle = furMain;
+  ctx.lineWidth = 1.2;
+  // Left foot
+  ctx.save();
+  ctx.translate(-7, 8 - footSwing * 0.75);
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 4.2, 3.2, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  // Tiny claws
+  ctx.fillStyle = '#f3e8ff';
+  ctx.fillRect(-3, 1.5, 1.5, 2.2);
+  ctx.fillRect(-0.5, 2, 1.5, 2.2);
+  ctx.fillRect(2, 1.5, 1.5, 2.2);
+  ctx.restore();
+
+  // Right foot
+  ctx.save();
+  ctx.translate(7, 8 + footSwing * 0.75);
+  ctx.fillStyle = furDark;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 4.2, 3.2, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  // Tiny claws
+  ctx.fillStyle = '#f3e8ff';
+  ctx.fillRect(-3, 1.5, 1.5, 2.2);
+  ctx.fillRect(-0.5, 2, 1.5, 2.2);
+  ctx.fillRect(2, 1.5, 1.5, 2.2);
+  ctx.restore();
+
+  // --- 3. Cozy Cloaked Body / Cowl ---
+  ctx.save();
+  ctx.translate(0, bob);
+  ctx.fillStyle = cloakPurple;
+  ctx.strokeStyle = furDark;
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  ctx.moveTo(-11, -3);
+  ctx.quadraticCurveTo(-15, 6, -11, 9);
+  ctx.quadraticCurveTo(0, 11, 11, 9);
+  ctx.quadraticCurveTo(15, 6, 11, -3);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // Silver crescent brooch at neck
+  ctx.fillStyle = '#e9d5ff';
+  ctx.beginPath();
+  ctx.arc(0, -1, 3.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = cloakPurple;
+  ctx.beginPath();
+  ctx.arc(1.2, -1.2, 2.6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // --- 4. Adorable Chibi Bat Head & Large Ears ---
+  ctx.save();
+  ctx.translate(Math.cos(facing) * attackLunge * 1.8, -12 + bob + attackSquash * 1.5);
+  ctx.rotate(attackTwist * 0.25);
+
+  // Large expressive pointed bat ears
+  const earTwitchL = Math.sin(nowSec * 6) * 0.05;
+  const earTwitchR = Math.sin(nowSec * 6 + 1.2) * 0.05;
+
+  // Left Ear
+  ctx.save();
+  ctx.translate(-11, -6);
+  ctx.rotate(-0.38 + earTwitchL);
+  ctx.fillStyle = furMain;
+  ctx.strokeStyle = furDark;
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  ctx.moveTo(-2, 4);
+  ctx.quadraticCurveTo(-14, -8, -10, -23);
+  ctx.quadraticCurveTo(-1, -16, 6, 0);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // Inner ear soft lavender gradient with acoustic ripples
+  ctx.fillStyle = earInner;
+  ctx.beginPath();
+  ctx.moveTo(-1, 2);
+  ctx.quadraticCurveTo(-10, -6, -8, -19);
+  ctx.quadraticCurveTo(-1, -14, 4, -1);
+  ctx.closePath();
+  ctx.fill();
+  // Inner acoustic ridges
+  ctx.strokeStyle = 'rgba(147, 51, 234, 0.45)';
+  ctx.lineWidth = 1.1;
+  ctx.beginPath();
+  ctx.moveTo(-4, -4); ctx.lineTo(1, -7);
+  ctx.moveTo(-5, -8); ctx.lineTo(0, -11);
+  ctx.moveTo(-6, -13); ctx.lineTo(-1, -15);
+  ctx.stroke();
+  ctx.restore();
+
+  // Right Ear
+  ctx.save();
+  ctx.translate(11, -6);
+  ctx.rotate(0.38 + earTwitchR);
+  ctx.fillStyle = furMain;
+  ctx.strokeStyle = furDark;
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  ctx.moveTo(2, 4);
+  ctx.quadraticCurveTo(14, -8, 10, -23);
+  ctx.quadraticCurveTo(1, -16, -6, 0);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // Inner ear soft lavender gradient
+  ctx.fillStyle = earInner;
+  ctx.beginPath();
+  ctx.moveTo(1, 2);
+  ctx.quadraticCurveTo(10, -6, 8, -19);
+  ctx.quadraticCurveTo(1, -14, -4, -1);
+  ctx.closePath();
+  ctx.fill();
+  // Inner acoustic ridges
+  ctx.strokeStyle = 'rgba(147, 51, 234, 0.45)';
+  ctx.lineWidth = 1.1;
+  ctx.beginPath();
+  ctx.moveTo(4, -4); ctx.lineTo(-1, -7);
+  ctx.moveTo(5, -8); ctx.lineTo(0, -11);
+  ctx.moveTo(6, -13); ctx.lineTo(1, -15);
+  ctx.stroke();
+  ctx.restore();
+
+  // Round Head
+  ctx.fillStyle = furMain;
+  ctx.strokeStyle = furDark;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 14.5, 12.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  // Fluffy cheek tufts
+  ctx.fillStyle = furMain;
+  ctx.beginPath();
+  ctx.moveTo(-14, 2); ctx.lineTo(-18, 4); ctx.lineTo(-13, 6);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(14, 2); ctx.lineTo(18, 4); ctx.lineTo(13, 6);
+  ctx.fill();
+
+  // Big luminous amethyst eyes
+  const lookX = Math.cos(facing) * 3.5;
+  const lookY = Math.sin(facing) * 2.2;
+
+  // Eye sockets / glow
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.fillStyle = eyeGlow;
+  ctx.globalAlpha = 0.45;
+  ctx.beginPath();
+  ctx.arc(-5.5 + lookX, -1 + lookY, 5.2, 0, Math.PI * 2);
+  ctx.arc(5.5 + lookX, -1 + lookY, 5.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // Eyes base
+  ctx.fillStyle = eyeColor;
+  ctx.beginPath();
+  ctx.ellipse(-5.5 + lookX, -1 + lookY, 4.4, 4.0, 0, 0, Math.PI * 2);
+  ctx.ellipse(5.5 + lookX, -1 + lookY, 4.4, 4.0, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Vertical acoustic slit pupils
+  ctx.fillStyle = '#0f0717';
+  ctx.beginPath();
+  ctx.ellipse(-5.5 + lookX, -1 + lookY, 1.4, 3.4, 0, 0, Math.PI * 2);
+  ctx.ellipse(5.5 + lookX, -1 + lookY, 1.4, 3.4, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Cute starry eye glints
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(-6.5 + lookX, -2.5 + lookY, 1.4, 0, Math.PI * 2);
+  ctx.arc(4.5 + lookX, -2.5 + lookY, 1.4, 0, Math.PI * 2);
+  ctx.arc(-4.5 + lookX, 0.5 + lookY, 0.7, 0, Math.PI * 2);
+  ctx.arc(6.5 + lookX, 0.5 + lookY, 0.7, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Tiny cute bat nose
+  ctx.fillStyle = '#f472b6';
+  ctx.beginPath();
+  ctx.moveTo(lookX, 3.2 + lookY);
+  ctx.lineTo(-2 + lookX, 1.8 + lookY);
+  ctx.lineTo(2 + lookX, 1.8 + lookY);
+  ctx.closePath();
+  ctx.fill();
+
+  // Tiny mouth & two cute fangs
+  ctx.strokeStyle = furDark;
+  ctx.lineWidth = 1.1;
+  ctx.beginPath();
+  ctx.moveTo(-3 + lookX, 5.2 + lookY);
+  ctx.quadraticCurveTo(lookX, 6.2 + lookY, 3 + lookX, 5.2 + lookY);
+  ctx.stroke();
+
+  // Adorable tiny white vampire fangs
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.moveTo(-2.4 + lookX, 5.4 + lookY);
+  ctx.lineTo(-1.8 + lookX, 7.8 + lookY);
+  ctx.lineTo(-1.2 + lookX, 5.4 + lookY);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(1.2 + lookX, 5.4 + lookY);
+  ctx.lineTo(1.8 + lookX, 7.8 + lookY);
+  ctx.lineTo(2.4 + lookX, 5.4 + lookY);
+  ctx.closePath();
+  ctx.fill();
+
+  // Orbiting resonance crystal motes around crown
+  if (!isAfterimage) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (let c = 0; c < 3; c++) {
+      const cAng = nowSec * 2.8 + (c * Math.PI * 2) / 3;
+      const cx = Math.cos(cAng) * 19;
+      const cy = -8 + Math.sin(cAng * 1.5) * 6;
+      ctx.fillStyle = '#e9d5ff';
+      ctx.beginPath();
+      ctx.arc(cx, cy, 1.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  ctx.restore();
+  ctx.restore();
+}
+
+/**
+ * Floating Resonance Staff – Batkin's ancient weapon
+ * Dark obsidian staff cradling a pulsating resonant crystal prism with radiating sonic rings
+ */
+function drawFloatingResonanceStaff(
+  ctx: CanvasRenderingContext2D,
+  glowColor: string,
+  glowIntensity: number,
+  isMaxResonance = false,
+  time: number
+) {
+  ctx.save();
+
+  // Glow aura around staff
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const staffGlow = ctx.createRadialGradient(0, -22, 2, 0, -22, 34);
+  staffGlow.addColorStop(0, isMaxResonance ? 'rgba(243, 232, 255, 0.9)' : 'rgba(192, 132, 252, 0.65)');
+  staffGlow.addColorStop(0.5, glowColor);
+  staffGlow.addColorStop(1, 'rgba(147, 51, 234, 0)');
+  ctx.fillStyle = staffGlow;
+  ctx.beginPath();
+  ctx.arc(0, -22, 34, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Orbiting acoustic frequency ripples
+  const rippleR = 14 + Math.sin(time * 6) * 4;
+  ctx.strokeStyle = isMaxResonance ? '#ffffff' : '#c084fc';
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  ctx.ellipse(0, -22, rippleR, rippleR * 0.45, time * 3.5, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+
+  // Staff shaft (dark sculpted obsidian wood with spiral rune grooves)
+  ctx.strokeStyle = '#170c24';
+  ctx.fillStyle = '#26163b';
+  ctx.lineWidth = 3.8;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(0, -18);
+  ctx.lineTo(0, 24);
+  ctx.stroke();
+
+  ctx.strokeStyle = '#581c87';
+  ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  ctx.moveTo(0, -16);
+  ctx.lineTo(0, 22);
+  ctx.stroke();
+
+  // Spiral sound-wave carving along shaft
+  ctx.strokeStyle = glowColor;
+  ctx.lineWidth = 1.0;
+  ctx.beginPath();
+  for (let s = 0; s < 5; s++) {
+    const sy = -10 + s * 7;
+    ctx.moveTo(-1.6, sy);
+    ctx.lineTo(1.6, sy + 3);
+  }
+  ctx.stroke();
+
+  // Staff base ferrule
+  ctx.fillStyle = '#e9d5ff';
+  ctx.fillRect(-2, 22, 4, 3);
+
+  // Staff top: Crescent moon crystal cradle
+  ctx.fillStyle = '#3b1d54';
+  ctx.strokeStyle = '#c084fc';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.arc(0, -22, 11, Math.PI * 0.2, Math.PI * 0.8, true);
+  ctx.stroke();
+
+  // Central floating Resonant Crystal (spinning diamond prism)
+  ctx.save();
+  ctx.translate(0, -22);
+  ctx.rotate(time * 2.2);
+
+  const crystalGrad = ctx.createLinearGradient(-6, -8, 6, 8);
+  crystalGrad.addColorStop(0, '#ffffff');
+  crystalGrad.addColorStop(0.4, isMaxResonance ? '#f3e8ff' : '#c084fc');
+  crystalGrad.addColorStop(1, '#6b21a8');
+  ctx.fillStyle = crystalGrad;
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 1.2;
+
+  ctx.beginPath();
+  ctx.moveTo(0, -8);
+  ctx.lineTo(5.5, 0);
+  ctx.lineTo(0, 8);
+  ctx.lineTo(-5.5, 0);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // Crystal facet lines
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+  ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  ctx.moveTo(0, -8); ctx.lineTo(0, 8);
+  ctx.moveTo(-5.5, 0); ctx.lineTo(5.5, 0);
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.restore();
 }
 
 /**

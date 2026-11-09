@@ -148,6 +148,7 @@ function MobaControlsComponent({
   const isGhost = heroId === 'ghost';
   const isEaglekin = heroId === 'eaglekin';
   const isTigerkin = heroId === 'tigerkin';
+  const isBatkin = heroId === 'batkin';
 
   // Maps physical screen delta (clientX/clientY) into game landscape coordinate delta
   const mapScreenDelta = (physDx: number, physDy: number) => {
@@ -571,8 +572,10 @@ function MobaControlsComponent({
                     fill={
                       dragVisual.willCancel
                         ? '#f43f5e'
-                        : isTigerkin
-                          ? '#f59e0b'
+                        : isBatkin
+                          ? '#c084fc'
+                          : isTigerkin
+                            ? '#f59e0b'
                           : isEaglekin
                             ? '#38bdf8'
                             : isHuman
@@ -595,8 +598,10 @@ function MobaControlsComponent({
                     ? 'border-stone-600 bg-stone-900/85'
                     : isUlt
                       ? 'border-amber-300/95 bg-stone-900/95'
-                      : isTigerkin
-                        ? 'border-amber-400/90 bg-stone-900/95'
+                      : isBatkin
+                        ? 'border-purple-400/90 bg-stone-900/95'
+                        : isTigerkin
+                          ? 'border-amber-400/90 bg-stone-900/95'
                         : isEaglekin
                           ? 'border-sky-300/90 bg-stone-900/95'
                           : isHuman
@@ -626,8 +631,10 @@ function MobaControlsComponent({
                         r="28"
                         fill="none"
                         stroke={
-                          isTigerkin
-                            ? '#f59e0b'
+                          isBatkin
+                            ? '#c084fc'
+                            : isTigerkin
+                              ? '#f59e0b'
                             : isHuman
                               ? '#fb923c'
                               : isGhost
@@ -683,8 +690,10 @@ function MobaControlsComponent({
           }}
           className={`pointer-events-auto absolute bottom-2 right-2 flex h-[86px] w-[86px] items-center justify-center rounded-full border-[3px] shadow-xl will-change-transform transition-all duration-75 ${
             atkPressed
-              ? isTigerkin
-                ? 'scale-[0.92] border-amber-400 bg-amber-950/60 shadow-[0_0_24px_rgba(245,158,11,0.7)]'
+              ? isBatkin
+                ? 'scale-[0.92] border-purple-400 bg-purple-950/60 shadow-[0_0_24px_rgba(192,132,252,0.7)]'
+                : isTigerkin
+                  ? 'scale-[0.92] border-amber-400 bg-amber-950/60 shadow-[0_0_24px_rgba(245,158,11,0.7)]'
                 : isEaglekin
                   ? 'scale-[0.92] border-sky-400 bg-sky-950/60 shadow-[0_0_24px_rgba(56,189,248,0.7)]'
                   : isHuman
