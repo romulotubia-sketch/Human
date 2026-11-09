@@ -772,6 +772,11 @@ export class EquipmentManager {
         }
       }
     }
+
+    // Nocturne Regalia 6-Piece: Lord of the Eternal Echo (summon spectral bats)
+    if (this.hasSixPieceBonus(heroId, 'nocturne_regalia')) {
+      this.onTriggerLordOfEternalEcho?.();
+    }
   }
 
   public onSkillHitEnemy(heroId: HeroId, hitX: number, hitY: number, angle = 0) {
@@ -797,6 +802,25 @@ export class EquipmentManager {
     if (stats.energyBurstProc && Math.random() < 0.25) {
       this.onTriggerEnergyBurst?.(hitX, hitY);
     }
+
+    // Nocturne Regalia 2-Piece: Echo Synchronization (echo damages second time)
+    if (this.hasTwoPieceBonus(heroId, 'nocturne_regalia')) {
+      this.onTriggerEchoDelayed?.(hitX, hitY, 30);
+    }
+
+    // Nocturne Regalia 4-Piece: Resonant Overload (builds to 5 stacks, then sound explosion)
+    if (this.hasFourPieceBonus(heroId, 'nocturne_regalia')) {
+      this.resonantOverloadStacks += 1;
+      if (this.resonantOverloadStacks >= 5) {
+        this.resonantOverloadStacks = 0;
+        this.onTriggerResonantOverload?.(hitX, hitY);
+      }
+    }
+
+    // Resonance Crystal (Nocturne Spirit): Secondary vibration
+    if (stats.secondaryVibrationOnSkill) {
+      this.onTriggerResonanceVibration?.(hitX, hitY, 28);
+    }
   }
 
   public onBasicAttackHit(
@@ -814,6 +838,16 @@ export class EquipmentManager {
     // Consecutive hit ramp
     this.consecutiveHitCount = Math.min(5, this.consecutiveHitCount + 1);
     this.consecutiveHitTimer = 3.2;
+
+    // Staff of the First Echo: Consecutive hits build Echo Energy (up to 4 stacks)
+    if (this.hasPieceEquipped(heroId, 'staff_first_echo')) {
+      this.echoEnergyStacks = Math.min(4, this.echoEnergyStacks + 1);
+    }
+
+    // Nocturne Regalia 2-Piece: Basic attack echo chance
+    if (this.hasTwoPieceBonus(heroId, 'nocturne_regalia') && Math.random() < 0.35) {
+      this.onTriggerEchoDelayed?.(hitX, hitY, 18);
+    }
 
     // Bloodstained Charm (Ghoul Accessory): Consecutive hits chance to restore health
     if (stats.consecutiveHealChance > 0 && Math.random() < stats.consecutiveHealChance && onHeal) {
@@ -922,6 +956,11 @@ export class EquipmentManager {
     if (stats.critBoneFragmentChance > 0 && Math.random() < stats.critBoneFragmentChance && critX && critY) {
       this.onTriggerBoneFragments?.(critX, critY);
     }
+
+    // Mask of the Night Listener: Critical sound wave proc
+    if (stats.criticalSoundWaveChance && Math.random() < stats.criticalSoundWaveChance && critX && critY) {
+      this.onTriggerSoundPulse?.(critX, critY, 35);
+    }
   }
 
   public onTakeDamage(
@@ -945,6 +984,15 @@ export class EquipmentManager {
         this.lastSurvivorCooldown = 30.0;
         onGrantShield(160);
         this.onTriggerLastSurvivorProc?.();
+      }
+    }
+
+    // Heart of the Nocturne (Core): Protective resonance barrier + defensive sound burst
+    if (stats.resonanceBarrierOnDamage || this.hasPieceEquipped(heroId, 'heart_of_nocturne')) {
+      if (this.heartOfNocturneCooldown <= 0) {
+        this.heartOfNocturneCooldown = 8.0;
+        onGrantShield(85);
+        this.onTriggerDefensiveSoundBurst?.(0, 0);
       }
     }
   }

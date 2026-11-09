@@ -722,6 +722,63 @@ export class GameEngine {
   private celestialBarrageTickTimer = 0;
   private celestialBarrageMult = 0.85;
   private echoDimensionTimer = 0;
+  private resonanceStacks = 0;
+  private activeResonanceFields: Array<{
+    x: number;
+    y: number;
+    radius: number;
+    timer: number;
+    tickTimer: number;
+    mult: number;
+  }> = [];
+  private activeSymphonyRings: Array<{
+    x: number;
+    y: number;
+    radius: number;
+    maxRadius: number;
+    speed: number;
+    mult: number;
+    hitIds: Set<number>;
+  }> = [];
+
+  private resetBatkinTimers() {
+    this.resonanceStacks = 0;
+    this.echoDimensionTimer = 0;
+    this.activeResonanceFields = [];
+    this.activeSymphonyRings = [];
+  }
+
+  public getResonanceStacks(): number {
+    return this.resonanceStacks;
+  }
+
+  public addResonanceStack(count = 1) {
+    if (this.heroId !== 'batkin') return;
+    const prev = this.resonanceStacks;
+    this.resonanceStacks = Math.min(5, this.resonanceStacks + count);
+    if (this.resonanceStacks !== prev) {
+      soundEngine.playResonancePulse(1 + this.resonanceStacks * 0.08);
+      if (this.resonanceStacks >= 5) {
+        soundEngine.playSkill('storm');
+        this.spawnRingEffect(this.player.x, this.player.y, 52, '#c084fc');
+        this.spawnFloatingText(this.player.x, this.player.y - 42, 'MAX RESONANCE!', '#e9d5ff', true);
+      }
+      this.emitHudSnapshot();
+    }
+  }
+
+  public isPlayerInSilenceZone(): boolean {
+    for (const e of this.enemies) {
+      if (e.hp <= 0 || !e.silenceZones) continue;
+      for (const sz of e.silenceZones) {
+        if (!sz.active) continue;
+        if (Math.hypot(this.player.x - sz.x, this.player.y - sz.y) <= sz.radius) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
 
   private resetEaglekinTimers() {
     this.player.wingFlapTimer = 0;
@@ -759,6 +816,7 @@ export class GameEngine {
     this.activeBlessings = [];
     this.syncHeroBaseStats();
     this.recalcStats(true);
+    this.resetBatkinTimers();
     this.emitHudSnapshot();
   }
 
@@ -778,6 +836,7 @@ export class GameEngine {
     this.resetGhoulTimers();
     this.resetGhostTimers();
     this.resetEaglekinTimers();
+    this.resetBatkinTimers();
     this.clearPools();
     this.resetRunProgression();
   }
@@ -883,7 +942,160 @@ export class GameEngine {
       if (!equipmentManager.getIsDungeonActive()) return;
       this.spawnWindBlade(30);
     };
+    equipmentManager.onTriggerLordOfEternalEcho = () => {
+      if (!equipmentManager.getIsDungeonActive()) return;
+      this.triggerEquipmentLordOfEternalEcho();
+    };
+    equipmentManager.onTriggerResonantOverload = (x, y) => {
+      if (!equipmentManager.getIsDungeonActive()) return;
+      this.triggerEquipmentResonantOverload(x, y);
+    };
+    equipmentManager.onTriggerEchoDelayed = (x, y, dmg) => {
+      if (!equipmentManager.getIsDungeonActive()) return;
+      this.triggerEquipmentEchoDelayed(x, y, dmg);
+    };
+    equipmentManager.onTriggerSoundPulse = (x, y, dmg) => {
+      if (!equipmentManager.getIsDungeonActive()) return;
+      this.triggerEquipmentSoundPulse(x, y, dmg);
+    };
+    equipmentManager.onTriggerResonanceVibration = (x, y, dmg) => {
+      if (!equipmentManager.getIsDungeonActive()) return;
+      this.triggerEquipmentResonanceVibration(x, y, dmg);
+    };
+    equipmentManager.onTriggerSecondarySonic = (x, y, angle) => {
+      if (!equipmentManager.getIsDungeonActive()) return;
+      this.triggerEquipmentSecondarySonic(x, y, angle);
+    };
+    equipmentManager.onTriggerDefensiveSoundBurst = (_x, _y) => {
+      if (!equipmentManager.getIsDungeonActive()) return;
+      this.triggerEquipmentDefensiveSoundBurst();
+    };
   }
+
+  private triggerEquipmentLordOfEternalEcho() {
+    soundEngine.playSkill('ultimate');
+    soundEngine.playSpectralBats();
+    this.triggerShake(0.2, 5.0);
+    this.spawnFloatingText(this.player.x, this.player.y - 50, 'LORD OF ETERNAL ECHO!', '#c084fc', true);
+    this.spawnRingEffect(this.player.x, this.player.y, 110, '#c084fc');
+
+    for (let i = 0; i < 6; i++) {
+      const ang = (Math.PI * 2 * i) / 6;
+      this.spawnProjectile({
+        fromPlayer: true,
+        kind: 'spectral_bat',
+        x: this.player.x + Math.cos(ang) * 24,
+        y: this.player.y - 10 + Math.sin(ang) * 24,
+        vx: Math.cos(ang) * 460,
+        vy: Math.sin(ang) * 460,
+        angle: ang,
+        radius: 14,
+        damage: Math.round(this.getEffectiveAtk() * 1.35),
+        isCrit: Math.random() < 0.35,
+        pierce: true,
+        maxLife: 0.95,
+        color: '#c084fc',
+      });
+    }
+  }
+
+  private triggerEquipmentResonantOverload(x: number, y: number) {
+    soundEngine.playSonicWave(0.85, true);
+    this.triggerShake(0.18, 4.5);
+    this.spawnRingEffect(x, y, 78, '#e9d5ff');
+    this.spawnBurstParticles(x, y, '#c084fc', 16, true);
+    this.spawnFloatingText(x, y - 28, 'RESONANT OVERLOAD!', '#e9d5ff', true);
+
+    const dmg = Math.round(this.getEffectiveAtk() * 1.6);
+    for (const e of this.enemies) {
+      if (e.hp <= 0 || e.kind === EnemyKind.TRAINING_DUMMY) continue;
+      if (Math.hypot(e.x - x, e.y - y) <= 85 + e.radius) {
+        this.damageEnemy(e, dmg, true, '#c084fc');
+        if (e.hp > 0 && !isBossKind(e.kind)) {
+          e.staggerTimer = Math.max(e.staggerTimer, 0.65);
+        }
+      }
+    }
+  }
+
+  private triggerEquipmentEchoDelayed(x: number, y: number, dmg: number) {
+    setTimeout(() => {
+      soundEngine.playResonancePulse(1.2);
+      this.spawnRingEffect(x, y, 46, '#c084fc');
+      this.spawnFloatingText(x, y - 20, 'ECHO!', '#c084fc', false);
+      for (const e of this.enemies) {
+        if (e.hp <= 0 || e.kind === EnemyKind.TRAINING_DUMMY) continue;
+        if (Math.hypot(e.x - x, e.y - y) <= 52 + e.radius) {
+          this.damageEnemy(e, Math.round(dmg), false, '#c084fc');
+        }
+      }
+    }, 160);
+  }
+
+  private triggerEquipmentSoundPulse(x: number, y: number, dmg: number) {
+    soundEngine.playSonicWave(1.25, false);
+    this.spawnRingEffect(x, y, 60, '#c084fc');
+    this.spawnBurstParticles(x, y, '#e9d5ff', 8, true);
+    for (const e of this.enemies) {
+      if (e.hp <= 0 || e.kind === EnemyKind.TRAINING_DUMMY) continue;
+      if (Math.hypot(e.x - x, e.y - y) <= 65 + e.radius) {
+        this.damageEnemy(e, Math.round(dmg), false, '#c084fc');
+      }
+    }
+  }
+
+  private triggerEquipmentResonanceVibration(x: number, y: number, dmg: number) {
+    soundEngine.playResonancePulse(1.1);
+    this.spawnRingEffect(x, y, 42, '#e9d5ff');
+    for (const e of this.enemies) {
+      if (e.hp <= 0 || e.kind === EnemyKind.TRAINING_DUMMY) continue;
+      if (Math.hypot(e.x - x, e.y - y) <= 48 + e.radius) {
+        this.damageEnemy(e, Math.round(dmg), false, '#e9d5ff');
+      }
+    }
+  }
+
+  private triggerEquipmentSecondarySonic(x: number, y: number, angle: number) {
+    soundEngine.playFeatherShoot(1.2);
+    this.spawnProjectile({
+      fromPlayer: true,
+      kind: 'echo_bolt',
+      x,
+      y,
+      vx: Math.cos(angle) * 520,
+      vy: Math.sin(angle) * 520,
+      angle,
+      radius: 11,
+      damage: Math.round(this.getEffectiveAtk() * 0.75),
+      isCrit: false,
+      pierce: false,
+      maxLife: 0.65,
+      color: '#c084fc',
+    });
+  }
+
+  private triggerEquipmentDefensiveSoundBurst() {
+    soundEngine.playSonicWave(0.9, true);
+    this.triggerShake(0.15, 4.0);
+    this.player.shield = Math.min(this.player.maxHp, this.player.shield + 85);
+    this.spawnRingEffect(this.player.x, this.player.y, 110, '#c084fc');
+    this.spawnFloatingText(this.player.x, this.player.y - 45, 'NOCTURNE WARD!', '#e9d5ff', true);
+
+    for (const e of this.enemies) {
+      if (e.hp <= 0 || e.kind === EnemyKind.TRAINING_DUMMY) continue;
+      const d = Math.hypot(e.x - this.player.x, e.y - this.player.y);
+      if (d <= 120 + e.radius) {
+        if (!isBossKind(e.kind) && !e.isLegionBoss) {
+          const ka = Math.atan2(e.y - this.player.y, e.x - this.player.x);
+          this.tryMoveEntity(e.x, e.y, Math.cos(ka) * 95, Math.sin(ka) * 95, e.radius, (nx, ny) => {
+            e.x = nx;
+            e.y = ny;
+          });
+          e.staggerTimer = Math.max(e.staggerTimer, 0.7);
+        }
+        this.damageEnemy(e, Math.round(this.getEffectiveAtk() * 1.1), false, '#c084fc');
+      }
+    }
 
   private triggerEquipmentBoneShockwave() {
     soundEngine.playSkill('ultimate');
@@ -2459,6 +2671,75 @@ export class GameEngine {
         this.spawnGroundEffect('apex_shockwave_ring', tx, ty, 0, 0, ang, def.radiusOrAngle, 1.5, '#fbbf24', '#f59e0b');
         this.spawnSlashWave('apex_claw_fissure', tx, ty - 8, ang, def.radiusOrAngle * 1.15, Math.PI * 1.6, 1, 0.35, '#fef08a', '#f59e0b');
         break;
+
+      // --- BATKIN ---
+      case 'sonic_crescent':
+        soundEngine.playSonicWave(1.0, false);
+        this.spawnBurstParticles(data.x, data.y - 8, '#c084fc', 10, true);
+        this.spawnProjectile({
+          fromPlayer: true,
+          visualOnly: true,
+          kind: 'sonic_crescent_wave',
+          x: data.x + Math.cos(ang) * 18,
+          y: data.y - 8 + Math.sin(ang) * 18,
+          vx: Math.cos(ang) * 580,
+          vy: Math.sin(ang) * 580,
+          angle: ang,
+          radius: 24,
+          damage: 0,
+          isCrit: false,
+          pierce: true,
+          maxLife: def.range / 580 + 0.1,
+          color: '#c084fc',
+        });
+        break;
+      case 'echoing_orb':
+        soundEngine.playResonancePulse(1.1);
+        this.spawnProjectile({
+          fromPlayer: true,
+          visualOnly: true,
+          kind: 'echoing_sound_orb',
+          x: data.x + Math.cos(ang) * 18,
+          y: data.y - 8 + Math.sin(ang) * 18,
+          vx: Math.cos(ang) * 420,
+          vy: Math.sin(ang) * 420,
+          angle: ang,
+          radius: 18,
+          damage: 0,
+          isCrit: false,
+          pierce: false,
+          maxLife: Math.min(0.85, def.range / 420),
+          color: '#e9d5ff',
+        });
+        break;
+      case 'resonance_field':
+        soundEngine.playResonancePulse(0.9);
+        this.spawnGroundEffect('resonance_field_zone', tx, ty, 0, 0, 0, def.radiusOrAngle, 4.0, '#c084fc', '#f3e8ff');
+        break;
+      case 'phantom_frequency':
+        soundEngine.playSpectralBats();
+        soundEngine.playSonicWave(1.3, false);
+        this.spawnRingEffect(data.x, data.y, 60, '#c084fc');
+        break;
+      case 'sonic_repulsion':
+        soundEngine.playSonicWave(0.8, true);
+        this.spawnGroundEffect('sonic_repulsion_blast', data.x, data.y, 0, 0, 0, def.range, 0.65, '#e9d5ff', '#c084fc');
+        break;
+      case 'symphony_destruction':
+        soundEngine.playSkill('ultimate');
+        soundEngine.playResonancePulse(0.75);
+        this.spawnGroundEffect('symphony_wave_ring', data.x, data.y, 0, 0, 0, def.range, 1.4, '#c084fc', '#f3e8ff');
+        break;
+      case 'echo_dimension':
+        soundEngine.playSkill('ultimate');
+        soundEngine.playResonancePulse(1.0);
+        this.spawnGroundEffect('echo_dimension_zone', data.x, data.y, 0, 0, 0, def.range, 8.0, '#c084fc', '#e9d5ff');
+        break;
+      case 'thousand_winged':
+        soundEngine.playSkill('ultimate');
+        soundEngine.playSpectralBats();
+        this.spawnRingEffect(data.x, data.y, 80, '#c084fc');
+        break;
     }
   }
 
@@ -3682,12 +3963,24 @@ export class GameEngine {
     if (this.runOutcome === 'defeat' || this.localIsDowned) return;
     if (this.player.possessingTimer > 0 && skillId !== 'haunted_possession') return;
     if (this.cooldowns[skillId] > 0) return;
+    if (this.isPlayerInSilenceZone()) {
+      soundEngine.playBellChime(1.5);
+      this.spawnFloatingText(this.player.x, this.player.y - 32, 'SILENCED!', '#a855f7', true);
+      return;
+    }
 
     const prevShield = this.player.shield;
     const def = HERO_SKILLS[skillId];
     const rank = Math.max(1, this.skillRanks[skillId] || 1);
     const blessingDmg = this.getBlessingDamageMult(skillId);
-    const mult = def.baseMultiplier + (rank - 1) * def.rankMultiplier + blessingDmg;
+    let mult = def.baseMultiplier + (rank - 1) * def.rankMultiplier + blessingDmg;
+    if (this.heroId === 'batkin' && this.resonanceStacks >= 5) {
+      this.resonanceStacks = 0;
+      mult *= 1.75;
+      soundEngine.playResonancePulse(1.4);
+      this.spawnFloatingText(this.player.x, this.player.y - 48, 'HARMONIC AMPLIFICATION!', '#f3e8ff', true);
+      this.spawnRingEffect(this.player.x, this.player.y, 64, '#c084fc');
+    }
     const cdr = this.getBlessingCooldownReduction(skillId);
     const eqStats = equipmentManager.getComputedStats(this.heroId);
     const totalCdr = Math.min(0.65, cdr + eqStats.cooldownReduction);
@@ -5663,6 +5956,318 @@ export class GameEngine {
 
       this.spawnRingEffect(this.player.x, this.player.y, 65, '#fbbf24');
       this.spawnFloatingText(this.player.x, this.player.y - 54, 'APEX DEVASTATION!', '#fde047', true);
+    } else if (skillId === 'sonic_crescent') {
+      // Normal Skill 1: Sonic Crescent – Swings staff and releases crescent-shaped sound wave traveling forward
+      this.player.swordAnim = SwordAnimState.BATKIN_SONIC_CRESCENT;
+      this.swordAnimDuration = 0.28;
+      this.swordAnimTimer = 0.28;
+      soundEngine.playSonicWave(1.0, false);
+
+      this.spawnBurstParticles(this.player.x, this.player.y - 8, '#c084fc', 12, true);
+      const { dmg, isCrit } = this.rollPlayerDamage(mult, 0.15);
+      const spawnX = this.player.x + Math.cos(targetAngle) * 20;
+      const spawnY = this.player.y - 8 + Math.sin(targetAngle) * 20;
+
+      this.spawnProjectile({
+        fromPlayer: true,
+        kind: 'sonic_crescent_wave',
+        x: spawnX,
+        y: spawnY,
+        vx: Math.cos(targetAngle) * 580,
+        vy: Math.sin(targetAngle) * 580,
+        angle: targetAngle,
+        radius: 24,
+        damage: dmg,
+        isCrit,
+        pierce: true,
+        maxLife: def.range / 580 + 0.1,
+        color: '#c084fc',
+      });
+
+      if (this.echoDimensionTimer > 0) {
+        setTimeout(() => {
+          this.spawnProjectile({
+            fromPlayer: true,
+            kind: 'sonic_crescent_wave',
+            x: spawnX,
+            y: spawnY,
+            vx: Math.cos(targetAngle) * 540,
+            vy: Math.sin(targetAngle) * 540,
+            angle: targetAngle,
+            radius: 20,
+            damage: Math.round(dmg * 0.6),
+            isCrit: false,
+            pierce: true,
+            maxLife: def.range / 540,
+            color: '#e9d5ff',
+          });
+        }, 160);
+      }
+    } else if (skillId === 'echoing_orb') {
+      // Normal Skill 2: Echoing Orb – Summons floating orb of compressed sound that moves toward target and bursts into smaller sound projectiles
+      this.player.swordAnim = SwordAnimState.BATKIN_ECHOING_ORB;
+      this.swordAnimDuration = 0.32;
+      this.swordAnimTimer = 0.32;
+      soundEngine.playResonancePulse(1.1);
+
+      const { dmg, isCrit } = this.rollPlayerDamage(mult, 0.2);
+      this.spawnProjectile({
+        fromPlayer: true,
+        kind: 'echoing_sound_orb',
+        x: this.player.x + Math.cos(targetAngle) * 18,
+        y: this.player.y - 8 + Math.sin(targetAngle) * 18,
+        vx: Math.cos(targetAngle) * 420,
+        vy: Math.sin(targetAngle) * 420,
+        angle: targetAngle,
+        radius: 18,
+        damage: dmg,
+        isCrit,
+        pierce: false,
+        maxLife: Math.min(0.85, def.range / 420),
+        color: '#e9d5ff',
+      });
+    } else if (skillId === 'resonance_field') {
+      // Normal Skill 3: Resonance Field – Circular field of vibrating energy, damaging and slowing enemies inside
+      this.player.swordAnim = SwordAnimState.BATKIN_RESONANCE_FIELD;
+      this.swordAnimDuration = 0.35;
+      this.swordAnimTimer = 0.35;
+      soundEngine.playResonancePulse(0.9);
+
+      const fieldX = this.player.x + Math.cos(targetAngle) * targetDist;
+      const fieldY = this.player.y + Math.sin(targetAngle) * targetDist;
+
+      this.spawnGroundEffect(
+        'resonance_field_zone',
+        fieldX,
+        fieldY,
+        0,
+        0,
+        0,
+        def.radiusOrAngle,
+        4.0,
+        '#c084fc',
+        '#f3e8ff'
+      );
+      this.spawnRingEffect(fieldX, fieldY, def.radiusOrAngle, '#c084fc');
+      this.activeResonanceFields.push({
+        x: fieldX,
+        y: fieldY,
+        radius: def.radiusOrAngle,
+        timer: 4.0,
+        tickTimer: 0.35,
+        mult: mult * 0.36,
+      });
+    } else if (skillId === 'phantom_frequency') {
+      // Normal Skill 4: Phantom Frequency – Releases high-frequency pulse that creates 3 spectral copies firing sonic projectiles
+      this.player.swordAnim = SwordAnimState.BATKIN_PHANTOM_FREQUENCY;
+      this.swordAnimDuration = 0.36;
+      this.swordAnimTimer = 0.36;
+      soundEngine.playSpectralBats();
+      soundEngine.playSonicWave(1.3, false);
+      this.spawnRingEffect(this.player.x, this.player.y, 65, '#c084fc');
+
+      for (let i = 0; i < 3; i++) {
+        const offAng = targetAngle + (i - 1) * 0.65;
+        const cx = this.player.x + Math.cos(offAng + Math.PI / 2) * 32;
+        const cy = this.player.y - 8 + Math.sin(offAng + Math.PI / 2) * 32;
+        this.spawnBurstParticles(cx, cy, '#c084fc', 8, true);
+
+        const { dmg, isCrit } = this.rollPlayerDamage(mult * 0.45, 0.15);
+        this.spawnProjectile({
+          fromPlayer: true,
+          kind: 'phantom_sonic_bolt',
+          x: cx,
+          y: cy,
+          vx: Math.cos(targetAngle) * 540,
+          vy: Math.sin(targetAngle) * 540,
+          angle: targetAngle,
+          radius: 12,
+          damage: dmg,
+          isCrit,
+          pierce: false,
+          maxLife: def.range / 540 + 0.1,
+          color: '#c084fc',
+        });
+      }
+    } else if (skillId === 'sonic_repulsion') {
+      // Normal Skill 5: Sonic Repulsion – Powerful sound wave pushing enemies away and interrupting attacks
+      this.player.swordAnim = SwordAnimState.BATKIN_SONIC_REPULSION;
+      this.swordAnimDuration = 0.32;
+      this.swordAnimTimer = 0.32;
+      soundEngine.playSonicWave(0.8, true);
+      this.triggerShake(0.2, 5.0);
+
+      this.spawnGroundEffect(
+        'sonic_repulsion_blast',
+        this.player.x,
+        this.player.y,
+        0,
+        0,
+        0,
+        def.range,
+        0.65,
+        '#e9d5ff',
+        '#c084fc'
+      );
+      this.spawnRingEffect(this.player.x, this.player.y, def.range, '#c084fc');
+      this.spawnRingEffect(this.player.x, this.player.y, def.range * 0.65, '#e9d5ff');
+
+      for (const e of this.enemies) {
+        if (e.hp <= 0 || e.kind === EnemyKind.TRAINING_DUMMY) continue;
+        const d = Math.hypot(e.x - this.player.x, e.y - this.player.y);
+        if (d <= def.range + e.radius) {
+          if (!isBossKind(e.kind) && !e.isLegionBoss) {
+            const ka = Math.atan2(e.y - this.player.y, e.x - this.player.x);
+            this.tryMoveEntity(
+              e.x,
+              e.y,
+              Math.cos(ka) * 125,
+              Math.sin(ka) * 125,
+              e.radius,
+              (nx, ny) => {
+                e.x = nx;
+                e.y = ny;
+              }
+            );
+            e.windupTimer = 0;
+            e.staggerTimer = Math.max(e.staggerTimer, 0.85);
+          }
+          const { dmg, isCrit } = this.rollPlayerDamage(mult, 0.2);
+          this.damageEnemy(e, dmg, isCrit, '#c084fc');
+        }
+      }
+    } else if (skillId === 'symphony_destruction') {
+      // Ultimate 1: Symphony of Destruction – Batkin rises into the air and channels 4 expanding concentric harmonic sound rings
+      this.player.swordAnim = SwordAnimState.BATKIN_SYMPHONY_CAST;
+      this.swordAnimDuration = 0.55;
+      this.swordAnimTimer = 0.55;
+      this.player.airborneHeight = 26;
+      soundEngine.playSkill('ultimate');
+      soundEngine.playResonancePulse(0.75);
+      this.triggerShake(0.35, 8.5);
+
+      this.spawnGroundEffect(
+        'symphony_wave_ring',
+        this.player.x,
+        this.player.y,
+        0,
+        0,
+        0,
+        def.range,
+        1.4,
+        '#c084fc',
+        '#f3e8ff'
+      );
+      this.spawnFloatingText(this.player.x, this.player.y - 54, 'SYMPHONY OF DESTRUCTION!', '#e9d5ff', true);
+
+      // Create 4 concentric expanding harmonic rings
+      for (let r = 1; r <= 4; r++) {
+        setTimeout(() => {
+          this.activeSymphonyRings.push({
+            x: this.player.x,
+            y: this.player.y,
+            radius: 30,
+            maxRadius: def.range * (0.35 + r * 0.2),
+            speed: 380,
+            mult: mult * 0.45,
+            hitIds: new Set<number>(),
+          });
+          this.spawnRingEffect(this.player.x, this.player.y, def.range * (0.25 + r * 0.2), '#c084fc');
+          soundEngine.playSonicWave(1.0 + r * 0.1, false);
+        }, (r - 1) * 220);
+      }
+    } else if (skillId === 'echo_dimension') {
+      // Ultimate 2: Echo Dimension – Creates large resonance zone repeating attacks and skills for 60% echo damage
+      this.player.swordAnim = SwordAnimState.BATKIN_ECHO_DIMENSION_CAST;
+      this.swordAnimDuration = 0.45;
+      this.swordAnimTimer = 0.45;
+      soundEngine.playSkill('ultimate');
+      soundEngine.playResonancePulse(1.0);
+      this.triggerShake(0.2, 5.0);
+
+      this.echoDimensionTimer = 8.0;
+      this.spawnGroundEffect(
+        'echo_dimension_zone',
+        this.player.x,
+        this.player.y,
+        0,
+        0,
+        0,
+        def.range,
+        8.0,
+        '#c084fc',
+        '#e9d5ff'
+      );
+      this.spawnRingEffect(this.player.x, this.player.y, def.range, '#c084fc');
+      this.spawnRingEffect(this.player.x, this.player.y, def.range * 0.65, '#e9d5ff');
+      this.spawnFloatingText(this.player.x, this.player.y - 50, 'ECHO DIMENSION!', '#e9d5ff', true);
+    } else if (skillId === 'thousand_winged') {
+      // Ultimate 3: Thousand-Winged Resonance – Swarm of spectral acoustic bats swarming and converging into resonance cataclysm
+      this.player.swordAnim = SwordAnimState.BATKIN_THOUSAND_WINGED_CAST;
+      this.swordAnimDuration = 0.6;
+      this.swordAnimTimer = 0.6;
+      soundEngine.playSkill('ultimate');
+      soundEngine.playSpectralBats();
+      this.triggerShake(0.3, 7.5);
+
+      this.spawnRingEffect(this.player.x, this.player.y, 80, '#c084fc');
+      this.spawnFloatingText(this.player.x, this.player.y - 54, 'THOUSAND-WINGED RESONANCE!', '#c084fc', true);
+
+      const targetX = this.player.x + Math.cos(targetAngle) * targetDist;
+      const targetY = this.player.y + Math.sin(targetAngle) * targetDist;
+
+      // Spawn swarm of 12 spectral bats
+      for (let i = 0; i < 12; i++) {
+        const spread = (i - 5.5) * 0.18;
+        const ang = targetAngle + spread;
+        const { dmg, isCrit } = this.rollPlayerDamage(mult * 0.22, 0.2);
+        this.spawnProjectile({
+          fromPlayer: true,
+          kind: 'spectral_bat',
+          x: this.player.x + Math.cos(ang) * 22,
+          y: this.player.y - 8 + Math.sin(ang) * 22,
+          vx: Math.cos(ang) * 480,
+          vy: Math.sin(ang) * 480,
+          angle: ang,
+          radius: 14,
+          damage: dmg,
+          isCrit,
+          pierce: true,
+          maxLife: 0.65,
+          color: '#c084fc',
+        });
+      }
+
+      // Cataclysm convergence explosion at target location
+      setTimeout(() => {
+        soundEngine.playSonicWave(0.7, true);
+        this.triggerShake(0.28, 7.0);
+        this.spawnGroundEffect(
+          'astral_nova',
+          targetX,
+          targetY,
+          0,
+          0,
+          0,
+          140,
+          0.8,
+          '#c084fc',
+          '#e9d5ff'
+        );
+        this.spawnRingEffect(targetX, targetY, 140, '#c084fc');
+        this.spawnRingEffect(targetX, targetY, 80, '#e9d5ff');
+
+        const { dmg: blastDmg, isCrit: blastCrit } = this.rollPlayerDamage(mult * 0.9, 0.3);
+        for (const e of this.enemies) {
+          if (e.hp <= 0 || e.kind === EnemyKind.TRAINING_DUMMY) continue;
+          if (Math.hypot(e.x - targetX, e.y - targetY) <= 145 + e.radius) {
+            this.damageEnemy(e, blastDmg, blastCrit, '#c084fc');
+            if (e.hp > 0 && !isBossKind(e.kind)) {
+              e.staggerTimer = Math.max(e.staggerTimer, 1.2);
+            }
+          }
+        }
+      }, 550);
     }
 
     if (this.isMultiplayer && this.player.shield > prevShield) {
@@ -7347,6 +7952,7 @@ export class GameEngine {
     this.updateSoulTethers(clampedDt);
     this.updateScrapDebris(clampedDt);
     this.updateMinions(clampedDt);
+    this.updateBatkinAbilities(clampedDt);
     this.updateEnemies(clampedDt);
     this.updateProjectiles(clampedDt);
     this.updatePickups(clampedDt);
@@ -10620,6 +11226,57 @@ export class GameEngine {
       pt.age += dt;
       if (pt.age >= pt.maxAge) {
         pt.active = false;
+      }
+    }
+  private updateBatkinAbilities(dt: number) {
+    if (this.echoDimensionTimer > 0) {
+      this.echoDimensionTimer = Math.max(0, this.echoDimensionTimer - dt);
+    }
+
+    if (this.heroId === 'batkin' && this.swordAnimTimer <= 0 && this.player.airborneHeight > 0) {
+      this.player.airborneHeight = Math.max(0, this.player.airborneHeight - dt * 65);
+    }
+
+    // Tick active resonance fields
+    for (let i = this.activeResonanceFields.length - 1; i >= 0; i--) {
+      const rf = this.activeResonanceFields[i];
+      rf.timer -= dt;
+      rf.tickTimer -= dt;
+      if (rf.tickTimer <= 0) {
+        rf.tickTimer = 0.35;
+        soundEngine.playResonancePulse(1.2);
+        for (const e of this.enemies) {
+          if (e.hp <= 0 || e.kind === EnemyKind.TRAINING_DUMMY) continue;
+          if (Math.hypot(e.x - rf.x, e.y - rf.y) <= rf.radius + e.radius) {
+            e.slowTimer = Math.max(e.slowTimer, 0.45);
+            const { dmg, isCrit } = this.rollPlayerDamage(rf.mult, 0.1);
+            this.damageEnemy(e, dmg, isCrit, '#c084fc');
+          }
+        }
+      }
+      if (rf.timer <= 0) {
+        this.activeResonanceFields.splice(i, 1);
+      }
+    }
+
+    // Tick active symphony rings
+    for (let i = this.activeSymphonyRings.length - 1; i >= 0; i--) {
+      const ring = this.activeSymphonyRings[i];
+      ring.radius += ring.speed * dt;
+      for (const e of this.enemies) {
+        if (e.hp <= 0 || ring.hitIds.has(e.id) || e.kind === EnemyKind.TRAINING_DUMMY) continue;
+        const d = Math.hypot(e.x - ring.x, e.y - ring.y);
+        if (Math.abs(d - ring.radius) <= 36 + e.radius) {
+          ring.hitIds.add(e.id);
+          const { dmg, isCrit } = this.rollPlayerDamage(ring.mult, 0.25);
+          this.damageEnemy(e, dmg, isCrit, '#c084fc');
+          if (e.hp > 0 && !isBossKind(e.kind)) {
+            e.staggerTimer = Math.max(e.staggerTimer, 0.55);
+          }
+        }
+      }
+      if (ring.radius >= ring.maxRadius) {
+        this.activeSymphonyRings.splice(i, 1);
       }
     }
   }

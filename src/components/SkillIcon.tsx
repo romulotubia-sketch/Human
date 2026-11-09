@@ -1,7 +1,7 @@
 import { SkillId } from '../types/game';
 
 interface SkillIconProps {
-  skillId: SkillId | 'basic_sword' | 'basic_claw' | 'basic_ghoul' | 'basic_ghost' | 'basic_pipe' | 'basic_feather' | 'basic_tiger_claw';
+  skillId: SkillId | 'basic_sword' | 'basic_claw' | 'basic_ghoul' | 'basic_ghost' | 'basic_pipe' | 'basic_feather' | 'basic_tiger_claw' | 'basic_batkin_staff';
   className?: string;
 }
 
@@ -830,6 +830,117 @@ export function SkillIcon({ skillId, className = 'w-7 h-7' }: SkillIconProps) {
           <path d="M8 28L18 6L28 28" stroke="#f97316" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
           <path d="M12 22L18 12L24 22" stroke="#ffedd5" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
           <circle cx="18" cy="26" r="2.5" fill="#fbbf24" />
+        </svg>
+      );
+
+    case 'basic_batkin_staff':
+      return (
+        <svg viewBox="0 0 36 36" fill="none" className={className} aria-hidden="true">
+          <path d="M10 28L24 10" stroke="#c084fc" strokeWidth="2.6" strokeLinecap="round" />
+          <path d="M22 6L28 12" stroke="#e9d5ff" strokeWidth="2" strokeLinecap="round" />
+          <circle cx="26" cy="8" r="3.5" fill="#c084fc" stroke="#f3e8ff" strokeWidth="1.5" />
+          <path d="M21 16C23 18 25 18 27 16" stroke="#a855f7" strokeWidth="1.8" strokeLinecap="round" />
+        </svg>
+      );
+
+    case 'sonic_crescent':
+      return (
+        <svg viewBox="0 0 36 36" fill="none" className={className} aria-hidden="true">
+          <path
+            d="M8 26C14 10 24 8 30 14C23 16 16 21 12 29"
+            fill="#c084fc"
+            fillOpacity="0.4"
+            stroke="#e9d5ff"
+            strokeWidth="2.4"
+            strokeLinecap="round"
+          />
+          <path d="M11 20C15 13 21 12 26 16" stroke="#c084fc" strokeWidth="1.8" strokeLinecap="round" />
+          <circle cx="26" cy="12" r="1.5" fill="#ffffff" />
+        </svg>
+      );
+
+    case 'echoing_orb':
+      return (
+        <svg viewBox="0 0 36 36" fill="none" className={className} aria-hidden="true">
+          <circle cx="18" cy="18" r="9" fill="#9333ea" fillOpacity="0.35" stroke="#c084fc" strokeWidth="2.2" />
+          <circle cx="18" cy="18" r="4.5" fill="#e9d5ff" stroke="#ffffff" strokeWidth="1.5" />
+          <path d="M8 18C8 12.5 12.5 8 18 8M18 28C23.5 28 28 23.5 28 18" stroke="#a855f7" strokeWidth="1.8" strokeLinecap="round" strokeDasharray="3 3" />
+        </svg>
+      );
+
+    case 'resonance_field':
+      return (
+        <svg viewBox="0 0 36 36" fill="none" className={className} aria-hidden="true">
+          <ellipse cx="18" cy="22" rx="14" ry="7" stroke="#c084fc" strokeWidth="2.2" />
+          <ellipse cx="18" cy="22" rx="8" ry="4" stroke="#e9d5ff" strokeWidth="1.8" fill="#a855f7" fillOpacity="0.25" />
+          <path d="M18 6V18M13 11L18 7L23 11" stroke="#f3e8ff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      );
+
+    case 'phantom_frequency':
+      return (
+        <svg viewBox="0 0 36 36" fill="none" className={className} aria-hidden="true">
+          <circle cx="18" cy="18" r="4" fill="#f3e8ff" stroke="#c084fc" strokeWidth="1.8" />
+          <path d="M10 18C10 13.6 13.6 10 18 10M18 26C13.6 26 10 22.4 10 18" stroke="#a855f7" strokeWidth="2" strokeLinecap="round" />
+          <path d="M6 18C6 11.4 11.4 6 18 6M18 30C11.4 30 6 24.6 6 18" stroke="#c084fc" strokeWidth="1.8" strokeLinecap="round" strokeDasharray="2 2" />
+          <circle cx="28" cy="11" r="2" fill="#c084fc" />
+          <circle cx="28" cy="25" r="2" fill="#c084fc" />
+        </svg>
+      );
+
+    case 'sonic_repulsion':
+      return (
+        <svg viewBox="0 0 36 36" fill="none" className={className} aria-hidden="true">
+          <circle cx="18" cy="18" r="5" fill="#c084fc" stroke="#ffffff" strokeWidth="2" />
+          <path d="M12 18H5M24 18H31M18 12V5M18 24V31" stroke="#e9d5ff" strokeWidth="2.4" strokeLinecap="round" />
+          <path d="M13 13L8 8M23 23L28 28M23 13L28 8M13 23L8 28" stroke="#a855f7" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+      );
+
+    case 'symphony_destruction':
+      return (
+        <svg viewBox="0 0 36 36" fill="none" className={className} aria-hidden="true">
+          <ellipse cx="18" cy="18" rx="14" ry="14" stroke="#c084fc" strokeWidth="2.5" />
+          <ellipse cx="18" cy="18" rx="9" ry="9" stroke="#e9d5ff" strokeWidth="2" />
+          <circle cx="18" cy="18" r="4" fill="#f3e8ff" stroke="#9333ea" strokeWidth="2" />
+          <path d="M6 18H30M18 6V30" stroke="#f3e8ff" strokeWidth="1.8" strokeLinecap="round" strokeDasharray="3 3" />
+        </svg>
+      );
+
+    case 'echo_dimension':
+      return (
+        <svg viewBox="0 0 36 36" fill="none" className={className} aria-hidden="true">
+          <rect x="7" y="7" width="22" height="22" rx="4" transform="rotate(45 18 18)" stroke="#c084fc" strokeWidth="2.2" fill="#581c87" fillOpacity="0.3" />
+          <circle cx="18" cy="18" r="6" stroke="#e9d5ff" strokeWidth="2" fill="#a855f7" fillOpacity="0.4" />
+          <circle cx="18" cy="18" r="2" fill="#ffffff" />
+        </svg>
+      );
+
+    case 'thousand_winged':
+      return (
+        <svg viewBox="0 0 36 36" fill="none" className={className} aria-hidden="true">
+          <path d="M6 18C10 13 15 15 18 18C21 15 26 13 30 18C27 22 22 22 18 20C14 22 9 22 6 18Z" fill="#a855f7" fillOpacity="0.4" stroke="#c084fc" strokeWidth="2.2" strokeLinejoin="round" />
+          <path d="M12 14C14 10 16 11 18 13C20 11 22 10 24 14" stroke="#e9d5ff" strokeWidth="1.8" strokeLinecap="round" />
+          <circle cx="18" cy="18" r="2.5" fill="#f3e8ff" />
+        </svg>
+      );
+
+    case 'echolocation':
+      return (
+        <svg viewBox="0 0 36 36" fill="none" className={className} aria-hidden="true">
+          <path d="M7 18C11 11 25 11 29 18C25 25 11 25 7 18Z" stroke="#c084fc" strokeWidth="2.4" strokeLinejoin="round" />
+          <circle cx="18" cy="18" r="4.5" fill="#e9d5ff" stroke="#9333ea" strokeWidth="2" />
+          <path d="M22 18A4 4 0 0 1 26 14M24 18A6 6 0 0 1 29 12" stroke="#c084fc" strokeWidth="1.8" strokeLinecap="round" />
+        </svg>
+      );
+
+    case 'harmonic_amplification':
+      return (
+        <svg viewBox="0 0 36 36" fill="none" className={className} aria-hidden="true">
+          <path d="M6 28L18 8L30 28" stroke="#c084fc" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+          <circle cx="18" cy="16" r="3.5" fill="#e9d5ff" stroke="#a855f7" strokeWidth="1.8" />
+          <circle cx="18" cy="24" r="2.5" fill="#f3e8ff" />
+          <path d="M13 22H23" stroke="#f3e8ff" strokeWidth="2" strokeLinecap="round" />
         </svg>
       );
 

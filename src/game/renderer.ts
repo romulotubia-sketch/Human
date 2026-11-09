@@ -5659,12 +5659,17 @@ function drawFloatingGhostLantern(
   player: PlayerRenderState,
   time: number
 ) {
+  const isNightmare = player.nightmareTimer > 0;
   drawGhostSoulLanternAt(
     ctx,
     player.swordX,
     player.swordY - player.airborneHeight,
     player.swordAngle,
     player.swordScale,
+    player.swordGlowColor || (isNightmare ? '#c084fc' : '#5eead4'),
+    player.swordGlowIntensity || 0.7,
+    isNightmare,
+    time
   );
 }
 

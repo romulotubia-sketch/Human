@@ -52,6 +52,7 @@ export function HeroSelectScreen({
   const isGhost = heroId === 'ghost';
   const isEaglekin = heroId === 'eaglekin';
   const isTigerkin = heroId === 'tigerkin';
+  const isBatkin = heroId === 'batkin';
 
   const [activeCategory, setActiveCategory] = useState<'none' | 'undead_legion' | 'wildborn_tribes'>(() => {
     if (heroId === 'human') return 'none';
@@ -335,19 +336,21 @@ export function HeroSelectScreen({
 
             <p
               className={`truncate text-[11px] font-medium ${
-                isTigerkin
-                  ? 'text-amber-400'
-                  : isEaglekin
-                    ? 'text-sky-300'
-                    : isHuman
-                      ? 'text-orange-300'
-                      : isGhost
-                        ? 'text-indigo-300'
-                        : isGhoul
-                          ? 'text-rose-300'
-                          : isZombie
-                            ? 'text-lime-300'
-                            : 'text-cyan-300'
+                isBatkin
+                  ? 'text-purple-300'
+                  : isTigerkin
+                    ? 'text-amber-400'
+                    : isEaglekin
+                      ? 'text-sky-300'
+                      : isHuman
+                        ? 'text-orange-300'
+                        : isGhost
+                          ? 'text-indigo-300'
+                          : isGhoul
+                            ? 'text-rose-300'
+                            : isZombie
+                              ? 'text-lime-300'
+                              : 'text-cyan-300'
               }`}
             >
               {profile.typeLine}
@@ -403,19 +406,21 @@ export function HeroSelectScreen({
             <div className="flex items-center justify-between gap-2">
               <h2
                 className={`text-xs font-semibold ${
-                  isTigerkin
-                    ? 'text-amber-200'
-                    : isEaglekin
-                      ? 'text-sky-200'
-                      : isHuman
-                        ? 'text-orange-200'
-                        : isGhost
-                          ? 'text-indigo-200'
-                          : isGhoul
-                            ? 'text-rose-200'
-                            : isZombie
-                              ? 'text-lime-200'
-                              : 'text-cyan-200'
+                  isBatkin
+                    ? 'text-purple-200'
+                    : isTigerkin
+                      ? 'text-amber-200'
+                      : isEaglekin
+                        ? 'text-sky-200'
+                        : isHuman
+                          ? 'text-orange-200'
+                          : isGhost
+                            ? 'text-indigo-200'
+                            : isGhoul
+                              ? 'text-rose-200'
+                              : isZombie
+                                ? 'text-lime-200'
+                                : 'text-cyan-200'
                 }`}
               >
                 Normal Skills — Choose 2 of 5
@@ -450,19 +455,21 @@ export function HeroSelectScreen({
                     }}
                     className={`flex h-9 items-center justify-between gap-1.5 rounded-lg border px-2 text-left transition-colors sm:h-10 sm:px-2.5 ${
                       isSelected
-                        ? isTigerkin
-                          ? 'border-amber-400 bg-amber-950/45 text-stone-50'
-                          : isEaglekin
-                            ? 'border-sky-400 bg-sky-950/40 text-stone-50'
-                            : isHuman
-                              ? 'border-orange-400 bg-orange-950/40 text-stone-50'
-                              : isGhost
-                                ? 'border-indigo-400 bg-indigo-950/45 text-stone-50'
-                                : isGhoul
-                                  ? 'border-rose-400 bg-rose-950/40 text-stone-50'
-                                  : isZombie
-                                    ? 'border-lime-400 bg-lime-950/40 text-stone-50'
-                                    : 'border-cyan-400 bg-cyan-950/40 text-stone-50'
+                        ? isBatkin
+                          ? 'border-purple-400 bg-purple-950/45 text-stone-50'
+                          : isTigerkin
+                            ? 'border-amber-400 bg-amber-950/45 text-stone-50'
+                            : isEaglekin
+                              ? 'border-sky-400 bg-sky-950/40 text-stone-50'
+                              : isHuman
+                                ? 'border-orange-400 bg-orange-950/40 text-stone-50'
+                                : isGhost
+                                  ? 'border-indigo-400 bg-indigo-950/45 text-stone-50'
+                                  : isGhoul
+                                    ? 'border-rose-400 bg-rose-950/40 text-stone-50'
+                                    : isZombie
+                                      ? 'border-lime-400 bg-lime-950/40 text-stone-50'
+                                      : 'border-cyan-400 bg-cyan-950/40 text-stone-50'
                         : isFocused
                           ? 'border-stone-500 bg-stone-800 text-stone-100'
                           : 'border-stone-800 bg-stone-900/75 text-stone-300 hover:border-stone-600'
@@ -477,19 +484,21 @@ export function HeroSelectScreen({
                     <span
                       className={`font-mono-num shrink-0 text-[10px] font-semibold ${
                         isSelected
-                          ? isTigerkin
-                            ? 'text-amber-300'
-                            : isEaglekin
-                              ? 'text-sky-300'
-                              : isHuman
-                                ? 'text-orange-300'
-                                : isGhost
-                                  ? 'text-indigo-300'
-                                  : isGhoul
-                                    ? 'text-rose-300'
-                                    : isZombie
-                                      ? 'text-lime-300'
-                                      : 'text-cyan-300'
+                          ? isBatkin
+                            ? 'text-purple-300'
+                            : isTigerkin
+                              ? 'text-amber-300'
+                              : isEaglekin
+                                ? 'text-sky-300'
+                                : isHuman
+                                  ? 'text-orange-300'
+                                  : isGhost
+                                    ? 'text-indigo-300'
+                                    : isGhoul
+                                      ? 'text-rose-300'
+                                      : isZombie
+                                        ? 'text-lime-300'
+                                        : 'text-cyan-300'
                           : 'text-stone-400'
                       }`}
                     >

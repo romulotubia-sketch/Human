@@ -711,19 +711,21 @@ function MobaControlsComponent({
           <div className="flex h-[70px] w-[70px] items-center justify-center rounded-full border border-stone-600/70 bg-stone-900/80">
             <SkillIcon
               skillId={
-                isTigerkin
-                  ? 'basic_tiger_claw'
-                  : isEaglekin
-                    ? 'basic_feather'
-                    : isHuman
-                      ? 'basic_pipe'
-                      : isGhost
-                        ? 'basic_ghost'
-                        : isGhoul
-                          ? 'basic_ghoul'
-                          : isZombie
-                            ? 'basic_claw'
-                            : 'basic_sword'
+                isBatkin
+                  ? 'basic_batkin_staff'
+                  : isTigerkin
+                    ? 'basic_tiger_claw'
+                    : isEaglekin
+                      ? 'basic_feather'
+                      : isHuman
+                        ? 'basic_pipe'
+                        : isGhost
+                          ? 'basic_ghost'
+                          : isGhoul
+                            ? 'basic_ghoul'
+                            : isZombie
+                              ? 'basic_claw'
+                              : 'basic_sword'
               }
               className="h-10 w-10"
             />
